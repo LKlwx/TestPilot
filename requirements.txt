@@ -1,0 +1,46 @@
+# Flask 核心框架
+flask==3.0.3
+flask-sqlalchemy==3.1.1
+flask-login==0.6.3
+flask-jwt-extended==4.6.0
+flask-apscheduler==1.13.1
+flask-cors==4.0.0
+
+# 数据库
+pymysql==1.1.0
+mysql-connector-python==8.3.0
+
+# UI 自动化
+selenium==4.15.2
+webdriver-manager==4.0.1
+
+# 安全与加密
+bcrypt==4.2.0
+werkzeug==3.0.6
+
+# HTTP 请求
+requests==2.32.3
+python-multipart==0.0.10
+
+# 数据处理
+# pandas==2.2.1
+# openpyxl==3.1.2
+
+# 验证码
+captcha==0.7.1
+
+# 定时任务
+apscheduler==3.10.1
+
+# 前端图表
+pyecharts==2.0.6
+python-dotenv==1.0.0
+# 日志与调试
+# python-json-logger==2.0.7
+
+# 测试工具
+# pytest==8.3.3
+# pytest-cov==5.0.0
+
+# 部署工具
+# gunicorn==21.2.0

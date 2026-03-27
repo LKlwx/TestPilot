@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>登录</title>
+    <link rel="stylesheet" href="/static/css/global.css">
+    <style>
+        .login-wrap {
+            width: 420px;
+            margin: 120px auto;
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.06);
+        }
+
+        .login-wrap h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+        }
+
+        .login-wrap input {
+            margin: 10px 0;
+            height: 42px;
+        }
+
+        .login-wrap button {
+            width: 100%;
+            margin-top: 15px;
+            height: 44px;
+            font-size: 16px;
+            background: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .login-wrap button:hover {
+            background: #0056b3;
+        }
+
+        .login-wrap button:nth-of-type(2) {
+            background: #6c757d;
+            margin-top: 8px;
+        }
+
+        .login-wrap button:nth-of-type(2):hover {
+            background: #5a6268;
+        }
+
+        .login-wrap p {
+            text-align: center;
+            margin-top: 15px;
+            color: #666;
+        }
+
+        .login-wrap a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .login-wrap a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+<div class="login-wrap">
+    <h2>TestPilot 智能自动化测试平台登录</h2>
+    <input type="text" id="username" placeholder="用户名"><br>
+    <input type="password" id="password" placeholder="密码"><br>
+    <button onclick="login()">登录</button>
+    <p style="text-align:center; margin-top:10px;">
+        还没有账号？<a href="javascript:showRegister()">去注册</a>
+    </p>
+</div>
+<!-- 注册弹窗 -->
+<div id="registerModal"
+     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:9999;">
+    <div style="background:#fff; padding:30px; border-radius:8px; width:400px; box-shadow:0 2px 20px rgba(0,0,0,0.15);">
+        <h3 style="color:#2c3e50; margin-bottom:20px; text-align:center;">注册新账号</h3>
+        <input type="text" id="regUsername" placeholder="用户名" autocomplete="off" style="width:100%;">
+        <input type="password" id="regPassword" placeholder="密码" autocomplete="off" style="width:100%;">
+        <button onclick="doRegister()">确认注册</button>
+        <button onclick="hideRegister()">取消</button>
+    </div>
+</div>
+
+<script src="/static/js/common.js"></script>
+<script>
+    async function login() {
+        let username = document.getElementById("username").value.trim();
+        let password = document.getElementById("password").value.trim();
+        if (!username || !password) {
+            showAlert("用户名和密码不能为空", "warning");
+            return;
+        }
+        try {
+            // 2. 用封装好的 httpPost
+            const res = await httpPost("/api/auth/login", {username, password});
+
+            if (res.code === 200) {
+                // 存储用户信息
+                localStorage.setItem("token", res.data.token);
+                localStorage.setItem("role", res.data.role);
+                localStorage.setItem("username", res.data.username);
+
+                showAlert("登录成功，即将跳转", "success");
+                // 延迟跳转
+                setTimeout(() => location.href = "/api/auth/home", 800);
+            } else {
+                showAlert(res.msg || "登录失败", "error");
+            }
+        } catch (err) {
+            showAlert("网络异常，请重试", "error");
+            console.error("登录接口异常：", err);
+        }
+    }
+
+    function showRegister() {
+        document.getElementById("registerModal").style.display = "flex";
+    }
+
+    function hideRegister() {
+        document.getElementById("registerModal").style.display = "none";
+    }
+
+    async function doRegister() {
+        let username = document.getElementById("regUsername").value.trim();
+        let password = document.getElementById("regPassword").value.trim();
+        if (!username || !password) {
+            showAlert("用户名和密码不能为空", "warning");
+            return;
+        }
+
+        try {
+            const res = await httpPost("/api/auth/register", {username, password});
+            if (res.code === 200) {
+                showAlert("注册成功，请登录", "success");
+                hideRegister();
+            } else {
+                showAlert(res.msg || "注册失败", "error");
+            }
+        } catch (err) {
+            showAlert("网络异常，请重试", "error");
+            console.error("注册接口异常：", err);
+        }
+    }
+</script>
+</body>
+</html>
