@@ -10,12 +10,20 @@ test_bp = Blueprint("test", __name__)
 
 @test_bp.route("/cases", methods=["GET"])
 def get_cases():
-    cases = TestCase.query.all()
+    module = request.args.get("module", "")
+    query = TestCase.query
+    if module:
+        query = query.filter_by(module=module)
+
+    cases = query.all()
     data = [{
         "id": c.id,
         "name": c.name,
+        "module": c.module,
         "method": c.method,
         "url": c.url,
+        "headers": c.headers,
+        "body": c.body,
         "expect": c.expect
     } for c in cases]
     return success(data)
@@ -26,11 +34,13 @@ def add_case():
     d = request.get_json()
     case = TestCase(
         name=d["name"],
+        module=d.get("module", "默认模块"),
         method=d["method"],
         url=d["url"],
         headers=d.get("headers", "{}"),
         body=d.get("body", "{}"),
         expect=d.get("expect"),
+        extract_var=d.get("extract_var", ""),
     )
     try:
         db.session.add(case)
@@ -47,6 +57,15 @@ def run_case(cid):
     case = TestCase.query.get(cid)
     if not case:
         return error("用例不存在")
+    data = request.get_json()
+    case.name = data.get("name", case.name)
+    case.module = data.get("module", case.module)
+    case.method = data.get("method", case.method)
+    case.url = data.get("url", case.url)
+    case.headers = data.get("headers", case.headers)
+    case.body = data.get("body", case.body)
+    case.expect = data.get("expect", case.expect)
+    case.extract_var = data.get("extract_var", case.extract_var)
     res = execute_test_case(case)
     return success(res)
 
@@ -59,6 +78,32 @@ def delete_case(cid):
     db.session.delete(case)
     db.session.commit()
     return success("删除成功")
+
+
+@test_bp.route("/case/<int:cid>", methods=["PUT"])
+def update_case(cid):
+    """编辑接口用例"""
+    case = TestCase.query.get(cid)
+    if not case:
+        return error("用例不存在")
+
+    data = request.get_json()
+
+    # 更新字段
+    case.name = data.get("name", case.name)
+    case.module = data.get("module", case.module)
+    case.method = data.get("method", case.method)
+    case.url = data.get("url", case.url)
+    case.headers = data.get("headers", case.headers)
+    case.body = data.get("body", case.body)
+    case.expect = data.get("expect", case.expect)
+    case.extract_var = data.get("extract_var", case.extract_var)
+    try:
+        db.session.commit()
+        return success(msg="更新成功")
+    except Exception as e:
+        db.session.rollback()
+        return error(f"更新失败：{str(e)}")
 
 
 @test_bp.route("/reports/data", methods=["GET"])
@@ -113,12 +158,34 @@ def get_report_detail(rid):
 # 批量执行
 @test_bp.route("/batch/run", methods=["POST"])
 def batch_run():
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from flask import current_app
+
     ids = request.json.get("ids", [])
-    if not ids: return error("请选择用例")
-    res_list = []
-    for cid in ids:
-        case = TestCase.query.get(cid)
-        if case:
-            res = execute_test_case(case)
-            res_list.append(res)
-    return success(res_list, "批量执行完成")
+    if not ids:
+        return error("请选择用例")
+
+    results = []
+    # 获取当前应用实例
+    app = current_app._get_current_object()
+
+    def run_case_in_thread(cid):
+        # 在线程内创建应用上下文
+        with app.app_context():
+            case = TestCase.query.get(cid)
+            if case:
+                return execute_test_case(case)
+            return {"case_id": cid, "status": "ERROR", "error": "Case not found"}
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_id = {executor.submit(run_case_in_thread, cid): cid for cid in ids}
+
+        for future in as_completed(future_to_id):
+            cid = future_to_id[future]
+            try:
+                data = future.result()
+                results.append(data)
+            except Exception as e:
+                results.append({"case_id": cid, "status": "ERROR", "error": str(e)})
+
+    return success(results, f"批量执行完成，共 {len(results)} 条结果")
