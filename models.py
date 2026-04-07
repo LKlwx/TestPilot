@@ -134,6 +134,9 @@ class PerformanceReport(db.Model):
     min_time = db.Column(db.Float)  # 最小响应时间(ms)
     max_time = db.Column(db.Float)  # 最大响应时间(ms)
     create_time = db.Column(db.DateTime, default=datetime.now)
+    p90 = db.Column(db.Float, default=0)
+    p99 = db.Column(db.Float, default=0)
+    success_rate = db.Column(db.Float, default=0)
 
 
 # AI 智能测试任务记录表

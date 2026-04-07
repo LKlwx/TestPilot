@@ -45,6 +45,24 @@ async function httpDelete(url) {
     return await res.json();
 }
 
+// 全局PUT请求
+async function httpPut(url, data = {}) {
+    let token = localStorage.getItem("token");
+    let headers = {
+        "Content-Type": "application/json"
+    };
+    if (token) {
+        headers["Authorization"] = "Bearer " + token;
+    }
+
+    let res = await fetch(url, {
+        method: "PUT",
+        headers: headers,
+        body: JSON.stringify(data)
+    });
+    return await res.json();
+}
+
 function logout() {
     //清除本地token
     localStorage.removeItem("token");

@@ -72,7 +72,7 @@
      style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999;">
     <div style="background:#fff; margin:50px auto; padding:20px; width:70%; border-radius:8px;">
         <h3>详情</h3>
-        <pre id="detailContent" style="max-height:400px; overflow-y:auto;"></pre>
+        <div id="detailContent" style="max-height:400px; overflow-y:auto; line-height:1.8;"></div>
         <br>
         <button onclick="closeModal()">关闭</button>
     </div>
@@ -120,16 +120,18 @@
             const res = await httpGet(`/api/performance/report/${id}`);
             const info = res.data;
 
-            document.getElementById("detailInfo").innerHTML = `
-                <p>用例名称：${info.case_name}</p>
-                <p>并发数：${info.concurrency}</p>
-                <p>总请求：${info.total}</p>
-                <p>成功：${info.success} ｜ 失败：${info.fail}</p>
-                <p>QPS：${info.qps}</p>
-                <p>平均响应：${info.avg_time}ms</p>
-                <p>最小响应：${info.min_time}ms</p>
-                <p>最大响应：${info.max_time}ms</p>
-                <p>生成时间：${info.create_time}</p>
+            document.getElementById("detailContent").innerHTML = `                <p><strong>用例名称：</strong>${info.case_name}</p>
+                <p><strong>并发数：</strong>${info.concurrency}</p>
+                <p><strong>总请求：</strong>${info.total}</p>
+                <p><strong>成功：</strong>${info.success} ｜ <strong>失败：</strong>${info.fail}</p>
+                <p><strong>成功率：</strong>${info.success_rate ? info.success_rate + '%' : '100%'}</p>
+                <p><strong>QPS：</strong>${info.qps}</p>
+                <p><strong>平均响应：</strong>${info.avg_time}ms</p>
+                <p><strong>P90 响应：</strong>${info.p90 ? info.p90 + 'ms' : '-'}</p>
+                <p><strong>P99 响应：</strong>${info.p99 ? info.p99 + 'ms' : '-'}</p>
+                <p><strong>最小响应：</strong>${info.min_time ? info.min_time + 'ms' : '-'}</p>
+                <p><strong>最大响应：</strong>${info.max_time ? info.max_time + 'ms' : '-'}</p>
+                <p><strong>生成时间：</strong>${info.create_time}</p>
             `;
             document.getElementById("detailModal").style.display = "block";
         } catch (err) {
