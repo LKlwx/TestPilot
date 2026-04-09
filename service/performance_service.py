@@ -3,7 +3,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor
 from extensions import db
 from models import PerformanceReport
-
+import json
 
 # 执行性能压测的核心方法
 def run_performance(case):
@@ -16,11 +16,11 @@ def run_performance(case):
         nonlocal success_num, fail_num
         try:
             start_time = time.time()
-            # 安全解析 headers，防止eval报错
             headers = {}
             try:
                 if case.headers and case.headers.strip() != "":
-                    headers = eval(case.headers)
+                    # 防止触发远程代码执行RCE漏洞，改为json.loads
+                    headers = json.loads(case.headers)
             except:
                 headers = {}
             # 发送HTTP请求

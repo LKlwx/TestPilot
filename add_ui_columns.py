@@ -25,4 +25,4 @@ with app.app_context():
 
         conn.commit()
 
-print("\n🎉 数据库字段已和 models.py 完全对齐！")
+print("\n 数据库字段已和 models.py 完全对齐！")

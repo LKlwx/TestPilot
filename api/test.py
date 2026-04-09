@@ -23,22 +23,24 @@ def get_cases():
 
 @test_bp.route("/case", methods=["POST"])
 def add_case():
-    d = request.get_json()
+    data = request.get_json()
+    if not data or not data.get("name") or not data.get("method") or not data.get("url"):
+        return error("参数不完整!")
     case = TestCase(
-        name=d["name"],
-        method=d["method"],
-        url=d["url"],
-        headers=d.get("headers", "{}"),
-        body=d.get("body", "{}"),
-        expect=d.get("expect"),
+        name=data["name"],
+        method=data["method"],
+        url=data["url"],
+        headers=data.get("headers", "{}"),
+        body=data.get("body", "{}"),
+        expect=data.get("expect"),
     )
     try:
         db.session.add(case)
         db.session.commit()
     except Exception as e:
         db.session.rollback()  # 回滚事务
-        print("保存失败:", str(e))  # 打印错误原因
-        return error("保存失败：" + str(e))
+        print(f"接口用例添加失败:{e}")  # 打印错误原因
+        return error("保存失败")
     return success(msg="成功")
 
 
@@ -113,7 +115,9 @@ def get_report_detail(rid):
 # 批量执行
 @test_bp.route("/batch/run", methods=["POST"])
 def batch_run():
-    ids = request.json.get("ids", [])
+    req = request.json
+    if not req: return error("参数不完整!")
+    ids = req.get("ids", [])
     if not ids: return error("请选择用例")
     res_list = []
     for cid in ids:

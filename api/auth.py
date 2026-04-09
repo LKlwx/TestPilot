@@ -74,26 +74,14 @@ def login():
     if not username or not password:
         return error("用户名或密码不能为空")
 
-    if not username or not password:
-        return error("用户名或密码不能为空")
-
-    # 先判断写死的超级管理员
-    if username == "admin" and password == "123456":
-        token = create_access_token(identity="admin")
-        return success({
-            "token": token,
-            "username": "admin",
-            "role": "admin"
-        }, "登录成功")
-
-    # 再判断数据库用户
+    # 统一通过数据库校验
     user = check_user_password(username, password)
     if not user:
         return error("用户名或密码错误")
 
     token = create_access_token(identity=str(user.id))
     # 记录普通用户登录日志
-    add_operation_log(user.id, user.username, "login", f"普通用户{username}登录系统")
+    add_operation_log(user.id, user.username, "login", f"用户{username}登录系统")
     return success({
         "token": token,
         "username": user.username,
@@ -240,13 +228,13 @@ def dashboard_data():
     from models import PerformanceCase
     from sqlalchemy import func
 
-    # 1. 用例统计（完全正常，你其他页面也是这么查的）
+    # 1. 用例统计
     api_count = TestCase.query.count()
     ui_count = UICase.query.count()
     perf_count = PerformanceCase.query.count()
     total_case = api_count + ui_count + perf_count
 
-    # 2. 总通过率（去掉容易报错的 func.upper，改用原生判断，完全兼容你的SQLite）
+    # 2. 总通过率
     tr_list = TestReport.query.all()
     ui_list = UIReport.query.all()
     total_report = len(tr_list) + len(ui_list)
@@ -263,7 +251,7 @@ def dashboard_data():
     if total_report > 0:
         pass_rate = f"{round(pass_count_total / total_report * 100, 1)}%"
 
-    # 3. 近7天通过率（完全改用你报告页面能用的朴素查询，100%兼容你的.db）
+    # 3. 近7天通过率
     today = datetime.now().date()
     days = []
     pass_trend = []
@@ -273,7 +261,7 @@ def dashboard_data():
         days.append(current_day.strftime("%m-%d"))
         current_day_str = current_day.strftime("%Y-%m-%d")
 
-        # 全表取出后再判断日期，你的报告页就是这么干的，一定能读到
+        # 全表取出后再判断日期
         api_day_pass = 0
         api_day_total = 0
         for r in tr_list:
@@ -299,7 +287,7 @@ def dashboard_data():
         day_rate = round(day_pass / day_total * 100, 1) if day_total > 0 else 0
         pass_trend.append(day_rate)
 
-    # 4. 最近3次性能报告（你原来的代码唯一崩溃点：perf_rt = [] 删掉）
+    # 4. 最近3次性能报告
     perf_reports = PerformanceReport.query.order_by(PerformanceReport.id.desc()).limit(3).all()
     perf_names = []
     perf_qps = []

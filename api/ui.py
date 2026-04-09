@@ -22,22 +22,21 @@ def ui_reports_page():
 @ui_bp.route("/case", methods=["POST"])
 def add_ui_case():
     data = request.json
+    if not data or not data.get("name") or not data.get("url"):
+        return error("参数不完整!")
     case = UICase(
         name=data.get("name"),
         url=data.get("url"),
         steps=data.get("steps", "")
     )
-    # db.session.add(case)
-    # db.session.commit()
-    # return success(msg="成功")
     try:
         db.session.add(case)
         db.session.commit()
         print("保存成功，用例ID:", case.id)  # 打印成功信息
     except Exception as e:
         db.session.rollback()  # 回滚事务
-        print("保存失败:", str(e))  # 打印错误原因
-        return error("保存失败：" + str(e))
+        print(f"UI用例添加失败:{e}")  # 打印错误原因
+        return error("保存失败")
     return success(msg="成功")
 
 
@@ -102,10 +101,12 @@ def get_ui_report_detail(rid):
     return success(data=data)
 
 
-# 升级 UICase 增加定位方式（简历亮点）
+# 升级 UICase 增加定位方式
 @ui_bp.route("/case/struct", methods=["POST"])
 def add_struct_ui():
     data = request.json
+    if not data or not data.get("name") or not data.get("url"):
+        return error("参数不完整!")
     case = UICase(
         name=data["name"],
         url=data["url"],
@@ -117,9 +118,8 @@ def add_struct_ui():
     try:
         db.session.add(case)
         db.session.commit()
-        print("新结构用例保存成功，ID:", case.id)
     except Exception as e:
         db.session.rollback()
-        print("新结构用例保存失败:", str(e))
-        return error("保存失败：" + str(e))
+        print(f"UI用例添加失败:{e}")
+        return error("保存失败")
     return success(msg="创建成功")

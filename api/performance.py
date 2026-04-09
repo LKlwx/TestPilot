@@ -23,16 +23,18 @@ def reports_page():
 @performance_bp.route("/case", methods=["POST"])
 def add_case():
     try:
-        d = request.json
+        data = request.json
+        if not data or not data.get("name") or not data.get("url"):
+            return error("参数不完整!")
         # 转成int
-        concurrency = int(d.get("concurrency", 10))
-        total = int(d.get("total", 50))
+        concurrency = int(data.get("concurrency", 10))
+        total = int(data.get("total", 50))
         case = PerformanceCase(
-            name=d["name"],
-            url=d["url"],
-            method=d.get("method", "GET"),
-            headers=d.get("headers", "{}"),
-            body=d.get("body"),
+            name=data["name"],
+            url=data["url"],
+            method=data.get("method", "GET"),
+            headers=data.get("headers", "{}"),
+            body=data.get("body"),
             concurrency=concurrency,
             total=total
         )
@@ -41,7 +43,8 @@ def add_case():
         return success(msg="保存成功")
     except Exception as e:
         db.session.rollback()
-        return error("保存失败：" + str(e))
+        print(f"性能用例添加失败:{e}")
+        return error("保存失败")
 
 
 # 获取用例列表
