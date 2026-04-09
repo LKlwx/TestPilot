@@ -40,6 +40,15 @@
         th {
             background: #f5f7fa;
         }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -53,7 +62,6 @@
 <div class="main">
     <div class="menu">
         <a href="/api/auth/home">控制台首页</a>
-
         <div class="dropdown">
             <div class="dropbtn">自动化测试 ▼</div>
             <div class="dropdown-content">
@@ -61,7 +69,6 @@
                 <a href="/api/ui/page">UI自动化测试</a>
             </div>
         </div>
-
         <div class="dropdown">
             <div class="dropbtn">测试报告 ▼</div>
             <div class="dropdown-content">
@@ -70,7 +77,6 @@
                 <a href="/api/performance/reports/page">性能测试报告</a>
             </div>
         </div>
-
         <a href="/api/performance/page">性能测试</a>
         <div class="dropdown">
             <div class="dropbtn">AI智能测试 ▼</div>
@@ -92,14 +98,19 @@
             <select id="method">
                 <option value="GET">GET</option>
                 <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
             </select>
             <input id="url" placeholder="请求URL：例如 https://www.baidu.com">
+            <input id="module" placeholder="所属模块：例如 登录模块 (选填)">
             <textarea id="headers" rows="2" placeholder='请求头（JSON）：{"Content-Type":"application/json"}'></textarea>
             <textarea id="body" rows="3" placeholder="请求体（选填）"></textarea>
             <input id="expect" placeholder="预期包含关键字（选填）">
+            <!-- 后置提取输入框 -->
+            <input id="extract_var" placeholder="后置提取：例如 token=$.args.token (选填)">
             <br><br>
             <button onclick="saveCase()">保存用例</button>
-            <button onclick="runSelectedCase()">执行选中用例</button>
+            <button onclick="batchRun()" style="background:#28a745;">⚡ 批量并行执行</button>
         </div>
 
         <!-- 2. 用例列表 -->
@@ -111,6 +122,7 @@
                     <th>选择</th>
                     <th>序号</th>
                     <th>用例名</th>
+                    <th>模块</th>
                     <th>方法</th>
                     <th>URL</th>
                     <th>操作</th>
@@ -126,17 +138,42 @@
             <br>
             <pre id="result">等待执行...</pre>
         </div>
+
+        <!-- 4. 编辑用例弹窗 -->
+        <div id="editModal"
+             style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999;">
+            <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:30px; border-radius:8px; width:600px; max-width:90%;">
+                <h3 style="margin-top:0;">编辑用例</h3>
+                <input id="edit_id" type="hidden">
+                <input id="edit_name" placeholder="用例名称">
+                <select id="edit_method">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+                <input id="edit_url" placeholder="请求URL">
+                <input id="edit_module" placeholder="所属模块">
+                <textarea id="edit_headers" rows="2" placeholder='请求头（JSON）'></textarea>
+                <textarea id="edit_body" rows="3" placeholder="请求体（选填）"></textarea>
+                <input id="edit_expect" placeholder="预期包含关键字（选填）">
+                <!-- ✅ 编辑弹窗里的后置提取输入框 -->
+                <input id="edit_extract_var" placeholder="后置提取：例如 token=$.args.token">
+                <div style="text-align:right; margin-top:15px;">
+                    <button onclick="closeEditModal()" style="background:#95a5a6; margin-right:10px;">取消</button>
+                    <button onclick="saveEditCase()" style="background:#3498db;">保存</button>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 <script src="/static/js/common.js"></script>
 <script>
-    // 页面加载
     window.onload = function () {
         checkLogin();
         loadCases();
     }
 
-    // 加载用例列表
     async function loadCases() {
         try {
             const res = await httpGet("/api/test/cases");
@@ -148,9 +185,11 @@
                     <td><input type="checkbox" class="case-item" value="${c.id}"></td>
                     <td>${index + 1}</td>
                     <td>${c.name}</td>
+                    <td><span style="background:#e1f5fe; color:#0288d1; padding:2px 6px; border-radius:4px; font-size:12px;">${c.module || '默认'}</span></td>
                     <td>${c.method}</td>
                     <td>${c.url}</td>
                     <td>
+                        <button onclick="editCase(${c.id})">编辑</button>
                         <button onclick="runSingle(${c.id})">执行</button>
                         <button class="danger" onclick="deleteCase(${c.id})">删除</button>
                     </td>
@@ -159,11 +198,9 @@
             document.getElementById("caseTable").innerHTML = html;
         } catch (err) {
             showAlert("加载用例失败", "error");
-            console.error(err);
         }
     }
 
-    // 保存用例
     async function saveCase() {
         const name = document.getElementById("name").value.trim();
         const url = document.getElementById("url").value.trim();
@@ -173,65 +210,162 @@
         }
         const data = {
             name: name,
+            module: document.getElementById("module").value,
             method: document.getElementById("method").value,
             url: url,
             headers: document.getElementById("headers").value,
             body: document.getElementById("body").value,
-            expect: document.getElementById("expect").value
+            expect: document.getElementById("expect").value,
+            extract_var: document.getElementById("extract_var").value // 加入提取变量
         };
         try {
             await httpPost("/api/test/case", data);
             showAlert("保存成功", "success");
             loadCases();
-            // 清空输入框
-            document.getElementById("name").value = "";
-            document.getElementById("url").value = "";
+            ["name", "url", "module", "headers", "body", "expect", "extract_var"].forEach(id => document.getElementById(id).value = "");
         } catch (err) {
             showAlert("保存失败", "error");
-            console.error(err);
         }
     }
 
-    // 单条执行
-    async function runSingle(id) {
+    async function editCase(id) {
         try {
-            showAlert("执行中...", "success");
-            const res = await httpPost(`/api/test/case/${id}/run`, {});
-            document.getElementById("result").innerText = JSON.stringify(res, null, 2);
-            showAlert("执行完成", "success");
+            const res = await httpGet("/api/test/cases");
+            const caseData = res.data.find(c => c.id === id);
+            if (!caseData) {
+                showAlert("用例不存在", "error");
+                return;
+            }
+
+            document.getElementById("edit_id").value = caseData.id;
+            document.getElementById("edit_name").value = caseData.name;
+            document.getElementById("edit_method").value = caseData.method;
+            document.getElementById("edit_url").value = caseData.url;
+            document.getElementById("edit_module").value = caseData.module || "";
+            document.getElementById("edit_headers").value = caseData.headers || "{}";
+            document.getElementById("edit_body").value = caseData.body || "";
+            document.getElementById("edit_expect").value = caseData.expect || "";
+            document.getElementById("edit_extract_var").value = caseData.extract_var || ""; // 回填提取变量
+
+            document.getElementById("editModal").style.display = "block";
         } catch (err) {
-            showAlert("执行失败", "error");
+            showAlert("获取用例信息失败", "error");
         }
     }
 
-    // 批量执行
-    async function runSelectedCase() {
-        const checks = document.querySelectorAll(".case-item:checked");
-        if (checks.length === 0) {
-            showAlert("请至少选择一个用例", "warning");
+    function closeEditModal() {
+        document.getElementById("editModal").style.display = "none";
+    }
+
+    async function saveEditCase() {
+        const id = document.getElementById("edit_id").value;
+        const name = document.getElementById("edit_name").value.trim();
+        const url = document.getElementById("edit_url").value.trim();
+        if (!name || !url) {
+            showAlert("用例名称和URL不能为空", "warning");
             return;
         }
-        const ids = Array.from(checks).map(i => i.value);
+
+        const data = {
+            name: name,
+            module: document.getElementById("edit_module").value,
+            method: document.getElementById("edit_method").value,
+            url: url,
+            headers: document.getElementById("edit_headers").value,
+            body: document.getElementById("edit_body").value,
+            expect: document.getElementById("edit_expect").value,
+            extract_var: document.getElementById("edit_extract_var").value // 提交提取变量
+        };
+
         try {
-            showAlert("批量执行中...", "success");
-            const res = await httpPost("/api/test/batch/run", {ids: ids});
-            document.getElementById("result").innerText = JSON.stringify(res, null, 2);
-            showAlert("批量执行完成", "success");
+            const res = await fetch(`/api/test/case/${id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + localStorage.getItem("token")
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.code === 200) {
+                showAlert("更新成功", "success");
+                closeEditModal();
+                loadCases();
+            } else {
+                showAlert(result.msg || "更新失败", "error");
+            }
         } catch (err) {
-            showAlert("批量执行失败", "error");
+            showAlert("请求失败", "error");
         }
     }
 
-    // 删除用例
-    async function deleteCase(id) {
-        if (!confirm("确定删除？")) return;
+    async function runSingle(id) {
         try {
-            await httpDelete(`/api/test/case/${id}`);
+            showAlert("执行中...", "info");
+            const res = await httpPost(`/api/test/case/${id}/run`, {});
+            document.getElementById("result").innerText = JSON.stringify(res, null, 2);
+            if (res.data && res.data.status === "PASS") showAlert("执行通过", "success");
+            else showAlert("执行失败或出错", "error");
+        } catch (err) {
+            showAlert("执行出错", "error");
+        }
+    }
+
+    async function deleteCase(id) {
+        if (!confirm("确定删除吗？")) return;
+        try {
+            await fetch(`/api/test/case/${id}`, {
+                method: "DELETE",
+                headers: {"Authorization": "Bearer " + localStorage.getItem("token")}
+            });
             showAlert("删除成功", "success");
             loadCases();
         } catch (err) {
             showAlert("删除失败", "error");
-            console.error(err);
+        }
+    }
+    async function deleteCase(id) {
+        if (!confirm("确定删除吗？")) return;
+        try {
+            await fetch(`/api/test/case/${id}`, {
+                method: "DELETE",
+                headers: {"Authorization": "Bearer " + localStorage.getItem("token")}
+            });
+            showAlert("删除成功", "success");
+            loadCases();
+        } catch (err) {
+            showAlert("删除失败", "error");
+        }
+    }
+    // 批量并行执行函数
+    async function batchRun() {
+        const checkboxes = document.querySelectorAll(".case-item:checked");
+        const ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+        if (ids.length === 0) {
+            showAlert("请至少勾选一个用例", "warning");
+            return;
+        }
+
+        showAlert(`正在并行执行 ${ids.length} 个用例...`, "info");
+        document.getElementById("result").innerText = "执行中，请稍候...";
+
+        try {
+            const res = await httpPost("/api/test/batch/run", { ids: ids });
+
+            let output = `执行完成！共 ${res.data.length} 条结果：\n\n`;
+            res.data.forEach(item => {
+                const statusText = item.status === 'PASS' ? '[通过]' : (item.status === 'FAIL' ? '[失败]' : '[异常]');
+                output += `${statusText} [${item.name || item.case_id}] 状态: ${item.status} | 耗时: ${item.time || item.cost_time}s\n`;
+                if (item.msg) output += `   信息: ${item.msg}\n`;
+                if (item.error) output += `   错误: ${item.error}\n`;
+                output += "-----------------------------------\n";
+            });
+
+            document.getElementById("result").innerText = output;
+            showAlert("批量执行完毕", "success");
+        } catch (err) {
+            showAlert("批量执行请求失败", "error");
         }
     }
 </script>

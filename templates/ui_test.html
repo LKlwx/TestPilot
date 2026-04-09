@@ -172,7 +172,8 @@
                     <td>${c.url}</td>
                     <td>${c.loc_type}</td>
                     <td>
-                        <button class="primary" onclick="runSelectedCase(${c.id})">执行用例</button>
+                        <button onclick="editUICase(${c.id})">编辑</button>
+                        <button class="primary" onclick="runSelectedCase()">执行用例</button>
                         <button class="danger" onclick="del(${c.id})">删除</button>
                     </td>
                 </tr>`;
@@ -189,57 +190,89 @@
         const locator = document.getElementById("locator").value;
         const value = document.getElementById("value").value;
         if (!value) {
-            showAlert("请输入内容", "warning");
+            showAlert("请输入定位值或内容", "warning");
             return;
         }
+        // 自动生成结构化步骤文本
         const step = `[${action}] [${locator}] ${value}\n`;
-        document.getElementById("steps").value += step;
+        const stepsArea = document.getElementById("steps");
+        stepsArea.value += step;
+
+        // 清空输入框，方便输下一步
         document.getElementById("value").value = "";
+        showAlert("步骤已添加", "success");
     }
 
     // 保存用例
     async function saveCase() {
-        const name = document.getElementById("name").value.trim();
+        const nameEl = document.getElementById("name");
+        const name = nameEl.value.trim();
         const url = document.getElementById("url").value.trim();
         const steps = document.getElementById("steps").value.trim();
         const loc_type = document.getElementById("locator").value;
         const loc_value = document.getElementById("value").value;
+        const editId = nameEl.dataset.editId; // 检查是否有编辑 ID
 
         if (!name || !url) {
             showAlert("请完善用例信息", "warning");
             return;
         }
 
+        const payload = {
+            name: name,
+            url: url,
+            steps: steps,
+            loc_type: loc_type,
+            loc_value: loc_value
+        };
+
         try {
-            await httpPost("/api/ui/case/struct", {
-                name: name,
-                url: url,
-                steps: steps,
-                loc_type: loc_type,
-                loc_value: loc_value
-            });
-            showAlert("保存成功", "success");
+            if (editId) {
+                // 如果是编辑模式，调用 PUT 接口
+                await fetch(`/api/ui/case/${editId}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + localStorage.getItem("token")
+                    },
+                    body: JSON.stringify(payload)
+                });
+                delete nameEl.dataset.editId; // 清除编辑标记
+                showAlert("更新成功", "success");
+            } else {
+                // 否则是新增模式
+                await httpPost("/api/ui/case/struct", payload);
+                showAlert("保存成功", "success");
+            }
+
             loadCases();
-            document.getElementById("name").value = "";
+            // 清空表单
+            nameEl.value = "";
             document.getElementById("url").value = "";
             document.getElementById("steps").value = "";
             document.getElementById("value").value = "";
         } catch (err) {
-            showAlert("保存失败", "error");
-            console.error(err);
+            showAlert("操作失败", "error");
         }
     }
 
     // 执行用例
     async function runSelectedCase() {
+        if (!selectedId) {
+            showAlert("请先在列表中选择一个用例", "warning");
+            return;
+        }
         try {
-            showAlert("UI自动化执行中...", "success");
-            const r = await httpPost(`/api/ui/case/${cid}/run`, {});
+            showAlert("UI自动化执行中...", "info");
+            const r = await httpPost(`/api/ui/case/${selectedId}/run`, {});
             document.getElementById("result").innerText = JSON.stringify(r, null, 2);
-            showAlert("执行完成", "success");
+            if (r.data && r.data.status === "PASS") {
+                showAlert("执行通过", "success");
+            } else {
+                showAlert("执行失败", "error");
+            }
         } catch (err) {
-            showAlert("执行失败", "error");
-            console.error(err);
+            showAlert("执行请求失败", "error");
         }
     }
 
@@ -252,6 +285,30 @@
             loadCases();
         } catch (err) {
             showAlert("删除失败", "error");
+        }
+    }
+
+    async function editUICase(id) {
+        try {
+            // 获取所有用例数据
+            const r = await httpGet("/api/ui/cases");
+            const caseData = r.data.find(c => c.id === id);
+            if (!caseData) {
+                showAlert("用例不存在", "error");
+                return;
+            }
+
+            // 回填到表单
+            document.getElementById("name").value = caseData.name;
+            document.getElementById("url").value = caseData.url;
+            document.getElementById("locator").value = caseData.loc_type || "xpath";
+            document.getElementById("value").value = caseData.loc_value || "";
+            document.getElementById("steps").value = caseData.steps || "";
+            // 临时存一下 ID，方便保存时知道是更新
+            document.getElementById("name").dataset.editId = id;
+            showAlert("已加载用例信息，修改后点击保存即可", "info");
+        } catch (err) {
+            showAlert("获取用例信息失败", "error");
         }
     }
 </script>

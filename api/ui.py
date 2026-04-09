@@ -27,7 +27,9 @@ def add_ui_case():
     case = UICase(
         name=data.get("name"),
         url=data.get("url"),
-        steps=data.get("steps", "")
+        steps=data.get("steps", ""),
+        loc_type=data.get("loc_type", "xpath"),
+        loc_value=data.get("loc_value", ""),
     )
     try:
         db.session.add(case)
@@ -44,7 +46,13 @@ def add_ui_case():
 def get_ui_cases():
     cases = UICase.query.all()
     return success([
-        {"id": c.id, "name": c.name, "url": c.url, "loc_type": c.loc_type} for c in cases
+        {
+            "id": c.id,
+            "name": c.name,
+            "url": c.url,
+            "loc_type": c.loc_type,
+            "steps": c.steps
+        } for c in cases
     ])
 
 
@@ -123,3 +131,25 @@ def add_struct_ui():
         print(f"UI用例添加失败:{e}")
         return error("保存失败")
     return success(msg="创建成功")
+
+
+# 编辑UI用例
+@ui_bp.route("/case/<int:cid>", methods=["PUT"])
+def update_ui_case(cid):
+    case = UICase.query.get(cid)
+    if not case:
+        return error("用例不存在")
+
+    data = request.json
+    case.name = data.get("name", case.name)
+    case.url = data.get("url", case.url)
+    case.steps = data.get("steps", case.steps)
+    case.loc_type = data.get("loc_type", case.loc_type)
+    case.loc_value = data.get("loc_value", case.loc_value)
+
+    try:
+        db.session.commit()
+        return success(msg="更新成功")
+    except Exception as e:
+        db.session.rollback()
+        return error(f"更新失败：{str(e)}")

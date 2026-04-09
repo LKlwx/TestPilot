@@ -1,9 +1,11 @@
 import time
 import requests
+import json
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from extensions import db
 from models import PerformanceReport
-import json
+
 
 # 执行性能压测的核心方法
 def run_performance(case):
@@ -51,8 +53,13 @@ def run_performance(case):
         max_time = max(cost_list)
         total_cost_time = sum(cost_list) / 1000
         qps = round(case.total / total_cost_time, 2)
+
+        p90 = round(np.percentile(cost_list, 90), 2)
+        p99 = round(np.percentile(cost_list, 99), 2)
+        success_rate = round((success_num / case.total) * 100, 2)
     else:
         avg_time = min_time = max_time = qps = 0
+        p90 = p99 = success_rate = 0
 
     # 保存测试报告到数据库
     report = PerformanceReport(
@@ -65,7 +72,10 @@ def run_performance(case):
         qps=qps,
         avg_time=avg_time,
         min_time=min_time,
-        max_time=max_time
+        max_time=max_time,
+        p90=p90,
+        p99=p99,
+        success_rate=success_rate,
     )
     db.session.add(report)
     db.session.commit()
@@ -74,5 +84,8 @@ def run_performance(case):
         "success": success_num,
         "fail": fail_num,
         "qps": qps,
-        "avg_time": avg_time
+        "avg_time": avg_time,
+        "p90": p90,
+        "p99": p99,
+        "success_rate": success_rate
     }

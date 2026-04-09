@@ -5,7 +5,7 @@ class Config:
     # 基础配置
     SECRET_KEY = os.environ.get("SECRET_KEY", "testpilot-2026-super-secure-key")
     DEBUG = False
-
+    REQUEST_TIMEOUT = 10  # 请求超时时间（秒）
     # 数据库配置
     SQLALCHEMY_DATABASE_URI = "sqlite:///testpilot.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False

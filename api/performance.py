@@ -120,6 +120,9 @@ def report_detail(rid):
             "avg_time": report.avg_time,
             "min_time": report.min_time,
             "max_time": report.max_time,
+            "p90": report.p90,
+            "p99": report.p99,
+            "success_rate": report.success_rate,
             "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S")
         }
         return success(data=data)
@@ -139,3 +142,24 @@ def delete_case(cid):
     except Exception as e:
         db.session.rollback()
         return error("删除失败：" + str(e))
+
+# 更新用例
+@performance_bp.route("/case/<int:cid>", methods=["PUT"])
+def update_case(cid):
+    try:
+        case = PerformanceCase.query.get(cid)
+        if not case:
+            return error("用例不存在")
+        d = request.json
+        case.name = d["name"]
+        case.url = d["url"]
+        case.method = d.get("method", "GET")
+        case.headers = d.get("headers", "{}")
+        case.body = d.get("body")
+        case.concurrency = int(d.get("concurrency", 10))
+        case.total = int(d.get("total", 50))
+        db.session.commit()
+        return success(msg="修改成功")
+    except Exception as e:
+        db.session.rollback()
+        return error("修改失败：" + str(e))

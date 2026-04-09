@@ -31,11 +31,13 @@ class TestCase(db.Model):
     __tablename__ = "test_case"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
+    module = db.Column(db.String(50),default="默认模块",comment="所属模块")
     method = db.Column(db.String(10), nullable=False)  # GET/POST/PUT/DELETE
     url = db.Column(db.String(500), nullable=False)
     headers = db.Column(db.Text, default="{}")
     body = db.Column(db.Text, default="{}")
     expect = db.Column(db.String(200))  # 预期结果关键字
+    extract_var = db.Column(db.String(200), comment="后置提取：格式如 token=$.args.token")
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     create_time = db.Column(db.DateTime, default=datetime.now)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
@@ -132,6 +134,9 @@ class PerformanceReport(db.Model):
     min_time = db.Column(db.Float)  # 最小响应时间(ms)
     max_time = db.Column(db.Float)  # 最大响应时间(ms)
     create_time = db.Column(db.DateTime, default=datetime.now)
+    p90 = db.Column(db.Float, default=0)
+    p99 = db.Column(db.Float, default=0)
+    success_rate = db.Column(db.Float, default=0)
 
 
 # AI 智能测试任务记录表

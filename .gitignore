@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+static/screenshots/
 
 # 虚拟环境
 venv/

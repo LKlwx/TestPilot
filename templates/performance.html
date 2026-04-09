@@ -150,6 +150,7 @@
                     <td>${item.total}</td>
                     <td>
                         <button class="primary" onclick="runTest(${item.id})">执行压测</button>
+                        <button onclick="editCase(${item.id})">修改</button>
                         <button class="danger" onclick="delCase(${item.id})">删除</button>
                     </td>
                 </tr>`;
@@ -162,7 +163,7 @@
         }
     }
 
-    // 保存用例
+    // 保存/更新用例
     async function saveCase() {
         const name = document.getElementById("name").value.trim();
         const url = document.getElementById("url").value.trim();
@@ -175,23 +176,24 @@
         }
 
         const data = {
-            name: name,
-            url: url,
-            method: document.getElementById("method").value,
-            concurrency: concurrency,
-            total: total
+            name: name, url: url, method: document.getElementById("method").value,
+            concurrency: concurrency, total: total
         };
 
         try {
-            await httpPost("/api/performance/case", data);
-            showAlert("保存成功", "success");
+            if (editId) {
+                await httpPut(`/api/performance/case/${editId}`, data);
+                editId = null;
+                showAlert("修改成功", "success");
+            } else {
+                await httpPost("/api/performance/case", data);
+                showAlert("保存成功", "success");
+            }
             loadList();
-            // 清空输入框
             document.getElementById("name").value = "";
             document.getElementById("url").value = "";
         } catch (err) {
-            showAlert("保存失败", "error");
-            console.error(err);
+            showAlert("操作失败", "error");
         }
     }
 
@@ -205,6 +207,27 @@
         } catch (err) {
             showAlert("压测执行失败", "error");
             console.error(err);
+        }
+    }
+
+    // 修改用例
+    let editId = null;
+
+    async function editCase(id) {
+        try {
+            const res = await httpGet("/api/performance/cases");
+            const item = res.data.find(c => c.id === id);
+            if (!item) return;
+            document.getElementById("name").value = item.name;
+            document.getElementById("url").value = item.url;
+            document.getElementById("method").value = item.method;
+            document.getElementById("concurrency").value = item.concurrency;
+            document.getElementById("total").value = item.total;
+            editId = id;
+            window.scrollTo(0, 0); // 回到顶部表单
+            showAlert("已加载用例数据，请修改后点击保存", "success");
+        } catch (err) {
+            showAlert("加载数据失败", "error");
         }
     }
 
