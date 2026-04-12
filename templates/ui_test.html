@@ -150,7 +150,6 @@
 
 <script src="/static/js/common.js"></script>
 <script>
-    let selectedId = null;
 
     window.onload = function () {
         checkLogin();
@@ -166,14 +165,13 @@
             list.forEach((c, i) => {
                 html += `
                 <tr>
-                    <td><input type="radio" name="cid" onclick="selectedId=${c.id}"></td>
                     <td>${i + 1}</td>
                     <td>${c.name}</td>
                     <td>${c.url}</td>
                     <td>${c.loc_type}</td>
                     <td>
                         <button onclick="editUICase(${c.id})">编辑</button>
-                        <button class="primary" onclick="runSelectedCase()">执行用例</button>
+                        <button class="primary" onclick="runUICase(${c.id})">执行</button>
                         <button class="danger" onclick="del(${c.id})">删除</button>
                     </td>
                 </tr>`;
@@ -256,26 +254,6 @@
         }
     }
 
-    // 执行用例
-    async function runSelectedCase() {
-        if (!selectedId) {
-            showAlert("请先在列表中选择一个用例", "warning");
-            return;
-        }
-        try {
-            showAlert("UI自动化执行中...", "info");
-            const r = await httpPost(`/api/ui/case/${selectedId}/run`, {});
-            document.getElementById("result").innerText = JSON.stringify(r, null, 2);
-            if (r.data && r.data.status === "PASS") {
-                showAlert("执行通过", "success");
-            } else {
-                showAlert("执行失败", "error");
-            }
-        } catch (err) {
-            showAlert("执行请求失败", "error");
-        }
-    }
-
     // 删除用例
     async function del(id) {
         if (!confirm("确定删除？")) return;
@@ -309,6 +287,20 @@
             showAlert("已加载用例信息，修改后点击保存即可", "info");
         } catch (err) {
             showAlert("获取用例信息失败", "error");
+        }
+    }
+    async function runUICase(cid) {
+        try {
+            showAlert("UI自动化执行中...", "info");
+            const r = await httpPost(`/api/ui/case/${cid}/run`, {});
+            document.getElementById("result").innerText = JSON.stringify(r, null, 2);
+            if (r.data && r.data.status === "PASS") {
+                showAlert("执行通过", "success");
+            } else {
+                showAlert("执行失败", "error");
+            }
+        } catch (err) {
+            showAlert("执行请求失败", "error");
         }
     }
 </script>

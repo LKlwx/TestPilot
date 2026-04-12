@@ -224,100 +224,106 @@ def delete_user(uid):
 # 数据统计大屏
 @auth_bp.route("/dashboard/data", methods=["GET"])
 def dashboard_data():
+    import traceback
     from datetime import datetime, timedelta
     from models import PerformanceCase
     from sqlalchemy import func
 
-    # 1. 用例统计
-    api_count = TestCase.query.count()
-    ui_count = UICase.query.count()
-    perf_count = PerformanceCase.query.count()
-    total_case = api_count + ui_count + perf_count
+    try:
+        # 1. 用例统计
+        api_count = TestCase.query.count()
+        ui_count = UICase.query.count()
+        perf_count = PerformanceCase.query.count()
+        total_case = api_count + ui_count + perf_count
 
-    # 2. 总通过率
-    tr_list = TestReport.query.all()
-    ui_list = UIReport.query.all()
-    total_report = len(tr_list) + len(ui_list)
-    pass_count_total = 0
+        # 2. 总通过率（SQL聚合优化）
+        total_api = db.session.query(func.count(TestReport.id)).scalar() or 0
+        total_ui = db.session.query(func.count(UIReport.id)).scalar() or 0
+        total_report = total_api + total_ui
 
-    for r in tr_list:
-        if r.status and 'PASS' in r.status.upper():
-            pass_count_total += 1
-    for r in ui_list:
-        if r.status and 'PASS' in r.status.upper():
-            pass_count_total += 1
+        # 添加默认值处理，防止空表不显示
+        pass_api = db.session.query(func.count(TestReport.id)).filter(
+            TestReport.status.like('%PASS%')
+        ).scalar() or 0
+        pass_ui = db.session.query(func.count(UIReport.id)).filter(
+            UIReport.status.like('%PASS%')
+        ).scalar() or 0
+        pass_count_total = pass_api + pass_ui
 
-    pass_rate = "0%"
-    if total_report > 0:
-        pass_rate = f"{round(pass_count_total / total_report * 100, 1)}%"
+        pass_rate = '0%'
+        if total_report > 0:
+            pass_rate = f"{round(pass_count_total / total_report * 100, 1)}%"
 
-    # 3. 近7天通过率
-    today = datetime.now().date()
-    days = []
-    pass_trend = []
+        # 3. 近7天通过率（SQL聚合优化）
+        today = datetime.now().date()
+        days = []
+        pass_trend = []
 
-    for i in range(6, -1, -1):
-        current_day = today - timedelta(days=i)
-        days.append(current_day.strftime("%m-%d"))
-        current_day_str = current_day.strftime("%Y-%m-%d")
+        for i in range(6, -1, -1):
+            current_day = today - timedelta(days=i)
+            days.append(current_day.strftime("%m-%d"))
+            current_day_start = datetime.combine(current_day, datetime.min.time())
+            current_day_end = datetime.combine(current_day, datetime.max.time())
 
-        # 全表取出后再判断日期
-        api_day_pass = 0
-        api_day_total = 0
-        for r in tr_list:
-            ct = r.create_time
-            if ct:
-                if ct.strftime("%Y-%m-%d") == current_day_str:
-                    api_day_total += 1
-                    if r.status and 'PASS' in r.status.upper():
-                        api_day_pass += 1
+            api_day_total = db.session.query(func.count(TestReport.id)).filter(
+                TestReport.create_time >= current_day_start,
+                TestReport.create_time <= current_day_end
+            ).scalar() or 0
+            api_day_pass = db.session.query(func.count(TestReport.id)).filter(
+                TestReport.create_time >= current_day_start,
+                TestReport.create_time <= current_day_end,
+                TestReport.status.like('%PASS%')
+            ).scalar() or 0
+            ui_day_total = db.session.query(func.count(UIReport.id)).filter(
+                UIReport.create_time >= current_day_start,
+                UIReport.create_time <= current_day_end
+            ).scalar() or 0
+            ui_day_pass = db.session.query(func.count(UIReport.id)).filter(
+                UIReport.create_time >= current_day_start,
+                UIReport.create_time <= current_day_end,
+                UIReport.status.like('%PASS%')
+            ).scalar() or 0
 
-        ui_day_pass = 0
-        ui_day_total = 0
-        for r in ui_list:
-            ct = r.create_time
-            if ct:
-                if ct.strftime("%Y-%m-%d") == current_day_str:
-                    ui_day_total += 1
-                    if r.status and 'PASS' in r.status.upper():
-                        ui_day_pass += 1
+            day_total = api_day_total + ui_day_total
+            day_pass = api_day_pass + ui_day_pass
+            day_rate = round(day_pass / day_total * 100, 1) if day_total > 0 else 0
+            pass_trend.append(day_rate)
 
-        day_total = api_day_total + ui_day_total
-        day_pass = api_day_pass + ui_day_pass
-        day_rate = round(day_pass / day_total * 100, 1) if day_total > 0 else 0
-        pass_trend.append(day_rate)
+        # 4. 最近3次性能报告
+        perf_reports = PerformanceReport.query.order_by(PerformanceReport.id.desc()).limit(3).all()
+        perf_names = []
+        perf_qps = []
+        perf_rt = []
 
-    # 4. 最近3次性能报告
-    perf_reports = PerformanceReport.query.order_by(PerformanceReport.id.desc()).limit(3).all()
-    perf_names = []
-    perf_qps = []
-    perf_rt = []
+        for p in perf_reports:
+            try:
+                name = p.case_name
+                if len(name) > 8:
+                    name = name[:8] + "..."
+                perf_names.append(name)
+                perf_qps.append(round(p.qps or 0, 1))
+                perf_rt.append(round(p.avg_time or 0, 1))
+            except:
+                perf_names.append("无数据")
+                perf_qps.append(0)
+                perf_rt.append(0)
 
-    for p in perf_reports:
-        try:
-            name = p.case_name
-            if len(name) > 8:
-                name = name[:8] + "..."
-            perf_names.append(name)
-            perf_qps.append(round(p.qps or 0, 1))
-            perf_rt.append(round(p.avg_time or 0, 1))
-        except:
-            perf_names.append("无数据")
-            perf_qps.append(0)
-            perf_rt.append(0)
-
-    return success({
-        "total_case": total_case,
-        "api_case": api_count,
-        "ui_case": ui_count,
-        "perf_count": perf_count,
-        "pass_rate": pass_rate,
-        "days": days,
-        "pass_trend": pass_trend,
-        "perf_names": perf_names,
-        "perf_qps": perf_qps,
-        "perf_rt": perf_rt
-    })
+        return success({
+            "total_case": total_case,
+            "api_case": api_count,
+            "ui_case": ui_count,
+            "perf_count": perf_count,
+            "pass_rate": pass_rate,
+            "days": days,
+            "pass_trend": pass_trend,
+            "perf_names": perf_names,
+            "perf_qps": perf_qps,
+            "perf_rt": perf_rt
+        })
+    except Exception as e:
+        print("Dashboard Error:", str(e))
+        print(traceback.format_exc())
+        return error(str(e), 500)
 
 
 # 测试接口

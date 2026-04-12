@@ -17,6 +17,7 @@ class AITestAgent:
             """
 
     def generate_api_case(self, scene: str):
+        # 规则引擎模拟，根据业务场景生成接口测试用例
         prompt = self.api_prompt.format(scene)
         return {
             "name": f"AI_API_{scene[:8]}",
@@ -42,6 +43,7 @@ class AITestAgent:
         }
 
     def analyze_failure_log(self, log: str):
+        # 分析测试失败日志，基于关键词返回诊断建议
         log = log.lower()
         if "timeout" in log:
             return "【AI诊断】请求超时\n原因：服务未启动/网络波动\n方案：检查服务与连通性"

@@ -324,19 +324,6 @@
             showAlert("删除失败", "error");
         }
     }
-    async function deleteCase(id) {
-        if (!confirm("确定删除吗？")) return;
-        try {
-            await fetch(`/api/test/case/${id}`, {
-                method: "DELETE",
-                headers: {"Authorization": "Bearer " + localStorage.getItem("token")}
-            });
-            showAlert("删除成功", "success");
-            loadCases();
-        } catch (err) {
-            showAlert("删除失败", "error");
-        }
-    }
     // 批量并行执行函数
     async function batchRun() {
         const checkboxes = document.querySelectorAll(".case-item:checked");
