@@ -1,4 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor,as_completed
+
 from flask import Blueprint, request
+
+from app import create_app
 from core.response import success, error
 from models import TestCase, TestReport
 from extensions import db
@@ -83,11 +87,6 @@ def test_page():
     return render_template("api_test.html")
 
 
-@test_bp.route("/list")
-def test_list_page():
-    return render_template("api_test_list.html")
-
-
 @test_bp.route("/reports")
 def report_page():
     return render_template("report.html")
@@ -120,9 +119,31 @@ def batch_run():
     ids = req.get("ids", [])
     if not ids: return error("请选择用例")
     res_list = []
-    for cid in ids:
-        case = TestCase.query.get(cid)
-        if case:
-            res = execute_test_case(case)
-            res_list.append(res)
+    app = create_app()
+
+    def run_single_case(cid):
+        # 执行单个用例
+        with app.app_context():
+            case = TestCase.query.get(cid)
+            if case:
+                res = execute_test_case(case)
+                return res
+            return None
+
+    with ThreadPoolExecutor(max_workers = 5) as executor:
+        # 提交任务
+        future_to_cid = {executor.submit(run_single_case, cid): cid for cid in ids}
+        # 获取结果
+        for future in as_completed(future_to_cid):
+            try:
+                res = future.result()
+                if res:
+                    res_list.append(res)
+            except Exception as e:
+                cid = future_to_cid[future]
+                res_list.append({
+                    "case_id" : cid,
+                    "status" : "ERROR",
+                    "msg" : str(e),
+                })
     return success(res_list, "批量执行完成")
