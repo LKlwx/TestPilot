@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Blueprint, request, render_template
 
+from core.exception import NotFoundException
 from core.response import success, error
 from models import TestCase, TestReport
 from extensions import db
@@ -50,7 +51,7 @@ def add_case():
 def run_case(cid):
     case = TestCase.query.get(cid)
     if not case:
-        return error("用例不存在")
+        raise NotFoundException("用例不存在")
     res = execute_test_case(case)
     return success(res)
 
@@ -59,7 +60,7 @@ def run_case(cid):
 def delete_case(cid):
     case = TestCase.query.get(cid)
     if not case:
-        return error("用例不存在")
+        raise NotFoundException("用例不存在")
     db.session.delete(case)
     db.session.commit()
     return success("删除成功")
@@ -95,7 +96,7 @@ def report_page():
 def get_report_detail(rid):
     report = TestReport.query.get(rid)
     if not report:
-        return error("报告不存在")
+        raise NotFoundException("报告不存在")
     data = {
         "id": report.id,
         "case_name": report.case_name,

@@ -1,5 +1,7 @@
 from flask import Blueprint, request, render_template, session, redirect
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+
+from core.exception import AuthException, NotFoundException, APIException
 from core.response import success, error
 from models import TestCase, UICase, TestReport, UIReport, User, PerformanceReport, SysOperationLog
 from service.user_service import check_user_password
@@ -164,18 +166,18 @@ def change_user_role():
 
     # 只有超级管理员可以
     if identity != "admin":
-        return error("无权限", 403)
+        raise AuthException("无权限")
 
     data = request.get_json()
     uid = data.get("id")
     role = data.get("role")
 
     if role not in ["admin", "tester"]:
-        return error("角色不合法")
+        raise APIException("角色不合法", 400)
 
     user = User.query.get(uid)
     if not user:
-        return error("用户不存在")
+        raise NotFoundException("用户不存在")
 
     old_role = user.role
     user.role = role
@@ -195,7 +197,7 @@ def delete_user(uid):
     if current_id == "admin":
         user = User.query.get(uid)
         if not user:
-            return error("用户不存在")
+            raise NotFoundException("用户不存在")
         # 记录删除日志
         add_operation_log("admin", "admin", "delete_user", f"超级管理员删除用户{user.username}(ID={uid})")
         db.session.delete(user)
@@ -205,14 +207,14 @@ def delete_user(uid):
     # 2. 普通管理员只能删除用户
     admin_user = User.query.get(current_id)
     if not admin_user or admin_user.role != "admin":
-        return error("无权限", 403)
+        raise AuthException("无权限")
 
     target = User.query.get(uid)
     if not target:
-        return error("用户不存在")
+        raise NotFoundException("用户不存在")
 
     if target.role != "tester":
-        return error("普通管理员只能删除普通用户", 403)
+        return APIException("普通管理员只能删除普通用户", 403)
     # 记录删除日志
     add_operation_log(admin_user.id, admin_user.username, "delete_user",
                       f"管理员{admin_user.username}删除用户{target.username}(ID={uid})")
