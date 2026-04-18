@@ -15,6 +15,7 @@ selenium==4.15.2
 webdriver-manager==4.0.1
 
 # 安全与加密
+PyJWT==2.6.0
 bcrypt==4.2.0
 werkzeug==3.0.6
 

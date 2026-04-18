@@ -1,4 +1,4 @@
-// 全局GET请求 👉 带 token
+// 全局GET请求
 async function httpGet(url) {
     let token = localStorage.getItem("token");
     let headers = {};

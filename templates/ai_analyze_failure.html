@@ -73,6 +73,15 @@
             <h3>分析结果</h3>
             <pre id="result">等待分析...</pre>
         </div>
+        <div class="card">
+            <h3>历史记录</h3>
+            <table class="table" id="historyTable">
+                <thead>
+                    <tr><th>时间</th><th>输入日志</th><th>分析结果</th></tr>
+                </thead>
+                <tbody id="historyBody"></tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -80,27 +89,30 @@
 <script>
     async function analyze() {
         const logContent = document.getElementById("log").value.trim();
-
-        if (!logContent) {
-            showAlert("请输入失败日志", "warning");
-            return;
-        }
-
+        if (!logContent) { showAlert("请输入失败日志", "warning"); return; }
         try {
             showAlert("AI 分析中，请稍候...", "success");
             const res = await httpPost("/api/ai/analyze", {log: logContent});
-
             if (res.code === 200 && res.data) {
                 document.getElementById("result").innerText = res.data.result;
                 showAlert("AI 分析完成", "success");
-            } else {
-                showAlert(res.msg || "分析失败", "error");
-            }
-        } catch (err) {
-            showAlert("网络异常或服务错误", "error");
-            console.error("AI分析接口异常：", err);
-        }
+                loadHistory();
+            } else { showAlert(res.msg || "分析失败", "error"); }
+        } catch (err) { showAlert("网络异常或服务错误", "error"); }
     }
+
+    async function loadHistory() {
+        try {
+            const res = await httpGet("/api/ai/history?type=analyze_failure");
+            if (res.code === 200) {
+                const tbody = document.getElementById("historyBody");
+                tbody.innerHTML = res.data.map(item =>
+                    `<tr><td>${item.time}</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.input}</td><td>${item.output}</td></tr>`
+                ).join("");
+            }
+        } catch (err) { console.error("加载历史失败", err); }
+    }
+    loadHistory();
 </script>
 </body>
 </html>

@@ -7,6 +7,8 @@ class Config:
     DEBUG = False
     REQUEST_TIMEOUT = 10  # 请求超时时间（秒）
     # 数据库配置
+    # 生产环境可以换成 MySQL/PostgreSQL
+    # SQLALCHEMY_DATABASE_URI = "mysql+pymysql://user:pass@host/dbname"
     SQLALCHEMY_DATABASE_URI = "sqlite:///testpilot.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -17,13 +19,15 @@ class Config:
     # 定时任务配置
     SCHEDULER_API_ENABLED = True
 
+    # AI 模型配置 (LM Studio)
+    AI_API_BASE = "http://127.0.0.1:1234"  # 本地大模型服务地址
+    AI_MODEL = "qwen3.5-9b"  # 模型名称
+
 class DevelopmentConfig(Config):
     DEBUG = True
 
 class ProductionConfig(Config):
     DEBUG = False
-    # 生产环境可以换成 MySQL/PostgreSQL
-    # SQLALCHEMY_DATABASE_URI = "mysql+pymysql://user:pass@host/dbname"
 
 config = {
     "development": DevelopmentConfig,

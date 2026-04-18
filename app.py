@@ -37,9 +37,13 @@ def create_app(config_name="default"):
     def handle_api_exception(e):
         return error(e.msg, e.code)
 
-    @app.errorhandler(Exception)
+    @app.route("/favicon.ico")
+    def favicon():
+        return "", 204
     def handle_all_exception(e):
-        return error("服务器异常，请稍后重试", 500)
+        import traceback
+        traceback.print_exc()
+        return error(str(e), 500)
 
     # 登录路由
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
