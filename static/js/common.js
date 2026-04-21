@@ -9,7 +9,11 @@ async function httpGet(url) {
     let res = await fetch(url, {
         headers: headers
     });
-    return await res.json();
+    let json = await res.json();
+    if (json.code !== 200) {
+        console.log("HTTP Error:", url, json);
+    }
+    return json;
 }
 
 // 全局POST请求
@@ -64,7 +68,6 @@ async function httpPut(url, data = {}) {
 }
 
 function logout() {
-    //清除本地token
     localStorage.removeItem("token");
     showAlert("已退出登录", "success");
     setTimeout(() => {
@@ -72,19 +75,31 @@ function logout() {
     }, 1000);
 }
 
+function toggleUserMenu() {
+    const menu = document.getElementById("userMenu");
+    if (menu) {
+        menu.style.display = menu.style.display === "none" ? "block" : "none";
+    }
+}
+
+document.addEventListener("click", function(e) {
+    const menu = document.getElementById("userMenu");
+    if (menu && !e.target.closest('[onclick*="toggleUserMenu"]')) {
+        menu.style.display = "none";
+    }
+});
+
 function checkLogin() {
-//     从本地存储拿token
     const token = localStorage.getItem("token")
     const isLoginPage = location.pathname.includes("/login/page");
-//     当前页面不是登录且无token，跳回登录
     if (!token && !isLoginPage) {
         window.location.href = "/api/auth/login/page";
     }
 }
 
-window.onload = function () {
+document.addEventListener('DOMContentLoaded', function () {
     checkLogin();
-}
+});
 
 function showAlert(msg, type = "info") {
     // 先删掉旧的提示框
@@ -152,7 +167,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // 1. 显示角色文字
     const roleTextEl = document.getElementById('roleText');
     if (roleTextEl) {
-        roleTextEl.innerText = role === 'admin' ? '【管理员】' : '【普通用户】';
+        const username = localStorage.getItem('username') || '';
+        const roleText = role === 'admin' ? '管理员' : '普通用户';
+        roleTextEl.innerText = username ? `${username}（${roleText}）` : '';
     }
 
     // 2. 权限控制：管理员菜单
@@ -162,6 +179,16 @@ document.addEventListener('DOMContentLoaded', function () {
             userManageMenu.style.display = 'block';
         } else {
             userManageMenu.style.display = 'none';
+        }
+    }
+
+    // 3. 操作日志菜单（仅管理员可见）
+    const operationLogMenu = document.getElementById('operationLogMenu');
+    if (operationLogMenu) {
+        if (role === 'admin') {
+            operationLogMenu.style.display = 'block';
+        } else {
+            operationLogMenu.style.display = 'none';
         }
     }
 

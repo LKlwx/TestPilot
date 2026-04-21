@@ -1,31 +1,56 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Blueprint, request, render_template
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from core.exception import NotFoundException
 from core.response import success, error
 from models import TestCase, TestReport
 from extensions import db
 from service.test_service import execute_test_case
+from api.auth import add_operation_log
 
 test_bp = Blueprint("test", __name__)
 
 
 @test_bp.route("/cases", methods=["GET"])
 def get_cases():
-    cases = TestCase.query.all()
+    page = request.args.get("page", 1, type=int)
+    page_size = request.args.get("page_size", 10, type=int)
+    keyword = request.args.get("keyword", "", type=str)
+
+    query = TestCase.query
+    if keyword:
+        query = query.filter(TestCase.name.like(f"%{keyword}%"))
+
+    total = query.count()
+    cases = query.order_by(TestCase.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
     data = [{
         "id": c.id,
         "name": c.name,
+        "module": c.module,
         "method": c.method,
         "url": c.url,
         "expect": c.expect
     } for c in cases]
-    return success(data)
+
+    return success({
+        "list": data,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size
+    })
 
 
 @test_bp.route("/case", methods=["POST"])
+@jwt_required()
 def add_case():
+    from models import User
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    username = user.username if user else "未知"
     data = request.get_json()
     if not data or not data.get("name") or not data.get("method") or not data.get("url"):
         return error("参数不完整!")
@@ -40,9 +65,10 @@ def add_case():
     try:
         db.session.add(case)
         db.session.commit()
+        add_operation_log(user.id, username, "add_case", f"新增接口用例: {data['name']}")
     except Exception as e:
-        db.session.rollback()  # 回滚事务
-        print(f"接口用例添加失败:{e}")  # 打印错误原因
+        db.session.rollback()
+        print(f"接口用例添加失败:{e}")
         return error("保存失败")
     return success(msg="成功")
 
@@ -57,13 +83,44 @@ def run_case(cid):
 
 
 @test_bp.route("/case/<int:cid>", methods=["DELETE"])
+@jwt_required()
 def delete_case(cid):
+    from models import User
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    username = user.username if user else "未知"
     case = TestCase.query.get(cid)
     if not case:
         raise NotFoundException("用例不存在")
+    case_name = case.name
     db.session.delete(case)
     db.session.commit()
+    add_operation_log(user.id, username, "delete_case", f"删除接口用例: {case_name} (ID={cid})")
     return success("删除成功")
+
+
+@test_bp.route("/case/<int:cid>", methods=["PUT"])
+@jwt_required()
+def update_case(cid):
+    from models import User
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    username = user.username if user else "未知"
+    case = TestCase.query.get(cid)
+    if not case:
+        raise NotFoundException("用例不存在")
+    old_name = case.name
+    data = request.get_json()
+    case.name = data.get("name", case.name)
+    case.method = data.get("method", case.method)
+    case.url = data.get("url", case.url)
+    case.headers = data.get("headers", case.headers)
+    case.body = data.get("body", case.body)
+    case.expect = data.get("expect", case.expect)
+    case.extract_var = data.get("extract_var", case.extract_var)
+    db.session.commit()
+    add_operation_log(user.id, username, "update_case", f"修改接口用例: {old_name} → {case.name} (ID={cid})")
+    return success(msg="更新成功")
 
 
 @test_bp.route("/reports/data", methods=["GET"])

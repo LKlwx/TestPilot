@@ -126,6 +126,130 @@ def user_list():
     return render_template("user_list.html")
 
 
+# 个人中心页面
+@auth_bp.route("/profile/page", methods=["GET"])
+def profile_page():
+    return render_template("profile.html")
+
+
+# 操作日志页面
+@auth_bp.route("/operation/logs/page", methods=["GET"])
+def operation_logs_page():
+    return render_template("operation_log.html")
+
+
+# 获取当前用户信息
+@auth_bp.route("/profile", methods=["GET"])
+@jwt_required()
+def get_profile():
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    if not user:
+        return error("用户不存在")
+    return success({
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "create_time": user.create_time.strftime("%Y-%m-%d %H:%M") if user.create_time else "-"
+    })
+
+
+# 修改密码
+@auth_bp.route("/change-password", methods=["POST"])
+@jwt_required()
+def change_password():
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    if not user:
+        return error("用户不存在")
+
+    data = request.get_json()
+    old_password = data.get("old_password")
+    new_password = data.get("new_password")
+
+    if not old_password or not new_password:
+        return error("密码不能为空")
+
+    if not user.check_password(old_password):
+        return error("当前密码错误")
+
+    if len(new_password) < 6:
+        return error("新密码长度不能少于6位")
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    add_operation_log(user.id, user.username, "change_password", "用户修改密码")
+    return success(msg="密码修改成功")
+
+
+# 操作日志接口
+@auth_bp.route("/operation/logs", methods=["GET"])
+@jwt_required()
+def operation_logs():
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    if not user or user.role != "admin":
+        return error("无访问权限")
+
+    page = request.args.get("page", 1, type=int)
+    page_size = request.args.get("page_size", 10, type=int)
+    keyword = request.args.get("keyword", "", type=str)
+    date = request.args.get("date", "", type=str)
+
+    query = SysOperationLog.query
+    if keyword:
+        query = query.filter(
+            (SysOperationLog.username.like(f"%{keyword}%")) |
+            (SysOperationLog.operation.like(f"%{keyword}%"))
+        )
+    if date:
+        from datetime import datetime
+        search_date = datetime.strptime(date, "%Y-%m-%d")
+        from datetime import timedelta
+        next_day = search_date + timedelta(days=1)
+        query = query.filter(
+            SysOperationLog.operate_time >= search_date,
+            SysOperationLog.operate_time < next_day
+        )
+
+    total = query.count()
+    logs = query.order_by(SysOperationLog.operate_time.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    return success({
+        "list": [{
+            "id": log.id,
+            "username": log.username,
+            "operation": log.operation,
+            "detail": log.detail,
+            "ip": log.ip or "-",
+            "operate_time": log.operate_time.strftime("%Y-%m-%d %H:%M:%S") if log.operate_time else "-"
+        } for log in logs],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size
+    })
+
+
+# 清理旧日志
+@auth_bp.route("/operation/logs/cleanup", methods=["POST"])
+@jwt_required()
+def cleanup_logs():
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    if not user or user.role != "admin":
+        return error("无访问权限")
+
+    from datetime import datetime, timedelta
+    cutoff_date = datetime.now() - timedelta(days=30)
+
+    deleted = SysOperationLog.query.filter(SysOperationLog.operate_time < cutoff_date).delete()
+    db.session.commit()
+
+    return success(msg=f"已清理 {deleted} 条日志")
+
+
 # 用户数据接口（返回JSON，带JWT）
 @auth_bp.route("/user/list/data", methods=["GET"])
 @jwt_required()

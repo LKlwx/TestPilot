@@ -1,8 +1,10 @@
 from flask import Blueprint, render_template, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
 from models import PerformanceCase, PerformanceReport
 from core.response import success, error
 from service.performance_service import run_performance
+from api.auth import add_operation_log
 
 performance_bp = Blueprint("performance", __name__)
 
@@ -21,12 +23,16 @@ def reports_page():
 
 # 新增性能用例
 @performance_bp.route("/case", methods=["POST"])
+@jwt_required()
 def add_case():
+    from models import User
     try:
+        identity = get_jwt_identity()
+        user = User.query.get(int(identity))
+        username = user.username if user else "未知"
         data = request.json
         if not data or not data.get("name") or not data.get("url"):
             return error("参数不完整!")
-        # 转成int
         concurrency = int(data.get("concurrency", 10))
         total = int(data.get("total", 50))
         case = PerformanceCase(
@@ -40,6 +46,7 @@ def add_case():
         )
         db.session.add(case)
         db.session.commit()
+        add_operation_log(user.id, username, "add_perf_case", f"新增性能用例: {data['name']}")
         return success(msg="保存成功")
     except Exception as e:
         db.session.rollback()
@@ -51,7 +58,17 @@ def add_case():
 @performance_bp.route("/cases", methods=["GET"])
 def cases():
     try:
-        case_list = PerformanceCase.query.all()
+        page = request.args.get("page", 1, type=int)
+        page_size = request.args.get("page_size", 10, type=int)
+        keyword = request.args.get("keyword", "", type=str)
+
+        query = PerformanceCase.query
+        if keyword:
+            query = query.filter(PerformanceCase.name.like(f"%{keyword}%"))
+
+        total = query.count()
+        case_list = query.order_by(PerformanceCase.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
         data = []
         for item in case_list:
             data.append({
@@ -61,7 +78,14 @@ def cases():
                 "concurrency": item.concurrency,
                 "total": item.total
             })
-        return success(data=data)
+
+        return success({
+            "list": data,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size
+        })
     except Exception as e:
         return error("获取用例失败：" + str(e))
 
@@ -131,13 +155,20 @@ def report_detail(rid):
 
 # 删除用例
 @performance_bp.route("/case/<int:cid>", methods=["DELETE"])
+@jwt_required()
 def delete_case(cid):
     try:
+        from models import User
+        identity = get_jwt_identity()
+        user = User.query.get(int(identity))
+        username = user.username if user else "未知"
         case = PerformanceCase.query.get(cid)
         if not case:
             return error("用例不存在")
+        case_name = case.name
         db.session.delete(case)
         db.session.commit()
+        add_operation_log(user.id, username, "delete_perf_case", f"删除性能用例: {case_name} (ID={cid})")
         return success(msg="删除成功")
     except Exception as e:
         db.session.rollback()
@@ -145,11 +176,17 @@ def delete_case(cid):
 
 # 更新用例
 @performance_bp.route("/case/<int:cid>", methods=["PUT"])
+@jwt_required()
 def update_case(cid):
+    from models import User
     try:
+        identity = get_jwt_identity()
+        user = User.query.get(int(identity))
+        username = user.username if user else "未知"
         case = PerformanceCase.query.get(cid)
         if not case:
             return error("用例不存在")
+        old_name = case.name
         d = request.json
         case.name = d["name"]
         case.url = d["url"]
@@ -159,6 +196,7 @@ def update_case(cid):
         case.concurrency = int(d.get("concurrency", 10))
         case.total = int(d.get("total", 50))
         db.session.commit()
+        add_operation_log(user.id, username, "update_perf_case", f"修改性能用例: {old_name} → {case.name} (ID={cid})")
         return success(msg="修改成功")
     except Exception as e:
         db.session.rollback()

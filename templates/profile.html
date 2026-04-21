@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>个人中心</title>
+    <link rel="stylesheet" href="/static/css/global.css">
+    <style>
+        .card {
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            max-width: 500px;
+            margin: 20px auto;
+        }
+        h3 { margin-top: 0; color: #333; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #666; }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .btn-group { margin-top: 20px; }
+        button {
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            margin-right: 10px;
+        }
+        button.primary { background: #007bff; color: white; }
+        button.secondary { background: #6c757d; color: white; }
+        .info { background: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+        .info p { margin: 5px 0; }
+    </style>
+</head>
+<body>
+<div class="top">
+    TestPilot 智能自动化测试平台
+    <div style="float:right; color:white; margin-top:10px; position:relative;">
+        <div onclick="toggleUserMenu()" style="display:inline-flex; align-items:center; padding:8px 15px; margin-right:10px; cursor:pointer; font-size:13px;">
+            <span id="roleText"></span>
+        </div>
+        <div id="userMenu" style="display:none; position:absolute; right:10px; top:52px; background:#34495e; min-width:100%; z-index:9999;">
+            <a href="/api/auth/profile/page" style="display:block; padding:10px 15px; color:#fff; text-decoration:none; font-size:13px;">个人中心</a>
+            <a href="#" onclick="logout(); return false;" style="display:block; padding:10px 15px; color:#e74c3c; text-decoration:none; font-size:13px;">退出登录</a>
+        </div>
+    </div>
+</div>
+<div class="main">
+    <div class="menu">
+        <a href="/api/auth/home">控制台首页</a>
+        <div class="dropdown">
+            <div class="dropbtn">自动化测试 ▼</div>
+            <div class="dropdown-content">
+                <a href="/api/test/page">接口自动化测试</a>
+                <a href="/api/ui/page">UI自动化测试</a>
+            </div>
+        </div>
+        <div class="dropdown">
+            <div class="dropbtn">测试报告 ▼</div>
+            <div class="dropdown-content">
+                <a href="/api/test/reports">接口测试报告</a>
+                <a href="/api/ui/reports">UI测试报告</a>
+                <a href="/api/performance/reports/page">性能测试报告</a>
+            </div>
+        </div>
+        <a href="/api/performance/page">性能测试</a>
+        <div class="dropdown">
+            <div class="dropbtn">AI智能测试 ▼</div>
+            <div class="dropdown-content">
+                <a href="/api/ai/generate/api/page">AI接口用例生成</a>
+                <a href="/api/ai/generate/ui/page">AI UI用例生成</a>
+                <a href="/api/ai/analyze/page">测试失败分析</a>
+            </div>
+        </div>
+        <a id="userManageMenu" href="/api/auth/user/list" style="display:none;">用户管理</a>
+        <a id="operationLogMenu" href="/api/auth/operation/logs/page" style="display:none;">操作日志</a>
+        
+    </div>
+
+    <div class="content">
+        <div class="card">
+            <h3>个人信息</h3>
+            <div class="info">
+                <p><strong>用户名：</strong><span id="username"></span></p>
+                <p><strong>邮箱：</strong><span id="email"></span></p>
+                <p><strong>角色：</strong><span id="role"></span></p>
+                <p><strong>注册时间：</strong><span id="createTime"></span></p>
+            </div>
+
+            <h3>修改密码</h3>
+            <div class="form-group">
+                <label>当前密码</label>
+                <input type="password" id="oldPassword" placeholder="请输入当前密码">
+            </div>
+            <div class="form-group">
+                <label>新密码</label>
+                <input type="password" id="newPassword" placeholder="请输入新密码">
+            </div>
+            <div class="form-group">
+                <label>确认新密码</label>
+                <input type="password" id="confirmPassword" placeholder="请再次输入新密码">
+            </div>
+            <div class="btn-group">
+                <button class="primary" onclick="changePassword()">修改密码</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="/static/js/common.js"></script>
+<script>
+    window.onload = function() {
+        checkLogin();
+        loadUserInfo();
+    };
+
+    async function loadUserInfo() {
+        try {
+            const res = await httpGet("/api/auth/profile");
+            const user = res.data || {};
+            document.getElementById("username").innerText = user.username || '-';
+            document.getElementById("email").innerText = user.email || '-';
+            document.getElementById("role").innerText = user.role === 'admin' ? '管理员' : '测试员';
+            document.getElementById("createTime").innerText = user.create_time || '-';
+        } catch (err) {
+            showAlert("加载用户信息失败", "error");
+        }
+    }
+
+    async function changePassword() {
+        const oldPwd = document.getElementById("oldPassword").value;
+        const newPwd = document.getElementById("newPassword").value;
+        const confirmPwd = document.getElementById("confirmPassword").value;
+
+        if (!oldPwd || !newPwd || !confirmPwd) {
+            showAlert("请填写所有密码字段", "warning");
+            return;
+        }
+
+        if (newPwd !== confirmPwd) {
+            showAlert("两次输入的新密码不一致", "warning");
+            return;
+        }
+
+        if (newPwd.length < 6) {
+            showAlert("新密码长度不能少于6位", "warning");
+            return;
+        }
+
+        try {
+            const res = await httpPost("/api/auth/change-password", {
+                old_password: oldPwd,
+                new_password: newPwd
+            });
+            showAlert("密码修改成功", "success");
+            document.getElementById("oldPassword").value = "";
+            document.getElementById("newPassword").value = "";
+            document.getElementById("confirmPassword").value = "";
+        } catch (err) {
+            showAlert(err.msg || "密码修改失败", "error");
+        }
+    }
+
+    function logout() {
+        localStorage.clear();
+        window.location.href = "/api/auth/login/page";
+    }
+</script>
+</body>
+</html>
