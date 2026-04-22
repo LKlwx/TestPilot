@@ -1,113 +1,61 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>接口测试报告</title>
-    <link rel="stylesheet" href="/static/css/global.css">
-</head>
-<body>
-<div class="top">
-    TestPilot 智能自动化测试平台
-    <div style="float:right; color:white; margin-top:10px;">
-        <span id="roleText" style="margin-right:15px;"></span>
-        <div style="display:inline-block; position:relative;">
-            <a href="#" onclick="toggleUserMenu(); return false;" style="color:#fff; margin-right:15px; text-decoration:none;">▼</a>
-            <div id="userMenu" style="display:none; position:absolute; right:0; top:25px; background:#fff; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15); min-width:120px; z-index:9999;">
-                <a href="/api/auth/profile/page" style="display:block; padding:10px 15px; color:#333; text-decoration:none;">个人中心</a>
-                <a href="#" onclick="logout(); return false;" style="display:block; padding:10px 15px; color:#dc3545; text-decoration:none;">退出登录</a>
-            </div>
-        </div>
-    </div>
-</div>
-<div class="main">
-    <div class="menu">
-        <a href="/api/auth/home">控制台首页</a>
-        <div class="dropdown">
-            <div class="dropbtn">自动化测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/page">接口自动化测试</a>
-                <a href="/api/ui/page">UI自动化测试</a>
-            </div>
-        </div>
-        <div class="dropdown">
-            <div class="dropbtn">测试报告 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/reports">接口测试报告</a>
-                <a href="/api/ui/reports">UI测试报告</a>
-                <a href="/api/performance/reports/page">性能测试报告</a>
-            </div>
-        </div>
-        <a href="/api/performance/page">性能测试</a>
-        <div class="dropdown">
-            <div class="dropbtn">AI智能测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/ai/generate/api/page">AI接口用例生成</a>
-                <a href="/api/ai/generate/ui/page">AI UI用例生成</a>
-                <a href="/api/ai/analyze/page">测试失败分析</a>
-            </div>
-        </div>
-        <a id="userManageMenu" href="/api/auth/user/list" style="display:none;">用户管理</a>
-        <a id="operationLogMenu" href="/api/auth/operation/logs/page" style="display:none;">操作日志</a>
-    </div>
+{% extends "base.html" %}
 
-    <div class="content">
-        <div class="card">
-            <h3>测试报告列表</h3>
-            <br>
-            <table>
-                <thead>
-                <tr>
-                    <th>序号</th>
-                    <th>用例名称</th>
-                    <th>状态</th>
-                    <th>状态码</th>
-                    <th>耗时(s)</th>
-                    <th>执行时间</th>
-                    <th>操作</th>
-                </tr>
-                </thead>
-                <tbody id="reportList"></tbody>
-            </table>
-        </div>
-    </div>
+{% block title %}接口测试报告{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3>测试报告列表</h3>
+    <table class="table">
+        <thead>
+        <tr>
+            <th>序号</th>
+            <th>用例名称</th>
+            <th>状态</th>
+            <th>状态码</th>
+            <th>耗时(s)</th>
+            <th>执行时间</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody id="reportList"></tbody>
+    </table>
 </div>
 
 <!-- 详情弹窗 -->
-<div class="modal" id="detailModal"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999;">
-    <div style="background:#fff; margin:50px auto; padding:20px; width:70%; border-radius:8px;">
-        <h3>详情</h3>
-        <pre id="detailContent" style="max-height:400px; overflow-y:auto;"></pre>
+<div class="modal-overlay" id="detailModal">
+    <div class="modal-content" style="width:70%;">
+        <h3 class="modal-header">详情</h3>
+        <pre id="detailContent" class="code-block" style="max-height:400px;"></pre>
         <br>
-        <button onclick="closeModal()">关闭</button>
+        <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
     </div>
 </div>
+{% endblock %}
 
-<script src="/static/js/common.js"></script>
+{% block extra_js %}
 <script>
-    // 统一页面加载
     window.onload = function () {
         checkLogin();
         loadReports();
     };
 
-    // 加载报告列表
     async function loadReports() {
         try {
             const res = await httpGet("/api/test/reports/data");
             const list = res.data || [];
             let html = "";
             list.forEach(item => {
+                const statusClass = item.status === 'PASS' ? 'status-pass' : (item.status === 'FAIL' ? 'status-fail' : 'status-error');
                 html += `
                 <tr>
                     <td>${item.id}</td>
                     <td>${item.case_name}</td>
-                    <td class="${item.status.toLowerCase()}">${item.status}</td>
+                    <td class="${statusClass}">${item.status}</td>
                     <td>${item.code}</td>
                     <td>${item.time}</td>
                     <td>${item.create_time}</td>
                     <td>${item.msg || '-'}</td>
-                    <td><button onclick="showDetail(${item.id})">查看</button></td>
+                    <td><button class="btn btn-primary" onclick="showDetail(${item.id})">查看</button></td>
                 </tr>`;
             });
             document.getElementById("reportList").innerHTML = html;
@@ -117,22 +65,19 @@
         }
     }
 
-    // 查看详情
     async function showDetail(id) {
         try {
             const res = await httpGet(`/api/test/report/${id}`);
             document.getElementById("detailContent").innerText = JSON.stringify(res.data, null, 2);
-            document.getElementById("detailModal").style.display = "block";
+            document.getElementById("detailModal").classList.add("active");
         } catch (err) {
             showAlert("加载详情失败", "error");
             console.error(err);
         }
     }
 
-    // 关闭弹窗
     function closeModal() {
-        document.getElementById("detailModal").style.display = "none";
+        document.getElementById("detailModal").classList.remove("active");
     }
 </script>
-</body>
-</html>
+{% endblock %}

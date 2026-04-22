@@ -1,86 +1,27 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>用户管理</title>
-    <link rel="stylesheet" href="/static/css/global.css">
-    <style>
-        button {
-            margin: 0 4px;
-        }
-    </style>
-</head>
-<body>
-<div class="top">
-    TestPilot 智能自动化测试平台
-    <div style="float:right; color:white; margin-top:10px;">
-        <span id="roleText" style="margin-right:15px;"></span>
-        <div style="display:inline-block; position:relative;">
-            <a href="#" onclick="toggleUserMenu(); return false;" style="color:#fff; margin-right:15px; text-decoration:none;">▼</a>
-            <div id="userMenu" style="display:none; position:absolute; right:0; top:25px; background:#fff; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15); min-width:120px; z-index:9999;">
-                <a href="/api/auth/profile/page" style="display:block; padding:10px 15px; color:#333; text-decoration:none;">个人中心</a>
-                <a href="#" onclick="logout(); return false;" style="display:block; padding:10px 15px; color:#dc3545; text-decoration:none;">退出登录</a>
-            </div>
-        </div>
-    </div>
+{% extends "base.html" %}
+
+{% block title %}用户管理{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3>用户管理（仅管理员可操作）</h3>
+    <table class="table" id="userTable">
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>用户名</th>
+            <th>角色</th>
+            <th>创建时间</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
 </div>
-<div class="main">
-    <div class="menu">
-        <a href="/api/auth/home">控制台首页</a>
+{% endblock %}
 
-        <div class="dropdown">
-            <div class="dropbtn">自动化测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/page">接口自动化测试</a>
-                <a href="/api/ui/page">UI自动化测试</a>
-            </div>
-        </div>
-
-        <div class="dropdown">
-            <div class="dropbtn">测试报告 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/reports">接口测试报告</a>
-                <a href="/api/ui/reports">UI测试报告</a>
-                <a href="/api/performance/reports/page">性能测试报告</a>
-            </div>
-        </div>
-
-        <a href="/api/performance/page">性能测试</a>
-        <div class="dropdown">
-            <div class="dropbtn">AI智能测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/ai/generate/api/page">AI接口用例生成</a>
-                <a href="/api/ai/generate/ui/page">AI UI用例生成</a>
-                <a href="/api/ai/analyze/page">测试失败分析</a>
-            </div>
-        </div>
-        <a id="userManageMenu" href="/api/auth/user/list" style="display:none;">用户管理</a>
-        <a id="operationLogMenu" href="/api/auth/operation/logs/page" style="display:none;">操作日志</a>
-    </div>
-
-    <div class="content">
-        <div class="card">
-            <h3>用户管理（仅管理员可操作）</h3>
-            <br>
-            <table id="userTable">
-                <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>用户名</th>
-                    <th>角色</th>
-                    <th>创建时间</th>
-                    <th>操作</th>
-                </tr>
-                </thead>
-                <tbody id="tbody"></tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<script src="/static/js/common.js"></script>
+{% block extra_js %}
 <script>
-    // 加载用户列表
     async function loadUserList() {
         try {
             let res = await httpGet("/api/auth/user/list/data");
@@ -98,17 +39,16 @@
                 let tr = document.createElement("tr");
                 let roleText = user.role === 'admin' ? '管理员' : '普通用户';
 
-                // 按钮区
                 let buttons = "";
                 if (currentUser === "admin") {
                     buttons = `
-                    <button onclick="changeRole(${user.id}, 'admin')">设为管理员</button>
-                    <button onclick="changeRole(${user.id}, 'tester')">设为普通用户</button>
-                    <button class="danger" onclick="deleteUser(${user.id})">删除</button>
+                    <button class="btn btn-primary" onclick="changeRole(${user.id}, 'admin')">设为管理员</button>
+                    <button class="btn btn-secondary" onclick="changeRole(${user.id}, 'tester')">设为普通用户</button>
+                    <button class="btn btn-danger" onclick="deleteUser(${user.id})">删除</button>
                     `;
                 } else {
                     if (user.role === "tester") {
-                        buttons = `<button class="danger" onclick="deleteUser(${user.id})">删除</button>`;
+                        buttons = `<button class="btn btn-danger" onclick="deleteUser(${user.id})">删除</button>`;
                     }
                 }
 
@@ -127,7 +67,6 @@
         }
     }
 
-    // 修改角色
     async function changeRole(userId, role) {
         if (!confirm("确定要修改该用户角色吗？")) return;
         try {
@@ -146,7 +85,6 @@
         }
     }
 
-    // 删除用户
     async function deleteUser(userId) {
         if (!confirm("确定删除该用户？此操作不可恢复！")) return;
         try {
@@ -167,5 +105,4 @@
         loadUserList();
     };
 </script>
-</body>
-</html>
+{% endblock %}

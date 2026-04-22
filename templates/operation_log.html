@@ -1,97 +1,60 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>操作日志</title>
-    <link rel="stylesheet" href="/static/css/global.css">
-    <style>
-        button {
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            border: none;
-            margin-right: 6px;
-        }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f5f7fa; }
-    </style>
-</head>
-<body>
-<div class="top">
-    TestPilot 智能自动化测试平台
-    <div style="float:right; color:white; margin-top:10px; position:relative;">
-        <div onclick="toggleUserMenu()" style="display:inline-flex; align-items:center; padding:8px 15px; margin-right:10px; cursor:pointer; font-size:13px;">
-            <span id="roleText"></span>
-        </div>
-        <div id="userMenu" style="display:none; position:absolute; right:10px; top:52px; background:#34495e; min-width:100%; z-index:9999;">
-            <a href="/api/auth/profile/page" style="display:block; padding:10px 15px; color:#fff; text-decoration:none; font-size:13px;">个人中心</a>
-            <a href="#" onclick="logout(); return false;" style="display:block; padding:10px 15px; color:#e74c3c; text-decoration:none; font-size:13px;">退出登录</a>
-        </div>
+{% extends "base.html" %}
+
+{% block title %}操作日志{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/pages/test-forms.css">
+<style>
+    .log-container {
+        max-width:1200px; 
+        margin:0 auto;
+    }
+    
+    .search-area {
+        margin:20px 0;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="log-container">
+    <h2>操作日志</h2>
+    <div class="search-area">
+        <input id="searchKeyword" class="form-input" placeholder="搜索用户名或操作类型..."
+               style="width:250px; display:inline-block;">
+        <input type="text" id="searchDate" class="form-input" placeholder="日期如 2026-04-22"
+               style="width:150px; display:inline-block;">
+        <button class="btn btn-primary" onclick="searchLogs()">搜索</button>
+        <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
+        <button class="btn btn-danger" onclick="deleteOldLogs()" style="margin-left:20px;">清理30天前日志</button>
+    </div>
+
+    <table class="table">
+        <thead>
+        <tr>
+            <th>时间</th>
+            <th>用户名</th>
+            <th>操作类型</th>
+            <th>详情</th>
+            <th>IP地址</th>
+        </tr>
+        </thead>
+        <tbody id="logTable"></tbody>
+    </table>
+
+    <div class="pagination">
+        <button onclick="prevPage()" id="prevBtn">上一页</button>
+        <span id="pageInfo">第 1 页 / 共 1 页 (共 0 条)</span>
+        <button onclick="nextPage()" id="nextBtn">下一页</button>
     </div>
 </div>
-<div class="main">
-    <div class="menu">
-        <a href="/api/auth/home">控制台首页</a>
-        <div class="dropdown">
-            <div class="dropbtn">自动化测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/page">接口自动化测试</a>
-                <a href="/api/ui/page">UI自动化测试</a>
-            </div>
-        </div>
-        <div class="dropdown">
-            <div class="dropbtn">测试报告 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/reports">接口测试报告</a>
-                <a href="/api/ui/reports">UI测试报告</a>
-                <a href="/api/performance/reports/page">性能测试报告</a>
-            </div>
-        </div>
-        <a href="/api/performance/page">性能测试</a>
-        <div class="dropdown">
-            <div class="dropbtn">AI智能测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/ai/generate/api/page">AI接口用例生成</a>
-                <a href="/api/ai/generate/ui/page">AI UI用例生成</a>
-                <a href="/api/ai/analyze/page">测试失败分析</a>
-            </div>
-        </div>
-        <a id="userManageMenu" href="/api/auth/user/list">用户管理</a>
-        <a href="/api/auth/operation/logs/page" style="background:#2c3e50;">操作日志</a>
-    </div>
+{% endblock %}
 
-    <div class="content" style="max-width:1200px; margin:0 auto;">
-        <h2>操作日志</h2>
-        <div style="margin:20px 0;">
-            <input id="searchKeyword" placeholder="搜索用户名或操作类型..." style="width:250px; padding:8px; border:1px solid #ddd; border-radius:4px;">
-            <input type="text" id="searchDate" placeholder="日期如 2026-04-22" style="padding:8px; border:1px solid #ddd; border-radius:4px; width:150px;">
-            <button onclick="searchLogs()" style="background:#007bff; color:white;">搜索</button>
-            <button onclick="resetSearch()" style="background:#6c757d; color:white;">重置</button>
-            <button onclick="deleteOldLogs()" style="background:#dc3545; color:white; margin-left:20px;">清理30天前日志</button>
-        </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>时间</th>
-                    <th>用户名</th>
-                    <th>操作类型</th>
-                    <th>详情</th>
-                    <th>IP地址</th>
-                </tr>
-            </thead>
-            <tbody id="logTable"></tbody>
-        </table>
-
-        <div style="margin-top:20px; text-align:center;">
-            <button onclick="prevPage()" id="prevBtn">上一页</button>
-            <span id="pageInfo">第 1 页 / 共 1 页 (共 0 条)</span>
-            <button onclick="nextPage()" id="nextBtn">下一页</button>
-        </div>
-    </div>
-</div>
-<script src="/static/js/common.js"></script>
+{% block extra_js %}
 <script>
     let currentPage = 1;
     let pageSize = 10;
@@ -170,5 +133,4 @@
         }
     }
 </script>
-</body>
-</html>
+{% endblock %}

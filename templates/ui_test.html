@@ -1,170 +1,72 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>UI自动化测试</title>
-    <link rel="stylesheet" href="/static/css/global.css">
-    <style>
-        button.danger {
-            background: #e74c3c;
-        }
+{% extends "base.html" %}
 
-        pre {
-            background: #f7f7f7;
-            padding: 15px;
-            border-radius: 6px;
-            max-height: 300px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-        }
+{% block title %}UI自动化测试{% endblock %}
 
-        button {
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            border: none;
-            margin-right: 6px;
-        }
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/pages/test-forms.css">
+{% endblock %}
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
+{% block content %}
+<div class="card">
+    <h3>UI测试用例</h3>
+    <input id="name" class="form-input" placeholder="用例名称（如：百度搜索测试）">
+    <input id="url" class="form-input" placeholder="打开网址（https://www.baidu.com）">
 
-        th, td {
-            padding: 10px;
-            text-align: center;
-            border: 1px solid #eee;
-        }
-
-        th {
-            background: #f5f7fa;
-        }
-
-        .ui-row {
-            display: flex;
-            gap: 8px;
-            margin: 6px 0;
-        }
-
-        .ui-row select,
-        .ui-row input {
-            flex: 1;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-    </style>
-</head>
-<body>
-<div class="top">
-    TestPilot 智能自动化测试平台
-    <div style="float:right; color:white; margin-top:10px;">
-        <span id="roleText" style="margin-right:15px;"></span>
-        <div style="display:inline-block; position:relative;">
-            <a href="#" onclick="toggleUserMenu(); return false;" style="color:#fff; margin-right:15px; text-decoration:none;">▼</a>
-            <div id="userMenu" style="display:none; position:absolute; right:0; top:25px; background:#fff; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15); min-width:120px; z-index:9999;">
-                <a href="/api/auth/profile/page" style="display:block; padding:10px 15px; color:#333; text-decoration:none;">个人中心</a>
-                <a href="#" onclick="logout(); return false;" style="display:block; padding:10px 15px; color:#dc3545; text-decoration:none;">退出登录</a>
-            </div>
-        </div>
+    <div class="test-form-row">
+        <select id="action" class="form-select">
+            <option value="click">点击</option>
+            <option value="input">输入</option>
+            <option value="wait">等待</option>
+        </select>
+        <select id="locator" class="form-select">
+            <option value="id">ID 定位</option>
+            <option value="name">Name 定位</option>
+            <option value="xpath">XPath 定位</option>
+            <option value="css">CSS 定位</option>
+            <option value="linkText">链接文本</option>
+        </select>
+        <input id="value" class="form-input" placeholder="定位值/输入内容">
     </div>
+    <button class="btn btn-primary" onclick="addStep()">添加步骤</button>
+
+    <textarea id="steps" class="form-textarea" rows="4" placeholder="自动生成的操作步骤（可编辑）"></textarea>
+    <br>
+    <button class="btn btn-primary" onclick="saveCase()">保存用例</button>
 </div>
-<div class="main">
-    <div class="menu">
-        <a href="/api/auth/home">控制台首页</a>
-        <div class="dropdown">
-            <div class="dropbtn">自动化测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/page">接口自动化测试</a>
-                <a href="/api/ui/page">UI自动化测试</a>
-            </div>
-        </div>
-        <div class="dropdown">
-            <div class="dropbtn">测试报告 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/reports">接口测试报告</a>
-                <a href="/api/ui/reports">UI测试报告</a>
-                <a href="/api/performance/reports/page">性能测试报告</a>
-            </div>
-        </div>
-        <a href="/api/performance/page">性能测试</a>
-        <div class="dropdown">
-            <div class="dropbtn">AI智能测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/ai/generate/api/page">AI接口用例生成</a>
-                <a href="/api/ai/generate/ui/page">AI UI用例生成</a>
-                <a href="/api/ai/analyze/page">测试失败分析</a>
-            </div>
-        </div>
-        <a id="userManageMenu" href="/api/auth/user/list" style="display:none;">用户管理</a>
-        <a id="operationLogMenu" href="/api/auth/operation/logs/page" style="display:none;">操作日志</a>
+
+<div class="card">
+    <h3>用例列表</h3>
+    <div class="search-bar">
+        <input id="searchKeyword" class="form-input" placeholder="搜索用例名称...">
+        <button class="btn btn-primary" onclick="searchCases()">搜索</button>
+        <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
     </div>
-
-    <div class="content">
-        <div class="card">
-            <h3>UI测试用例</h3>
-            <br>
-            <input id="name" placeholder="用例名称（如：百度搜索测试）">
-            <input id="url" placeholder="打开网址（https://www.baidu.com）">
-
-            <div class="ui-row">
-                <select id="action">
-                    <option value="click">点击</option>
-                    <option value="input">输入</option>
-                    <option value="wait">等待</option>
-                </select>
-                <select id="locator">
-                    <option value="id">ID 定位</option>
-                    <option value="name">Name 定位</option>
-                    <option value="xpath">XPath 定位</option>
-                    <option value="css">CSS 定位</option>
-                    <option value="linkText">链接文本</option>
-                </select>
-                <input id="value" placeholder="定位值/输入内容">
-            </div>
-            <button onclick="addStep()">添加步骤</button>
-
-            <textarea id="steps" rows="4" placeholder="自动生成的操作步骤（可编辑）"></textarea>
-            <br>
-            <button onclick="saveCase()">保存用例</button>
-        </div>
-
-        <div class="card">
-            <h3>用例列表</h3>
-            <div style="margin-bottom:15px;">
-                <input id="searchKeyword" placeholder="搜索用例名称..." style="width:300px; display:inline-block;">
-                <button onclick="searchCases()">搜索</button>
-                <button onclick="resetSearch()" style="background:#95a5a6;">重置</button>
-            </div>
-            <table>
-                <thead>
-                <tr>
-                    <th>序号</th>
-                    <th>用例名</th>
-                    <th>网址</th>
-                    <th>定位方式</th>
-                    <th>操作</th>
-                </tr>
-                </thead>
-                <tbody id="caseList"></tbody>
-            </table>
-            <div style="margin-top:15px; text-align:center;">
-                <button onclick="prevPage()" id="prevBtn">上一页</button>
-                <span id="pageInfo">第 1 页 / 共 1 页 (共 0 条)</span>
-                <button onclick="nextPage()" id="nextBtn">下一页</button>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>执行结果</h3>
-            <br>
-            <pre id="result">等待执行...</pre>
-        </div>
+    <table class="table">
+        <thead>
+        <tr>
+            <th>序号</th>
+            <th>用例名</th>
+            <th>网址</th>
+            <th>定位方式</th>
+            <th>操作</th>
+        </tr>
+        </thead>
+        <tbody id="caseList"></tbody>
+    </table>
+    <div class="pagination">
+        <button onclick="prevPage()" id="prevBtn">上一页</button>
+        <span id="pageInfo">第 1 页 / 共 1 页 (共 0 条)</span>
+        <button onclick="nextPage()" id="nextBtn">下一页</button>
     </div>
 </div>
 
-<script src="/static/js/common.js"></script>
+<div class="card">
+    <h3>执行结果</h3>
+    <pre id="result" class="code-block">等待执行...</pre>
+</div>
+{% endblock %}
+
+{% block extra_js %}
 <script>
     let currentPage = 1;
     let pageSize = 10;
@@ -176,7 +78,6 @@
         loadCases();
     };
 
-    // 加载用例
     async function loadCases(page = 1) {
         const keyword = document.getElementById("searchKeyword").value;
         try {
@@ -197,9 +98,9 @@
                     <td>${c.url}</td>
                     <td>${c.loc_type}</td>
                     <td>
-                        <button onclick="editUICase(${c.id})">编辑</button>
-                        <button class="primary" onclick="runUICase(${c.id})">执行</button>
-                        <button class="danger" onclick="del(${c.id})">删除</button>
+                        <button class="btn btn-primary" onclick="editUICase(${c.id})">编辑</button>
+                        <button class="btn btn-success" onclick="runUICase(${c.id})">执行</button>
+                        <button class="btn btn-danger" onclick="del(${c.id})">删除</button>
                     </td>
                 </tr>`;
             });
@@ -240,17 +141,14 @@
             showAlert("请输入定位值或内容", "warning");
             return;
         }
-        // 自动生成结构化步骤文本
         const step = `[${action}] [${locator}] ${value}\n`;
         const stepsArea = document.getElementById("steps");
         stepsArea.value += step;
 
-        // 清空输入框，方便输下一步
         document.getElementById("value").value = "";
         showAlert("步骤已添加", "success");
     }
 
-    // 保存用例
     async function saveCase() {
         const nameEl = document.getElementById("name");
         const name = nameEl.value.trim();
@@ -258,7 +156,7 @@
         const steps = document.getElementById("steps").value.trim();
         const loc_type = document.getElementById("locator").value;
         const loc_value = document.getElementById("value").value;
-        const editId = nameEl.dataset.editId; // 检查是否有编辑 ID
+        const editId = nameEl.dataset.editId;
 
         if (!name || !url) {
             showAlert("请完善用例信息", "warning");
@@ -275,7 +173,6 @@
 
         try {
             if (editId) {
-                // 如果是编辑模式，调用 PUT 接口
                 await fetch(`/api/ui/case/${editId}`, {
                     method: "PUT",
                     headers: {
@@ -284,16 +181,14 @@
                     },
                     body: JSON.stringify(payload)
                 });
-                delete nameEl.dataset.editId; // 清除编辑标记
+                delete nameEl.dataset.editId;
                 showAlert("更新成功", "success");
             } else {
-                // 否则是新增模式
                 await httpPost("/api/ui/case/struct", payload);
                 showAlert("保存成功", "success");
             }
 
             loadCases();
-            // 清空表单
             nameEl.value = "";
             document.getElementById("url").value = "";
             document.getElementById("steps").value = "";
@@ -303,7 +198,6 @@
         }
     }
 
-    // 删除用例
     async function del(id) {
         if (!confirm("确定删除？")) return;
         try {
@@ -317,7 +211,6 @@
 
     async function editUICase(id) {
         try {
-            // 获取所有用例数据
             const r = await httpGet("/api/ui/cases?page=1&page_size=1000");
             const caseData = (r.data.list || r.data).find(c => c.id === id);
             if (!caseData) {
@@ -325,19 +218,18 @@
                 return;
             }
 
-            // 回填到表单
             document.getElementById("name").value = caseData.name;
             document.getElementById("url").value = caseData.url;
             document.getElementById("locator").value = caseData.loc_type || "xpath";
             document.getElementById("value").value = caseData.loc_value || "";
             document.getElementById("steps").value = caseData.steps || "";
-            // 临时存一下 ID，方便保存时知道是更新
             document.getElementById("name").dataset.editId = id;
             showAlert("已加载用例信息，修改后点击保存即可", "info");
         } catch (err) {
             showAlert("获取用例信息失败", "error");
         }
     }
+    
     async function runUICase(cid) {
         try {
             showAlert("UI自动化执行中...", "info");
@@ -353,5 +245,4 @@
         }
     }
 </script>
-</body>
-</html>
+{% endblock %}

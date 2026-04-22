@@ -1,0 +1,72 @@
+/* 测试用例表单行 */
+.test-form-row {
+    display: flex;
+    gap: 12px;
+    margin: 8px 0;
+}
+
+.test-form-row select,
+.test-form-row input {
+    flex: 1;
+}
+
+/* 搜索栏 */
+.search-bar {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-bar input {
+    width: 280px;
+}
+
+/* 分页控件 */
+.pagination {
+    margin-top: 20px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.pagination button {
+    margin: 0;
+    background: white;
+    color: #4a5568;
+    border: 1px solid #e2e8f0;
+    box-shadow: none;
+    padding: 8px 20px;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.pagination button:hover:not(:disabled) {
+    background: #f7fafc;
+    border-color: #667eea;
+    color: #667eea;
+    transform: none;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #f7fafc;
+}
+
+#pageInfo {
+    margin: 0 8px;
+    color: #4a5568;
+    font-size: 14px;
+    font-weight: 500;
+}

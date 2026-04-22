@@ -28,3 +28,6 @@ logs/
 # 系统文件
 .DS_Store
 .claudeignore
+
+# 数据库同步脚本
+sync_db.py

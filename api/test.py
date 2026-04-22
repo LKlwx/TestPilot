@@ -172,9 +172,11 @@ def get_report_detail(rid):
 def batch_run():
     from app import create_app
     req = request.json
-    if not req: return error("参数不完整!")
+    if not req:
+        return error("参数不完整!")
     ids = req.get("ids", [])
-    if not ids: return error("请选择用例")
+    if not ids:
+        return error("请选择用例")
     res_list = []
     app = create_app()
 

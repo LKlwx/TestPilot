@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}TestPilot{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/global.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<!-- 顶部导航 -->
+<div class="top">
+    <div class="top-title">TestPilot 智能自动化测试平台</div>
+    <div class="top-user-area">
+        <span id="roleText" class="top-user-trigger"></span>
+        <div onclick="toggleUserMenu()" class="top-user-trigger">▼</div>
+        <div id="userMenu" class="user-menu">
+            <a href="/api/auth/profile/page">个人中心</a>
+            <a href="#" onclick="logout(); return false;" class="logout-link">退出登录</a>
+        </div>
+    </div>
+</div>
+
+<!-- 主布局 -->
+<div class="main">
+    <!-- 左侧菜单 -->
+    <div class="menu">
+        <a href="/api/auth/home">控制台首页</a>
+
+        <div class="dropdown">
+            <div class="dropbtn">自动化测试 ▼</div>
+            <div class="dropdown-content">
+                <a href="/api/test/page">接口自动化测试</a>
+                <a href="/api/ui/page">UI自动化测试</a>
+            </div>
+        </div>
+
+        <div class="dropdown">
+            <div class="dropbtn">测试报告 ▼</div>
+            <div class="dropdown-content">
+                <a href="/api/test/reports">接口测试报告</a>
+                <a href="/api/ui/reports">UI测试报告</a>
+                <a href="/api/performance/reports/page">性能测试报告</a>
+            </div>
+        </div>
+
+        <a href="/api/performance/page">性能测试</a>
+
+        <div class="dropdown">
+            <div class="dropbtn">AI智能测试 ▼</div>
+            <div class="dropdown-content">
+                <a href="/api/ai/generate/api/page">AI接口用例生成</a>
+                <a href="/api/ai/generate/ui/page">AI UI用例生成</a>
+                <a href="/api/ai/analyze/page">测试失败分析</a>
+            </div>
+        </div>
+
+        <a id="userManageMenu" href="/api/auth/user/list" style="display:none;">用户管理</a>
+        <a id="operationLogMenu" href="/api/auth/operation/logs/page" style="display:none;">操作日志</a>
+    </div>
+
+    <!-- 右侧内容区 -->
+    <div class="content">
+        {% block content %}{% endblock %}
+    </div>
+</div>
+
+<script src="/static/js/common.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

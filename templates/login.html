@@ -1,95 +1,284 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>登录</title>
-    <link rel="stylesheet" href="/static/css/global.css">
-    <style>
-        .login-wrap {
-            width: 420px;
-            margin: 120px auto;
-            background: #fff;
-            padding: 30px 40px;
-            border-radius: 8px;
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.06);
-        }
+{% extends "auth_base.html" %}
 
-        .login-wrap h2 {
-            text-align: center;
-            color: #2c3e50;
-            margin-bottom: 25px;
-        }
+{% block title %}登录{% endblock %}
 
-        .login-wrap input {
-            margin: 10px 0;
-            height: 42px;
-        }
+{% block extra_css %}
+<style>
+    .login-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+    }
+    
+    .login-bg-layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-size: cover;
+        background-position: center;
+    }
+    
+    .login-bg-bottom {
+        background: url('/static/images/bg-dark.png') center/cover;
+    }
+    
+    .login-bg-top {
+        background: url('/static/images/bg-light.png') center/cover;
+    }
+    
+    body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+    }
+    
+    .login-wrap {
+        width: 420px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 50px 40px;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    
+    .login-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+    
+    .login-logo {
+        margin-bottom: 16px;
+    }
+    
+    .login-header h1 {
+        font-size: 28px;
+        font-weight: 600;
+        color: #2d3748;
+        margin: 0 0 8px 0;
+        letter-spacing: 0.5px;
+        user-select: none;
+        cursor: default;
+    }
+    
+    .login-subtitle {
+        font-size: 14px;
+        color: #718096;
+        margin: 0;
+        user-select: none;
+        cursor: default;
+    }
+    
+    .form-group {
+        margin-bottom: 24px;
+    }
+    
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #4a5568;
+        margin-bottom: 8px;
+    }
+    
+    .input-wrapper {
+        position: relative;
+        margin-bottom: 8px;
+    }
+    
+    .input-wrapper input {
+        width: 100%;
+        height: 48px;
+        padding: 0 18px 0 46px;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 15px;
+        color: #2d3748;
+        background: white;
+        transition: border-color 0.3s;
+        box-sizing: border-box;
+        outline: none;
+    }
 
-        .login-wrap button {
-            width: 100%;
-            margin-top: 15px;
-            height: 44px;
-            font-size: 16px;
-            background: #007bff;
-            color: #fff;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
+    .input-wrapper input:focus,
+    .input-wrapper input:active {
+        border-color: #667eea;
+    }
+    
+    .input-wrapper input::-moz-focus-inner {
+        border: 0;
+        padding: 0;
+    }
+    
+    .input-wrapper input:-webkit-autofill,
+    .input-wrapper input:-webkit-autofill:hover,
+    .input-wrapper input:-webkit-autofill:focus {
+        -webkit-box-shadow: 0 0 0px 1000px white inset !important;
+        -webkit-text-fill-color: #2d3748;
+        outline: none !important;
+    }
+    
+    .input-wrapper input::placeholder {
+        color: #a0aec0;
+    }
+    
+    .input-icon {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #a0aec0;
+        pointer-events: none;
+        transition: color 0.2s;
+        background: white;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+    }
+    
+    .input-wrapper input:focus ~ .input-icon,
+    .input-wrapper:focus-within .input-icon {
+        color: #667eea;
+    }
+    
+    .login-btn {
+        width: 100%;
+        height: 48px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        letter-spacing: 2px;
+        outline: none;
+        box-sizing: border-box;
+        caret-color: transparent;
+    }
+    
+    .login-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+    }
+    
+    .login-btn:active {
+        transform: translateY(0);
+    }
+    
+    .login-footer {
+        text-align: center;
+        margin-top: 24px;
+        font-size: 14px;
+        color: #718096;
+    }
+    
+    .register-link {
+        color: #667eea;
+        font-weight: 500;
+        text-decoration: none;
+        margin-left: 4px;
+        transition: color 0.2s;
+        caret-color: transparent;
+        outline: none;
+    }
+    
+    .register-link:hover {
+        color: #764ba2;
+        text-decoration: underline;
+    }
+    
+    .login-footer span,
+    .login-footer {
+        caret-color: transparent;
+    }
+    
+    /* 全局禁用所有链接的光标 */
+    a {
+        caret-color: transparent;
+        outline: none;
+        user-select: none;
+    }
+</style>
+{% endblock %}
 
-        .login-wrap button:hover {
-            background: #0056b3;
-        }
-
-        .login-wrap button:nth-of-type(2) {
-            background: #6c757d;
-            margin-top: 8px;
-        }
-
-        .login-wrap button:nth-of-type(2):hover {
-            background: #5a6268;
-        }
-
-        .login-wrap p {
-            text-align: center;
-            margin-top: 15px;
-            color: #666;
-        }
-
-        .login-wrap a {
-            color: #007bff;
-            text-decoration: none;
-        }
-
-        .login-wrap a:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-<div class="login-wrap">
-    <h2>TestPilot 智能自动化测试平台登录</h2>
-    <input type="text" id="username" placeholder="用户名"><br>
-    <input type="password" id="password" placeholder="密码"><br>
-    <button onclick="login()">登录</button>
-    <p style="text-align:center; margin-top:10px;">
-        还没有账号？<a href="javascript:showRegister()">去注册</a>
-    </p>
+{% block content %}
+<div class="login-bg">
+    <div class="login-bg-layer login-bg-bottom"></div>
+    <div class="login-bg-layer login-bg-top" id="bgClip"></div>
 </div>
-<!-- 注册弹窗 -->
-<div id="registerModal"
-     style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:9999;">
-    <div style="background:#fff; padding:30px; border-radius:8px; width:400px; box-shadow:0 2px 20px rgba(0,0,0,0.15);">
-        <h3 style="color:#2c3e50; margin-bottom:20px; text-align:center;">注册新账号</h3>
-        <input type="text" id="regUsername" placeholder="用户名" autocomplete="off" style="width:100%;">
-        <input type="password" id="regPassword" placeholder="密码" autocomplete="off" style="width:100%;">
-        <button onclick="doRegister()">确认注册</button>
-        <button onclick="hideRegister()">取消</button>
+<div class="login-wrap">
+    <div class="login-header">
+        <div class="login-logo">
+            <svg viewBox="0 0 24 24" width="40" height="40">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"
+                      fill="#667eea"/>
+            </svg>
+        </div>
+        <h1>TestPilot</h1>
+        <p class="login-subtitle">智能自动化测试平台</p>
+    </div>
+
+    <div class="login-form">
+        <div class="form-group">
+            <label class="form-label">用户名</label>
+            <div class="input-wrapper">
+                <input type="text" id="username" placeholder="请输入用户名">
+                <svg class="input-icon" viewBox="0 0 24 24" width="20" height="20">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
+                          fill="currentColor"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">密码</label>
+            <div class="input-wrapper">
+                <input type="password" id="password" placeholder="请输入密码">
+                <svg class="input-icon" viewBox="0 0 24 24" width="20" height="20">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"
+                          fill="currentColor"/>
+                </svg>
+            </div>
+        </div>
+
+        <button class="login-btn" onclick="login()">
+            <span class="btn-text">登 录</span>
+        </button>
+
+        <div class="login-footer">
+            <span>还没有账号？</span>
+            <a href="javascript:showRegister()" class="register-link">立即注册</a>
+        </div>
     </div>
 </div>
+</div>
+<!-- 注册弹窗 -->
+<div id="registerModal" class="modal-overlay">
+    <div class="modal-content" style="width:400px;">
+        <h3 class="modal-header">注册新账号</h3>
+        <input type="text" id="regUsername" class="form-input" placeholder="请输入用户名" autocomplete="off">
+        <input type="password" id="regPassword" class="form-input" placeholder="请输入密码" autocomplete="off">
+        <div class="modal-footer">
+            <button class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;" onclick="doRegister()">确认注册</button>
+            <button class="btn" style="background: #f7fafc; color: #4a5568; border: 1px solid #e2e8f0;" onclick="hideRegister()">取消</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
-<script src="/static/js/common.js"></script>
+{% block extra_js %}
 <script>
     async function login() {
         let username = document.getElementById("username").value.trim();
@@ -99,17 +288,14 @@
             return;
         }
         try {
-            // 2. 用封装好的 httpPost
             const res = await httpPost("/api/auth/login", {username, password});
 
             if (res.code === 200) {
-                // 存储用户信息
                 localStorage.setItem("token", res.data.token);
                 localStorage.setItem("role", res.data.role);
                 localStorage.setItem("username", res.data.username);
 
                 showAlert("登录成功，即将跳转", "success");
-                // 延迟跳转
                 setTimeout(() => location.href = "/api/auth/home", 800);
             } else {
                 showAlert(res.msg || "登录失败", "error");
@@ -121,11 +307,11 @@
     }
 
     function showRegister() {
-        document.getElementById("registerModal").style.display = "flex";
+        document.getElementById("registerModal").classList.add("active");
     }
 
     function hideRegister() {
-        document.getElementById("registerModal").style.display = "none";
+        document.getElementById("registerModal").classList.remove("active");
     }
 
     async function doRegister() {
@@ -149,6 +335,44 @@
             console.error("注册接口异常：", err);
         }
     }
+    
+    // 阻止 placeholder 被选中
+    document.querySelectorAll('input').forEach(function(input) {
+        input.addEventListener('mousedown', function(e) {
+            if (this.value === '') {
+                e.preventDefault();
+                this.focus();
+            }
+        });
+    });
+    
+    // 对角线跟随鼠标裁剪效果
+    const bgClip = document.getElementById('bgClip');
+    
+    // 初始状态
+    bgClip.style.setProperty('--p1y', '100%');
+    bgClip.style.setProperty('--p2x', '100%');
+    bgClip.style.setProperty('--p2y', '100%');
+    
+    document.addEventListener('mousemove', function(e) {
+        // 首次进入时设置--p2y为0%
+        if (bgClip.style.getPropertyValue('--p2y') === '100%') {
+            bgClip.style.setProperty('--p2y', '0%');
+        }
+        
+        const x = e.clientX;
+        const y = e.clientY;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        
+        const xPercent = (x / w) * 100;
+        const yPercent = (y / h) * 100;
+        
+        bgClip.style.setProperty('--p1y', `${yPercent * 2}%`);
+        bgClip.style.setProperty('--p2x', `${xPercent * 2}%`);
+        
+        const polygon = `polygon(0 var(--p1y, 100%), var(--p2x, 100%) var(--p2y, 100%), 100% 0, 100% 100%, 0% 100%)`;
+        bgClip.style.clipPath = polygon;
+    });
 </script>
-</body>
-</html>
+{% endblock %}

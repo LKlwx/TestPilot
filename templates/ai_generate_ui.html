@@ -1,90 +1,22 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <title>AI UI用例生成</title>
-    <link rel="stylesheet" href="/static/css/global.css">
-    <style>
-        pre {
-            background: #f7f7f7;
-            padding: 15px;
-            border-radius: 6px;
-            border: 1px solid #eee;
-            white-space: pre-wrap;
-            max-height: 500px;
-            overflow-y: auto;
-        }
+{% extends "base.html" %}
 
-        button {
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-right: 6px;
-        }
-    </style>
-</head>
-<body>
-<div class="top">
-    TestPilot 智能自动化测试平台
-    <div style="float:right; color:white; margin-top:10px;">
-        <span id="roleText" style="margin-right:15px;"></span>
-        <div style="display:inline-block; position:relative;">
-            <a href="#" onclick="toggleUserMenu(); return false;" style="color:#fff; margin-right:15px; text-decoration:none;">▼</a>
-            <div id="userMenu" style="display:none; position:absolute; right:0; top:25px; background:#fff; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15); min-width:120px; z-index:9999;">
-                <a href="/api/auth/profile/page" style="display:block; padding:10px 15px; color:#333; text-decoration:none;">个人中心</a>
-                <a href="#" onclick="logout(); return false;" style="display:block; padding:10px 15px; color:#dc3545; text-decoration:none;">退出登录</a>
-            </div>
-        </div>
-    </div>
+{% block title %}AI UI用例生成{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h3>AI UI 用例生成</h3>
+    <textarea id="scene" class="form-textarea" rows="4" placeholder="输入UI操作场景，例如：登录、注册、搜索商品"></textarea>
+    <br><br>
+    <button class="btn btn-primary" onclick="generate()">生成用例</button>
+    <button class="btn btn-success" onclick="saveCase()">保存到UI用例库</button>
 </div>
-<div class="main">
-    <div class="menu">
-        <a href="/api/auth/home">控制台首页</a>
-        <div class="dropdown">
-            <div class="dropbtn">自动化测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/page">接口自动化测试</a>
-                <a href="/api/ui/page">UI自动化测试</a>
-            </div>
-        </div>
-        <div class="dropdown">
-            <div class="dropbtn">测试报告 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/test/reports">接口测试报告</a>
-                <a href="/api/ui/reports">UI测试报告</a>
-                <a href="/api/performance/reports/page">性能测试报告</a>
-            </div>
-        </div>
-        <a href="/api/performance/page">性能测试</a>
-        <div class="dropdown">
-            <div class="dropbtn">AI智能测试 ▼</div>
-            <div class="dropdown-content">
-                <a href="/api/ai/generate/api/page">AI接口用例生成</a>
-                <a href="/api/ai/generate/ui/page">AI UI用例生成</a>
-                <a href="/api/ai/analyze/page">测试失败分析</a>
-            </div>
-        </div>
-        <a id="userManageMenu" href="/api/auth/user/list" style="display:none;">用户管理</a>
-        <a id="operationLogMenu" href="/api/auth/operation/logs/page" style="display:none;">操作日志</a>
-    </div>
-
-    <div class="content">
-        <div class="card">
-            <h3>AI UI 用例生成</h3>
-            <br>
-            <textarea id="scene" rows="4" placeholder="输入UI操作场景，例如：登录、注册、搜索商品"></textarea>
-            <br><br>
-            <button onclick="generate()">生成用例</button>
-            <button onclick="saveCase()">保存到UI用例库</button>
-        </div>
-        <div class="card">
-            <h3>生成结果</h3>
-            <pre id="result">等待生成</pre>
-        </div>
-    </div>
+<div class="card">
+    <h3>生成结果</h3>
+    <pre id="result" class="code-block">等待生成</pre>
 </div>
+{% endblock %}
 
-<script src="/static/js/common.js"></script>
+{% block extra_js %}
 <script>
     let currentData = null;
 
@@ -127,5 +59,4 @@
         }
     }
 </script>
-</body>
-</html>
+{% endblock %}

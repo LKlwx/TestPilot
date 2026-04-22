@@ -41,7 +41,6 @@ class TestCase(db.Model):
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     create_time = db.Column(db.DateTime, default=datetime.now)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
-    # module = db.Column(db.String(50), default="default")
 
 
 # ------------------------------

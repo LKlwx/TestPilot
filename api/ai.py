@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from core.response import success, error
 from service.ai_service import ai_service
 
-ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
+ai_bp = Blueprint("ai", __name__)
 
 
 @ai_bp.route("/generate/api/page")

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
 from models import UICase
@@ -106,16 +106,15 @@ def delete_ui_case(cid):
 def get_ui_reports():
     from models import UIReport
     reports = UIReport.query.order_by(UIReport.id.desc()).limit(20).all()
-    return jsonify(code=200, data=[
-        {
-            "id": r.id,
-            "case_name": r.case_name,
-            "status": r.status,
-            "time": r.cost_time,
-            "msg": r.error_msg,
-            "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
-        } for r in reports
-    ])
+    data = [{
+        "id": r.id,
+        "case_name": r.case_name,
+        "status": r.status,
+        "time": r.cost_time,
+        "msg": r.error_msg,
+        "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
+    } for r in reports]
+    return success(data)
 
 
 # 报告详情

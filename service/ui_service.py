@@ -161,8 +161,8 @@ def run_ui_case(case):
 
     except Exception as e:
         status = "FAIL"
-        screenshot_path = ""
         error_msg = f"异常：{str(e)}\n\n详细步骤：\n" + "\n".join(step_log)
+        # 保存失败截图
         try:
             if not os.path.exists("static/screenshots"):
                 os.makedirs("static/screenshots")
@@ -173,8 +173,6 @@ def run_ui_case(case):
             step_log.append(f"已保存失败截图: {filepath}")
         except Exception as se:
             step_log.append(f"截图失败: {str(se)}")
-
-        error_msg = f"异常：{str(e)}\n\n详细步骤：\n" + "\n".join(step_log)
 
         try:
             driver.quit()

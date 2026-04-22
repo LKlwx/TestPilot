@@ -1,0 +1,44 @@
+/* 全局统一设置 - 禁止文本选中（除了输入框内部文字） */
+*,
+*::before,
+*::after {
+    user-select: none;
+}
+
+/* 允许输入框内部文字被选中 */
+input,
+textarea,
+[contenteditable] {
+    user-select: text;
+}
+
+/* 基础重置 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #f5f7fa;
+    color: #2d3748;
+    line-height: 1.6;
+    min-width: 1300px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* 通用链接 */
+a {
+    color: #667eea;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    caret-color: transparent;
+    outline: none;
+}
+
+a:hover {
+    color: #764ba2;
+    text-decoration: none;
+}

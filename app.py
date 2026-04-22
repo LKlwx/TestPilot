@@ -1,5 +1,3 @@
-from email.policy import strict
-
 from flask import Flask
 from config import config
 from core.exception import APIException
@@ -22,8 +20,6 @@ def create_app(config_name="default"):
     login_manager.init_app(app)
     jwt.init_app(app)
 
-    # scheduler.init_app(app)
-
     @login_manager.user_loader
     def user_loader(user_id):
         from models import User
@@ -37,15 +33,14 @@ def create_app(config_name="default"):
     def handle_api_exception(e):
         return error(e.msg, e.code)
 
-    @app.route("/favicon.ico")
-    def favicon():
-        return "", 204
+    # 其他全局异常兜底处理
+    @app.errorhandler(Exception)
     def handle_all_exception(e):
         import traceback
         traceback.print_exc()
         return error(str(e), 500)
 
-    # 登录路由
+    # 注册蓝本
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(test_bp, url_prefix="/api/test")
     app.register_blueprint(ui_bp, url_prefix="/api/ui")
