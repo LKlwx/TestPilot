@@ -44,24 +44,28 @@
             const r = await httpGet("/api/ui/reports/data");
             const data = r.data || [];
             let html = "";
-
-            data.forEach((item, index) => {
-                const statusClass = item.status === 'PASS' ? 'status-pass' : (item.status === 'FAIL' ? 'status-fail' : 'status-error');
-                html += `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${item.case_name}</td>
-                    <td class="${statusClass}">${item.status}</td>
-                    <td>${item.time} 秒</td>
-                    <td>${item.create_time}</td>
-                    <td>${item.msg || '-'}</td>
-                    <td><button class="btn btn-primary" onclick="showDetail(${item.id})">查看</button></td>
-                </tr>`;
-            });
-
+    
+            if (data.length === 0) {
+                html = '<tr><td colspan="7" style="text-align:center; padding:40px; color:#999;">暂无 UI 测试报告数据</td></tr>';
+            } else {
+                data.forEach((item, index) => {
+                    const statusClass = item.status === 'PASS' ? 'status-pass' : (item.status === 'FAIL' ? 'status-fail' : 'status-error');
+                    html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${item.case_name}</td>
+                        <td class="${statusClass}">${item.status}</td>
+                        <td>${item.time} 秒</td>
+                        <td>${item.create_time}</td>
+                        <td>${item.msg || '-'}</td>
+                        <td><button class="btn btn-primary" onclick="showDetail(${item.id})">查看</button></td>
+                    </tr>`;
+                });
+            }
+    
             document.getElementById("list").innerHTML = html;
         } catch (err) {
-            showAlert("加载UI报告失败", "error");
+            showAlert("加载 UI 报告失败", "error");
             console.error(err);
         }
     }

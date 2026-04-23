@@ -287,9 +287,10 @@ def user_list_data():
 @jwt_required()
 def change_user_role():
     identity = get_jwt_identity()
-
-    # 只有超级管理员可以
-    if identity != "admin":
+    current_user = User.query.get(int(identity))
+    
+    # 只有超级管理员（username == "admin"）可以修改用户权限
+    if not current_user or current_user.username != "admin":
         raise AuthException("无权限")
 
     data = request.get_json()
@@ -307,7 +308,7 @@ def change_user_role():
     user.role = role
     db.session.commit()
     # 记录修改角色日志
-    add_operation_log("admin", "admin", "change_role", f"将用户{user.username}(ID={uid})从{old_role}修改为{role}")
+    add_operation_log(current_user.id, current_user.username, "change_role", f"将用户{user.username}(ID={uid})从{old_role}修改为{role}")
     return success(msg="角色修改成功")
 
 

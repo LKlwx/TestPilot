@@ -56,4 +56,11 @@ def create_app(config_name="default"):
         else:
             return redirect("/api/auth/login/page")
 
+    # 防止 favicon.ico 报 404
+    @app.route("/favicon.ico")
+    def favicon():
+        from flask import make_response
+        response = make_response("", 204)
+        return response
+
     return app

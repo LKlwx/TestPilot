@@ -149,10 +149,16 @@
 
     async function runTest(id) {
         try {
-            showAlert("压测执行中，请稍候...", "success");
+            showAlert("压测执行中，请稍候...", "info");
+            const resultArea = document.createElement('div');
+            resultArea.className = 'card';
+            resultArea.innerHTML = '<h3>执行结果</h3><pre id="perfResult" class="code-block"><span class="loading-spinner"></span><span class="loading-text">压测执行中，请稍候...</span></pre>';
+            document.querySelector('.card:last-of-type').after(resultArea);
+            window.scrollTo(0, document.body.scrollHeight);
+            
             const res = await httpPost(`/api/performance/case/${id}/run`, {});
+            document.getElementById("perfResult").innerText = JSON.stringify(res, null, 2);
             showAlert(res.msg || "压测完成", "success");
-            location.href = "/api/performance/reports/page";
         } catch (err) {
             showAlert("压测执行失败", "error");
             console.error(err);

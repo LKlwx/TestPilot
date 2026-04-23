@@ -233,6 +233,7 @@
     async function runUICase(cid) {
         try {
             showAlert("UI自动化执行中...", "info");
+            document.getElementById("result").innerHTML = '<span class="loading-spinner"></span><span class="loading-text">UI自动化执行中，请稍候...</span>';
             const r = await httpPost(`/api/ui/case/${cid}/run`, {});
             document.getElementById("result").innerText = JSON.stringify(r, null, 2);
             if (r.data && r.data.status === "PASS") {

@@ -19,7 +19,7 @@
     height: 3px;
     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
     opacity: 0;
-    transition: opacity 0.3s;
+    transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card:hover {
@@ -37,7 +37,6 @@
     font-size: 18px;
     font-weight: 600;
     padding-bottom: 16px;
-    border-bottom: 2px solid #f0f4f8;
     cursor: default;
     position: relative;
 }
@@ -45,7 +44,7 @@
 .card h3::after {
     content: '';
     position: absolute;
-    bottom: -2px;
+    bottom: 0;
     left: 0;
     width: 60px;
     height: 2px;
@@ -101,12 +100,12 @@ h2::after {
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.2);
     transform: translate(-50%, -50%);
-    transition: width 0.6s, height 0.6s;
+    transition: width 0.5s, height 0.5s;
 }
 
 .btn:active::before {
-    width: 300px;
-    height: 300px;
+    width: 150px;
+    height: 150px;
 }
 
 .btn-primary {
@@ -120,68 +119,12 @@ h2::after {
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
 }
 
-.btn-primary:active {
-    transform: translateY(0);
-}
-
-.btn-success {
-    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
-}
-
-.btn-success:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(72, 187, 120, 0.5);
-}
-
-.btn-success:active {
-    transform: translateY(0);
-}
-
-.btn-danger {
-    background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(245, 101, 101, 0.4);
-}
-
-.btn-danger:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(245, 101, 101, 0.5);
-}
-
-.btn-danger:active {
-    transform: translateY(0);
-}
-
-.btn-secondary {
-    background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(113, 128, 150, 0.4);
-}
-
-.btn-secondary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(113, 128, 150, 0.5);
-}
-
-.btn-secondary:active {
-    transform: translateY(0);
-}
-
-.btn-info {
-    background: linear-gradient(135deg, #63b3ed 0%, #4299e1 100%);
-    color: white;
-    box-shadow: 0 4px 15px rgba(66, 153, 225, 0.4);
-}
-
-.btn-info:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(66, 153, 225, 0.5);
-}
-
+.btn-primary:active,
+.btn-success:active,
+.btn-danger:active,
+.btn-secondary:active,
 .btn-info:active {
-    transform: translateY(0);
+    transform: scale(0.98);
 }
 
 /* 按钮禁用光标显示 */
@@ -216,7 +159,7 @@ button {
 .form-select:focus,
 .form-textarea:focus {
     border-color: #667eea;
-    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15), 3px 0 0 0 rgba(102, 126, 234, 0.3);
 }
 
 /* 表单标签 */
@@ -269,6 +212,19 @@ label,
 
 .table tbody tr {
     transition: all 0.2s;
+    position: relative;
+    cursor: default;
+}
+
+.table tbody tr::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    transition: width 0.2s;
 }
 
 .table tbody tr:nth-child(even) {
@@ -276,10 +232,23 @@ label,
 }
 
 .table tbody tr:hover {
-    background: #f7fafc;
+    background: #f0f7ff;
+}
+
+.table tbody tr:hover::before {
+    width: 3px;
 }
 
 /* ===== 弹窗组件 ===== */
+.modal-overlay.active {
+    display: flex;
+}
+
+@keyframes fadeInBackdrop {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .modal-overlay {
     display: none;
     position: fixed;
@@ -292,10 +261,7 @@ label,
     z-index: 9999;
     justify-content: center;
     align-items: center;
-}
-
-.modal-overlay.active {
-    display: flex;
+    animation: fadeInBackdrop 0.3s;
 }
 
 .modal-content {
@@ -312,12 +278,38 @@ label,
 @keyframes modalSlideIn {
     from {
         opacity: 0;
-        transform: scale(0.95) translateY(-20px);
+        transform: scale(0.96) translateY(-10px);
     }
     to {
         opacity: 1;
         transform: scale(1) translateY(0);
     }
+}
+
+/* ===== 加载动画 ===== */
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(102, 126, 234, 0.2);
+    border-radius: 50%;
+    border-top-color: #667eea;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-text {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 .modal-header {
@@ -392,4 +384,39 @@ label,
 .badge-info {
     background: linear-gradient(135deg, #e1f5fe 0%, #b3e5fc 100%);
     color: #0288d1;
+}
+
+/* ===== 滚动条样式 ===== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #5a67d8 0%, #6b46a1 100%);
+}
+
+/* ===== 按钮禁用状态 ===== */
+.btn:disabled,
+button:disabled {
+    background: #e2e8f0 !important;
+    color: #a0aec0 !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+.btn:disabled::before,
+button:disabled::before {
+    display: none;
 }

@@ -31,6 +31,19 @@
         background: url('/static/images/bg-light.png') center/cover;
     }
     
+    /* 渐变过渡层 */
+    .login-bg-gradient {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+    
     body {
         min-height: 100vh;
         display: flex;
@@ -101,7 +114,7 @@
         font-size: 15px;
         color: #2d3748;
         background: white;
-        transition: border-color 0.3s;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         box-sizing: border-box;
         outline: none;
     }
@@ -109,6 +122,7 @@
     .input-wrapper input:focus,
     .input-wrapper input:active {
         border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15), 3px 0 0 0 rgba(102, 126, 234, 0.3);
     }
     
     .input-wrapper input::-moz-focus-inner {
@@ -160,12 +174,32 @@
         font-size: 16px;
         font-weight: 600;
         cursor: pointer;
-        transition: all 0.3s;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         letter-spacing: 2px;
         outline: none;
         box-sizing: border-box;
         caret-color: transparent;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .login-btn::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        transform: translate(-50%, -50%);
+        transition: width 0.5s, height 0.5s;
+    }
+    
+    .login-btn:active::before {
+        width: 150px;
+        height: 150px;
     }
     
     .login-btn:hover {
@@ -217,6 +251,7 @@
 <div class="login-bg">
     <div class="login-bg-layer login-bg-bottom"></div>
     <div class="login-bg-layer login-bg-top" id="bgClip"></div>
+    <div class="login-bg-gradient" id="bgGradient"></div>
 </div>
 <div class="login-wrap">
     <div class="login-header">
@@ -348,6 +383,7 @@
     
     // 对角线跟随鼠标裁剪效果
     const bgClip = document.getElementById('bgClip');
+    const bgGradient = document.getElementById('bgGradient');
     
     // 初始状态
     bgClip.style.setProperty('--p1y', '100%');
@@ -355,9 +391,10 @@
     bgClip.style.setProperty('--p2y', '100%');
     
     document.addEventListener('mousemove', function(e) {
-        // 首次进入时设置--p2y为0%
+        // 首次进入时设置--p2y为0%并显示渐变
         if (bgClip.style.getPropertyValue('--p2y') === '100%') {
             bgClip.style.setProperty('--p2y', '0%');
+            bgGradient.style.opacity = '1';
         }
         
         const x = e.clientX;
@@ -373,6 +410,10 @@
         
         const polygon = `polygon(0 var(--p1y, 100%), var(--p2x, 100%) var(--p2y, 100%), 100% 0, 100% 100%, 0% 100%)`;
         bgClip.style.clipPath = polygon;
+        
+        // 渐变层跟随切割线（降低光柱透明度，扩大过渡范围）
+        const gradientAngle = Math.atan2(h - y, w - x) * 180 / Math.PI;
+        bgGradient.style.background = `linear-gradient(${gradientAngle}deg, transparent 40%, rgba(102, 126, 234, 0.08) 50%, transparent 60%)`;
     });
 </script>
 {% endblock %}

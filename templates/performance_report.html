@@ -48,21 +48,25 @@
             const list = res.data || [];
             let html = "";
 
-            list.forEach((item, index) => {
-                html += `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${item.case_name}</td>
-                    <td>${item.concurrency}</td>
-                    <td>${item.total}</td>
-                    <td>${item.success}</td>
-                    <td>${item.fail}</td>
-                    <td>${item.qps}</td>
-                    <td>${item.avg_time}ms</td>
-                    <td>${item.create_time}</td>
-                    <td><button class="btn btn-primary" onclick="showDetail(${item.id})">查看</button></td>
-                </tr>`;
-            });
+            if (list.length === 0) {
+                html = '<tr><td colspan="10" style="text-align:center; padding:40px; color:#999;">暂无性能压测报告数据</td></tr>';
+            } else {
+                list.forEach((item, index) => {
+                    html += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${item.case_name}</td>
+                        <td>${item.concurrency}</td>
+                        <td>${item.total}</td>
+                        <td>${item.success}</td>
+                        <td>${item.fail}</td>
+                        <td>${item.qps}</td>
+                        <td>${item.avg_time}ms</td>
+                        <td>${item.create_time}</td>
+                        <td><button class="btn btn-primary" onclick="showDetail(${item.id})">查看</button></td>
+                    </tr>`;
+                });
+            }
 
             document.getElementById("reportList").innerHTML = html;
         } catch (err) {

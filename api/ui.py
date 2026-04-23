@@ -41,7 +41,7 @@ def add_ui_case():
     try:
         db.session.add(case)
         db.session.commit()
-        add_operation_log(identity, username, "add_ui_case", f"新增UI用例: {data['name']}")
+        add_operation_log(user.id, username, "add_ui_case", f"新增 UI 用例：{data['name']}")
     except Exception as e:
         db.session.rollback()
         print(f"UI用例添加失败:{e}")

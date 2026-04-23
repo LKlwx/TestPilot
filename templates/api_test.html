@@ -26,8 +26,9 @@
     <input id="extract_var" class="form-input" placeholder="后置提取：例如 token=$.args.token (选填)">
     <br><br>
     <button class="btn btn-primary" onclick="saveCase()">保存用例</button>
-    <button class="btn btn-success" onclick="batchRun()">批量并行执行</button>
-    <div class="warning-tip" style="margin-top: 10px; padding: 10px 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; color: #856404; font-size: 13px;">
+    <button class="btn btn-success" onclick="batchRun()">批量执行</button>
+    <div class="warning-tip"
+         style="margin-top: 10px; padding: 10px 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; color: #856404; font-size: 13px;">
         <strong>提示：</strong>批量并行执行仅适用于<strong>无依赖的独立用例</strong>。如需测试接口依赖链路（如先登录再获取用户信息），请逐条执行用例。
     </div>
 </div>
@@ -266,6 +267,7 @@
     async function runSingle(id) {
         try {
             showAlert("执行中...", "info");
+            document.getElementById("result").innerHTML = '<span class="loading-spinner"></span><span class="loading-text">执行中，请稍候...</span>';
             const res = await httpPost(`/api/test/case/${id}/run`, {});
             document.getElementById("result").innerText = JSON.stringify(res, null, 2);
             if (res.data && res.data.status === "PASS") showAlert("执行通过", "success");
@@ -299,7 +301,7 @@
         }
 
         showAlert(`正在并行执行 ${ids.length} 个用例...`, "info");
-        document.getElementById("result").innerText = "执行中，请稍候...";
+        document.getElementById("result").innerHTML = '<span class="loading-spinner"></span><span class="loading-text">执行中，请稍候...</span>';
 
         try {
             const res = await httpPost("/api/test/batch/run", { ids: ids });

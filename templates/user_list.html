@@ -41,11 +41,19 @@
 
                 let buttons = "";
                 if (currentUser === "admin") {
-                    buttons = `
-                    <button class="btn btn-primary" onclick="changeRole(${user.id}, 'admin')">设为管理员</button>
-                    <button class="btn btn-secondary" onclick="changeRole(${user.id}, 'tester')">设为普通用户</button>
-                    <button class="btn btn-danger" onclick="deleteUser(${user.id})">删除</button>
-                    `;
+                    if (user.role === "admin") {
+                        // 对方已经是管理员，只提供降级选项
+                        buttons = `
+                        <button class="btn btn-secondary" onclick="changeRole(${user.id}, 'tester')">设为普通用户</button>
+                        <button class="btn btn-danger" onclick="deleteUser(${user.id})">删除</button>
+                        `;
+                    } else {
+                        // 对方是普通用户，只提供升级选项
+                        buttons = `
+                        <button class="btn btn-primary" onclick="changeRole(${user.id}, 'admin')">设为管理员</button>
+                        <button class="btn btn-danger" onclick="deleteUser(${user.id})">删除</button>
+                        `;
+                    }
                 } else {
                     if (user.role === "tester") {
                         buttons = `<button class="btn btn-danger" onclick="deleteUser(${user.id})">删除</button>`;

@@ -273,4 +273,16 @@
     min-width: 980px;
     overflow-x: auto;
     background: transparent;
+    animation: fadeInContent 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeInContent {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

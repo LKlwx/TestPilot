@@ -12,8 +12,9 @@
             <th>用例名称</th>
             <th>状态</th>
             <th>状态码</th>
-            <th>耗时(s)</th>
+            <th>耗时 (s)</th>
             <th>执行时间</th>
+            <th>信息</th>
             <th>操作</th>
         </tr>
         </thead>
@@ -44,20 +45,25 @@
             const res = await httpGet("/api/test/reports/data");
             const list = res.data || [];
             let html = "";
-            list.forEach(item => {
-                const statusClass = item.status === 'PASS' ? 'status-pass' : (item.status === 'FAIL' ? 'status-fail' : 'status-error');
-                html += `
-                <tr>
-                    <td>${item.id}</td>
-                    <td>${item.case_name}</td>
-                    <td class="${statusClass}">${item.status}</td>
-                    <td>${item.code}</td>
-                    <td>${item.time}</td>
-                    <td>${item.create_time}</td>
-                    <td>${item.msg || '-'}</td>
-                    <td><button class="btn btn-primary" onclick="showDetail(${item.id})">查看</button></td>
-                </tr>`;
-            });
+            
+            if (list.length === 0) {
+                html = '<tr><td colspan="8" style="text-align:center; padding:40px; color:#999;">暂无测试报告数据</td></tr>';
+            } else {
+                list.forEach(item => {
+                    const statusClass = item.status === 'PASS' ? 'status-pass' : (item.status === 'FAIL' ? 'status-fail' : 'status-error');
+                    html += `
+                    <tr>
+                        <td>${item.id}</td>
+                        <td>${item.case_name}</td>
+                        <td class="${statusClass}">${item.status}</td>
+                        <td>${item.code}</td>
+                        <td>${item.time}s</td>
+                        <td>${item.create_time}</td>
+                        <td>${item.msg || '-'}</td>
+                        <td><button class="btn btn-primary" onclick="showDetail(${item.id})">查看</button></td>
+                    </tr>`;
+                });
+            }
             document.getElementById("reportList").innerHTML = html;
         } catch (err) {
             showAlert("加载报告失败", "error");

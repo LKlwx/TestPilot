@@ -140,10 +140,10 @@ function showAlert(msg, type = "info") {
     toast.innerText = msg;
     document.body.appendChild(toast);
 
-    // 3秒自动消失
+    // 3秒自动消失（错误提示延长至5秒）
     setTimeout(() => {
         toast.remove();
-    }, 3000);
+    }, type === "error" ? 5000 : 3000);
 }
 
 // 动画
