@@ -27,6 +27,9 @@
     <br><br>
     <button class="btn btn-primary" onclick="saveCase()">保存用例</button>
     <button class="btn btn-success" onclick="batchRun()">批量并行执行</button>
+    <div class="warning-tip" style="margin-top: 10px; padding: 10px 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; color: #856404; font-size: 13px;">
+        <strong>提示：</strong>批量并行执行仅适用于<strong>无依赖的独立用例</strong>。如需测试接口依赖链路（如先登录再获取用户信息），请逐条执行用例。
+    </div>
 </div>
 
 <!-- 2. 用例列表 -->

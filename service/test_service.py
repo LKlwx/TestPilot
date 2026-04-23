@@ -3,27 +3,19 @@ import json
 from models import TestReport
 from extensions import db
 import time
-import threading
 
-# 使用ThreadLocal 实现线程隔离
-thread_local = threading.local()
-
-
-def local_global_vars():
-    # 获取当前线程的变量池
-    if not hasattr(thread_local, "GLOBAL_VARS"):
-        thread_local.GLOBAL_VARS = {}
-    return thread_local.GLOBAL_VARS
+# 全局变量池，用于接口间的参数依赖传递（如 Token）
+GLOBAL_VARS = {}
 
 
 def execute_test_case(case):
     start_time = time.time()
     try:
-        # 替换 URL 和 Body 中的变量占位符 ${xxx}
+        # 1. 变量替换逻辑：扫描 URL 和 Body，把 ${xxx} 替换成全局变量池里的值
         final_url = case.url
         final_body = case.body
 
-        for key, value in local_global_vars().items():
+        for key, value in GLOBAL_VARS.items():
             placeholder = "${" + key + "}"
             if placeholder in final_url:
                 final_url = final_url.replace(placeholder, str(value))
@@ -62,7 +54,8 @@ def execute_test_case(case):
                 for k in keys:
                     val = val[k]
 
-                local_global_vars()[var_name] = val
+                # 存入全局变量池，后续用例可用
+                GLOBAL_VARS[var_name] = val
                 print(f"变量提取成功: {var_name} = {val}")
             except Exception as e:
                 print(f"变量提取失败: {str(e)}")
@@ -91,7 +84,7 @@ def execute_test_case(case):
             "code": resp.status_code,
             "time": cost_time,
             "msg": msg,
-            "current_vars": dict(local_global_vars())
+            "current_vars": dict(GLOBAL_VARS)
         }
 
     except Exception as e:
