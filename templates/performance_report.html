@@ -30,6 +30,7 @@
         <h3 class="modal-header">详情</h3>
         <div id="detailContent" style="max-height:400px; overflow-y:auto; line-height:1.8;"></div>
         <br>
+        <button class="btn btn-info" onclick="copyPerfReportDetail()">复制压测摘要</button>
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
     </div>
 </div>
@@ -78,6 +79,7 @@
     async function showDetail(id) {
         try {
             const res = await httpGet(`/api/performance/report/${id}`);
+            window.currentPerfReportData = res.data; // 暂存数据用于复制
             const info = res.data;
 
             document.getElementById("detailContent").innerHTML = `
@@ -101,8 +103,42 @@
         }
     }
 
+    function copyPerfReportDetail() {
+        if (!window.currentPerfReportData) return;
+        const d = window.currentPerfReportData;
+        const text = `【性能压测报告】\n用例名称：${d.case_name}\n并发数：${d.concurrency}\nQPS：${d.qps}\n平均响应：${d.avg_time}ms\nP99响应：${d.p99 || '-'}ms\n成功率：${d.success_rate || '100'}%`;
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert("压测摘要已复制", "success");
+            }).catch(err => {
+                console.error('复制失败:', err);
+                fallbackCopyTextToClipboard(text);
+            });
+        } else {
+            fallbackCopyTextToClipboard(text);
+        }
+    }
+
     function closeModal() {
         document.getElementById("detailModal").classList.remove("active");
+    }
+
+    function fallbackCopyTextToClipboard(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showAlert("压测摘要已复制", "success");
+        } catch (err) {
+            showAlert("复制失败，请手动复制", "error");
+        }
+        document.body.removeChild(textArea);
     }
 </script>
 {% endblock %}

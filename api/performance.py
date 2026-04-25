@@ -92,6 +92,7 @@ def cases():
 
 # 执行压测
 @performance_bp.route("/case/<int:cid>/run", methods=["POST"])
+@jwt_required()
 def run(cid):
     try:
         case = PerformanceCase.query.get(cid)

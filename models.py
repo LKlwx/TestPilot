@@ -138,6 +138,16 @@ class PerformanceReport(db.Model):
     success_rate = db.Column(db.Float, default=0)
 
 
+# 性能测试明细表：存储每次请求的详细耗时，用于分析慢接口
+class PerformanceDetail(db.Model):
+    __tablename__ = "performance_detail"
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id"), comment="关联压测报告ID")
+    request_time = db.Column(db.Float, comment="本次请求耗时(ms)")
+    status_code = db.Column(db.Integer, comment="HTTP 状态码")
+    create_time = db.Column(db.DateTime, default=datetime.now)
+
+
 # AI 智能测试任务记录表
 class AIAgentTask(db.Model):
     __tablename__ = "ai_agent_task"

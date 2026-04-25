@@ -20,13 +20,13 @@
         <div class="num" id="ui_case">0</div>
         <div class="label">UI用例数</div>
     </div>
-    <div class="stat-card" data-tooltip="性能压测配置次数">
-        <div class="num" id="perf_count">0</div>
-        <div class="label">性能压测次数</div>
+    <div class="stat-card" data-tooltip="今日接口自动化执行次数">
+        <div class="num" id="today_api_run">0</div>
+        <div class="label">今日接口执行</div>
     </div>
-    <div class="stat-card" data-tooltip="测试通过率 = 接口+UI通过数 / 接口+UI总数">
-        <div class="num" id="pass_rate">0%</div>
-        <div class="label">测试通过率</div>
+    <div class="stat-card" data-tooltip="今日UI自动化执行次数">
+        <div class="num" id="today_ui_run">0</div>
+        <div class="label">今日UI执行</div>
     </div>
 </div>
 
@@ -76,40 +76,153 @@
             document.getElementById("total_case").innerText = d.total_case || 0;
             document.getElementById("api_case").innerText = d.api_case || 0;
             document.getElementById("ui_case").innerText = d.ui_case || 0;
-            document.getElementById("perf_count").innerText = d.perf_count || 0;
-            document.getElementById("pass_rate").innerText = d.pass_rate || "0%";
+            document.getElementById("today_api_run").innerText = d.today_api_run || 0;
+            document.getElementById("today_ui_run").innerText = d.today_ui_run || 0;
 
+            // 1. 用例类型分布（环形图 + 中心文字）
+            const totalCases = d.api_case + d.ui_case + d.perf_count;
             pieChart.setOption({
-                title: {text: "用例类型分布"},
-                tooltip: {trigger: "item"},
+                title: {
+                    text: '用例分布', 
+                    left: 'center', 
+                    top: 'center',
+                    textStyle: { color: '#4a5568', fontSize: 14, fontWeight: 'normal' }
+                },
+                tooltip: {
+                    trigger: "item",
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    borderColor: 'transparent',
+                    textStyle: { color: '#fff' }
+                },
                 series: [{
                     type: "pie",
+                    radius: ['45%', '70%'],
+                    center: ['50%', '50%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 8,
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    },
+                    label: { show: false, position: 'center' },
+                    emphasis: {
+                        scale: true,
+                        scaleSize: 5,
+                        label: { show: false },
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowOffsetX: 0,
+                            shadowColor: 'rgba(0, 0, 0, 0.5)'
+                        }
+                    },
                     data: [
-                        {value: d.api_case, name: "接口用例"},
-                        {value: d.ui_case, name: "UI用例"},
-                        {value: d.perf_count, name: "性能压测"}
+                        { value: d.api_case, name: "接口用例", itemStyle: { color: '#667eea' } },
+                        { value: d.ui_case, name: "UI用例", itemStyle: { color: '#764ba2' } },
+                        { value: d.perf_count, name: "性能压测", itemStyle: { color: '#ed64a6' } }
                     ]
                 }]
             });
 
+            // 2. 近7天缺陷发现趋势（面积图 + 异常标记）
             lineChart.setOption({
-                title: {text: "近7天通过率趋势"},
-                xAxis: {data: d.days},
-                yAxis: {type: "value", min: 0, max: 100},
+                title: { text: "近7天缺陷发现趋势", textStyle: { color: '#4a5568', fontSize: 14 } },
+                grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    borderColor: 'transparent',
+                    textStyle: { color: '#fff' }
+                },
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: d.days,
+                    axisLine: { lineStyle: { color: '#e2e8f0' } },
+                    axisLabel: { color: '#718096' }
+                },
+                yAxis: {
+                    type: 'value',
+                    splitLine: { lineStyle: { type: 'dashed', color: '#edf2f7' } }
+                },
                 series: [{
-                    type: "line",
-                    data: d.pass_trend,
-                    smooth: true
+                    name: '缺陷数',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    lineStyle: { color: '#667eea', width: 3 },
+                    areaStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: 'rgba(102, 126, 234, 0.4)' },
+                            { offset: 1, color: 'rgba(102, 126, 234, 0.0)' }
+                        ])
+                    },
+                    itemStyle: { color: '#667eea' },
+                    markPoint: {
+                        data: d.fail_trend.map((val, idx) => val > 5 ? { coord: [idx, val], value: val } : null).filter(Boolean),
+                        itemStyle: { color: '#f56565' }
+                    },
+                    data: d.fail_trend
                 }]
             });
 
+            // 3. 性能压测指标（双轴图 + 动态颜色）
             perfChart.setOption({
-                title: {text: "性能压测指标"},
-                xAxis: {data: d.perf_names},
-                yAxis: [{type: "value"}, {type: "value"}],
+                title: { text: "最近一次压测核心指标", textStyle: { color: '#4a5568', fontSize: 14 } },
+                tooltip: { 
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    borderColor: 'transparent',
+                    textStyle: { color: '#fff' }
+                },
+                legend: { data: ['QPS', '响应时间(ms)'], textStyle: { color: '#718096' } },
+                grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                xAxis: {
+                    type: 'category',
+                    data: d.perf_names,
+                    axisPointer: { type: 'shadow' }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: 'QPS',
+                        splitLine: { lineStyle: { type: 'dashed', color: '#edf2f7' } }
+                    },
+                    {
+                        type: 'value',
+                        name: '耗时(ms)',
+                        splitLine: { show: false }
+                    }
+                ],
                 series: [
-                    {name: "QPS", type: "bar", data: d.perf_qps},
-                    {name: "响应时间", type: "line", yAxisIndex: 1, data: d.perf_rt}
+                    {
+                        name: 'QPS',
+                        type: 'bar',
+                        barWidth: '40%',
+                        itemStyle: {
+                            borderRadius: [5, 5, 0, 0],
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#667eea' },
+                                { offset: 1, color: '#764ba2' }
+                            ])
+                        },
+                        data: d.perf_qps
+                    },
+                    {
+                        name: '响应时间(ms)',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        smooth: true,
+                        itemStyle: { 
+                            color: (params) => {
+                                if (params.value < 200) return '#48bb78';
+                                if (params.value < 500) return '#ecc94b';
+                                return '#f56565';
+                            }
+                        },
+                        lineStyle: { width: 3 },
+                        data: d.perf_rt
+                    }
                 ]
             });
         } catch (err) {

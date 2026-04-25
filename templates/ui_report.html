@@ -27,6 +27,7 @@
         <h3 class="modal-header">详情</h3>
         <pre id="detailContent" class="code-block" style="max-height:400px;"></pre>
         <br>
+        <button class="btn btn-info" id="copyBtn" onclick="copyUIReportDetail()">复制报告摘要</button>
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
     </div>
 </div>
@@ -73,6 +74,14 @@
     async function showDetail(id) {
         try {
             const res = await httpGet(`/api/ui/report/${id}`);
+            window.currentUIReportData = res.data; // 暂存数据用于复制
+            
+            // 根据状态更新按钮文字
+            const copyBtn = document.getElementById('copyBtn');
+            if (copyBtn) {
+                copyBtn.innerText = res.data.status === 'PASS' ? '复制报告摘要' : '复制故障摘要';
+            }
+            
             document.getElementById("detailContent").innerText = JSON.stringify(res.data, null, 2);
             document.getElementById("detailModal").classList.add("active");
         } catch (err) {
@@ -81,8 +90,44 @@
         }
     }
 
+    function copyUIReportDetail() {
+        if (!window.currentUIReportData) return;
+        const d = window.currentUIReportData;
+        const title = d.status === 'PASS' ? 'UI 测试执行成功报告' : 'UI 测试失败报告';
+        const infoLabel = d.status === 'PASS' ? '执行日志' : '错误信息';
+        const text = `【${title}】\n用例名称：${d.case_name}\n执行时间：${d.create_time}\n状态：${d.status}\n耗时：${d.time}秒\n${infoLabel}：${d.msg || '无'}`;
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert("报告摘要已复制", "success");
+            }).catch(err => {
+                console.error('复制失败:', err);
+                fallbackCopyTextToClipboard(text);
+            });
+        } else {
+            fallbackCopyTextToClipboard(text);
+        }
+    }
+
     function closeModal() {
         document.getElementById("detailModal").classList.remove("active");
+    }
+
+    function fallbackCopyTextToClipboard(text) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            showAlert("故障摘要已复制", "success");
+        } catch (err) {
+            showAlert("复制失败，请手动复制", "error");
+        }
+        document.body.removeChild(textArea);
     }
 </script>
 {% endblock %}

@@ -191,13 +191,4 @@ document.addEventListener('DOMContentLoaded', function () {
             operationLogMenu.style.display = 'none';
         }
     }
-
-    const reportMenu = document.getElementById('reportMenu');
-    if (reportMenu) {
-        if (role === 'admin') {
-            reportMenu.style.display = 'block';
-        } else {
-            reportMenu.style.display = 'none';
-        }
-    }
 });

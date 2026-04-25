@@ -4,12 +4,13 @@ import json
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from extensions import db
-from models import PerformanceReport
+from models import PerformanceReport, PerformanceDetail
 
 
 # 执行性能压测的核心方法
 def run_performance(case):
     cost_list = []  # 存储每次请求耗时(ms)
+    detail_list = []  # 存储明细数据 (耗时，状态码)
     success_num = 0  # 成功请求数
     fail_num = 0  # 失败请求数
 
@@ -21,12 +22,11 @@ def run_performance(case):
             headers = {}
             try:
                 if case.headers and case.headers.strip() != "":
-                    # 防止触发远程代码执行RCE漏洞，改为json.loads
                     headers = json.loads(case.headers)
             except:
                 headers = {}
-            # 发送HTTP请求
-            requests.request(
+            
+            resp = requests.request(
                 method=case.method,
                 url=case.url,
                 headers=headers,
@@ -36,13 +36,15 @@ def run_performance(case):
             # 记录耗时（毫秒）
             cost_time = round((time.time() - start_time) * 1000, 2)
             cost_list.append(cost_time)
+            detail_list.append((cost_time, resp.status_code))
             success_num += 1
         except Exception:
             fail_num += 1
+            # 失败请求也记录，耗时记为 0 或超时时间
+            detail_list.append((0, 0))
 
     # 使用线程池实现并发压测
     with ThreadPoolExecutor(max_workers=case.concurrency) as executor:
-        # 提交total个请求任务
         for _ in range(case.total):
             executor.submit(single_request)
 
@@ -78,6 +80,16 @@ def run_performance(case):
         success_rate=success_rate,
     )
     db.session.add(report)
+    db.session.commit()  # 先提交报告，获取 report.id
+
+    # 批量保存明细数据
+    for rt, sc in detail_list:
+        detail = PerformanceDetail(
+            report_id=report.id,
+            request_time=rt,
+            status_code=sc
+        )
+        db.session.add(detail)
     db.session.commit()
 
     return {

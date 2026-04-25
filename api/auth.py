@@ -357,34 +357,25 @@ def dashboard_data():
     from sqlalchemy import func
 
     try:
-        # 1. 用例统计
+        # 1. 用例统计（增加性能用例）
         api_count = TestCase.query.count()
         ui_count = UICase.query.count()
         perf_count = PerformanceCase.query.count()
         total_case = api_count + ui_count + perf_count
 
-        # 2. 总通过率（SQL聚合优化）
-        total_api = db.session.query(func.count(TestReport.id)).scalar() or 0
-        total_ui = db.session.query(func.count(UIReport.id)).scalar() or 0
-        total_report = total_api + total_ui
-
-        # 添加默认值处理，防止空表不显示
-        pass_api = db.session.query(func.count(TestReport.id)).filter(
-            TestReport.status.like('%PASS%')
+        # 2. 今日执行分布（体现代码活跃度）
+        today_start = datetime.combine(datetime.now().date(), datetime.min.time())
+        today_api_run = db.session.query(func.count(TestReport.id)).filter(
+            TestReport.create_time >= today_start
         ).scalar() or 0
-        pass_ui = db.session.query(func.count(UIReport.id)).filter(
-            UIReport.status.like('%PASS%')
+        today_ui_run = db.session.query(func.count(UIReport.id)).filter(
+            UIReport.create_time >= today_start
         ).scalar() or 0
-        pass_count_total = pass_api + pass_ui
-
-        pass_rate = '0%'
-        if total_report > 0:
-            pass_rate = f"{round(pass_count_total / total_report * 100, 1)}%"
-
-        # 3. 近7天通过率（SQL聚合优化）
+        
+        # 3. 近7天缺陷发现趋势（更有价值的指标）
         today = datetime.now().date()
         days = []
-        pass_trend = []
+        fail_trend = []
 
         for i in range(6, -1, -1):
             current_day = today - timedelta(days=i)
@@ -392,57 +383,50 @@ def dashboard_data():
             current_day_start = datetime.combine(current_day, datetime.min.time())
             current_day_end = datetime.combine(current_day, datetime.max.time())
 
-            api_day_total = db.session.query(func.count(TestReport.id)).filter(
-                TestReport.create_time >= current_day_start,
-                TestReport.create_time <= current_day_end
-            ).scalar() or 0
-            api_day_pass = db.session.query(func.count(TestReport.id)).filter(
+            api_fail = db.session.query(func.count(TestReport.id)).filter(
                 TestReport.create_time >= current_day_start,
                 TestReport.create_time <= current_day_end,
-                TestReport.status.like('%PASS%')
+                TestReport.status != 'PASS'
             ).scalar() or 0
-            ui_day_total = db.session.query(func.count(UIReport.id)).filter(
-                UIReport.create_time >= current_day_start,
-                UIReport.create_time <= current_day_end
-            ).scalar() or 0
-            ui_day_pass = db.session.query(func.count(UIReport.id)).filter(
+            ui_fail = db.session.query(func.count(UIReport.id)).filter(
                 UIReport.create_time >= current_day_start,
                 UIReport.create_time <= current_day_end,
-                UIReport.status.like('%PASS%')
+                UIReport.status != 'PASS'
             ).scalar() or 0
 
-            day_total = api_day_total + ui_day_total
-            day_pass = api_day_pass + ui_day_pass
-            day_rate = round(day_pass / day_total * 100, 1) if day_total > 0 else 0
-            pass_trend.append(day_rate)
+            fail_trend.append(api_fail + ui_fail)
 
-        # 4. 最近3次性能报告
-        perf_reports = PerformanceReport.query.order_by(PerformanceReport.id.desc()).limit(3).all()
+        # 4. 最近一次压测的慢接口 Top 5
+        last_perf_report = PerformanceReport.query.order_by(PerformanceReport.id.desc()).first()
         perf_names = []
         perf_qps = []
         perf_rt = []
 
-        for p in perf_reports:
-            try:
-                name = p.case_name
-                if len(name) > 8:
-                    name = name[:8] + "..."
-                perf_names.append(name)
-                perf_qps.append(round(p.qps or 0, 1))
-                perf_rt.append(round(p.avg_time or 0, 1))
-            except:
-                perf_names.append("无数据")
-                perf_qps.append(0)
-                perf_rt.append(0)
+        if last_perf_report:
+            from models import PerformanceDetail
+            # 查询该报告关联的明细，按耗时降序取前 5 个
+            top5_details = PerformanceDetail.query.filter_by(
+                report_id=last_perf_report.id
+            ).order_by(PerformanceDetail.request_time.desc()).limit(5).all()
+            
+            for idx, d in enumerate(top5_details):
+                perf_names.append(f"请求 {idx + 1}")
+                perf_qps.append(round(last_perf_report.qps or 0, 1))
+                perf_rt.append(round(d.request_time or 0, 1))
+        else:
+            perf_names.append("暂无压测")
+            perf_qps.append(0)
+            perf_rt.append(0)
 
         return success({
             "total_case": total_case,
             "api_case": api_count,
             "ui_case": ui_count,
             "perf_count": perf_count,
-            "pass_rate": pass_rate,
+            "today_api_run": today_api_run,
+            "today_ui_run": today_ui_run,
             "days": days,
-            "pass_trend": pass_trend,
+            "fail_trend": fail_trend,
             "perf_names": perf_names,
             "perf_qps": perf_qps,
             "perf_rt": perf_rt

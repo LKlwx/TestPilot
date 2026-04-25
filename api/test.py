@@ -74,6 +74,7 @@ def add_case():
 
 
 @test_bp.route("/case/<int:cid>/run", methods=["POST"])
+@jwt_required()
 def run_case(cid):
     case = TestCase.query.get(cid)
     if not case:
@@ -169,6 +170,7 @@ def get_report_detail(rid):
 
 # 批量执行
 @test_bp.route("/batch/run", methods=["POST"])
+@jwt_required()
 def batch_run():
     from app import create_app
     req = request.json

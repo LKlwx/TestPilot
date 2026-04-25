@@ -78,6 +78,7 @@ def get_ui_cases():
 
 
 @ui_bp.route("/case/<int:cid>/run", methods=["POST"])
+@jwt_required()
 def run_ui(cid):
     case = UICase.query.get(cid)
     if not case:
@@ -138,6 +139,7 @@ def get_ui_report_detail(rid):
 
 # 升级 UICase 增加定位方式
 @ui_bp.route("/case/struct", methods=["POST"])
+@jwt_required()
 def add_struct_ui():
     data = request.json
     if not data or not data.get("name") or not data.get("url"):
