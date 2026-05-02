@@ -39,10 +39,14 @@ TestPilot/
 ├── Dockerfile         # Docker 镜像配置
 ├── docker-compose.yml  # Docker Compose 配置
 ├── .gitignore        # Git 忽略文件配置
+├── .gitflow           # GitFlow 分支管理配置
 ├── .github/
 │   └── workflows/
 │       └── ci.yml    # GitHub Actions CI/CD 配置
+├── docs/              # 项目文档
+│   └── GITFLOW.md   # Git分支管理规范
 ├── tests/             # 单元测试目录
+│   ├── __init__.py
 │   └── test_core.py
 ├── api/              # 接口路由层
 │   ├── auth.py       # 用户、权限、控制台接口
