@@ -11,7 +11,8 @@ TestPilot 是基于 Python Flask 自主开发的**一站式轻量级自动化测
 - 核心测试能力全覆盖：集成接口、UI、性能三大常用自动化测试模块
 - AI 辅助测试：基于本地大模型（LM Studio）实现用例自动生成与失败日志智能诊断
 - 可视化数据看板：展示用例分布、缺陷发现趋势、慢接口分析等关键数据
-- 安全与规范加固：移除硬编码后门，改为启动初始化；修复`eval()`注入漏洞，统一参数校验
+- 服务稳定性保障：全局限流（防刷）+ 熔断降级（防雪崩），只统计 5xx 触发熔断避免误杀
+- 多环境隔离：开发/测试/演示/生产四环境独立数据库，通过环境变量一键切换
 - 全部功能基于本地环境运行，无第三方云服务依赖，轻量易部署
 
 ## 技术栈
@@ -42,7 +43,6 @@ TestPilot/
 │   └── workflows/
 │       └── ci.yml    # GitHub Actions CI/CD 配置
 ├── tests/             # 单元测试目录
-│   ├── __init__.py
 │   └── test_core.py
 ├── api/              # 接口路由层
 │   ├── auth.py       # 用户、权限、控制台接口
@@ -63,6 +63,7 @@ TestPilot/
 │   ├── exception.py  # 全局异常处理
 │   ├── logger.py    # 日志配置
 │   ├── logs/        # 日志文件目录（运行时自动生成）
+│   ├── ratelimit.py # 限流与熔断防护逻辑
 │   └── middleware.py
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
 ├── static/           # 前端静态资源
@@ -89,11 +90,22 @@ TestPilot/
    ```bash
    pip install -r requirements.txt
    ```
-3. 启动项目
+3. 启动项目（默认开发环境）
    ```bash
    python run.py
    ```
-4. 访问地址
+4. 切换环境启动
+   ```bash
+   # 开发环境（默认）
+   python run.py
+   # 测试环境（独立数据库）
+   FLASK_ENV=test python run.py
+   # 演示环境（独立数据库）
+   FLASK_ENV=demo python run.py
+   # 生产环境
+   FLASK_ENV=production python run.py
+   ```
+5. 访问地址
    ```
    http://127.0.0.1:5000
    ```

@@ -24,13 +24,29 @@ class Config:
     AI_MODEL = "qwen3.5-9b"
 
 class DevelopmentConfig(Config):
+    """开发环境配置"""
     DEBUG = True
 
+class TestConfig(Config):
+    """测试环境配置"""
+    DEBUG = True
+    # 测试环境用独立数据库
+    SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'testpilot_test.db')}"
+
+class DemoConfig(Config):
+    """演示环境配置"""
+    DEBUG = False
+    # 演示环境用独立数据库，数据独立
+    SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'testpilot_demo.db')}"
+
 class ProductionConfig(Config):
+    """生产环境配置"""
     DEBUG = False
 
 config = {
     "development": DevelopmentConfig,
+    "test": TestConfig,
+    "demo": DemoConfig,
     "production": ProductionConfig,
     "default": DevelopmentConfig
 }

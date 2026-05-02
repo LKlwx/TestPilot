@@ -1,9 +1,11 @@
+import os
 from app import create_app
 from extensions import db
 from models import User, TestCase
 
-# 初始化应用
-app = create_app("development")
+# 从环境变量读取配置，默认development
+env = os.environ.get("FLASK_ENV", "development")
+app = create_app(env)
 
 # 配置日志系统
 from core.logger import setup_logger, log_error
