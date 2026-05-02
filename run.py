@@ -5,6 +5,10 @@ from models import User, TestCase
 # 初始化应用
 app = create_app("development")
 
+# 配置日志系统
+from core.logger import setup_logger, log_error
+setup_logger(app)
+
 
 def init_admin():
     """自动初始化超级管理员"""

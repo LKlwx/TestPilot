@@ -326,7 +326,8 @@
             const res = await httpPost("/api/auth/login", {username, password});
 
             if (res.code === 200) {
-                localStorage.setItem("token", res.data.token);
+                localStorage.setItem("access_token", res.data.access_token);
+                localStorage.setItem("refresh_token", res.data.refresh_token);
                 localStorage.setItem("role", res.data.role);
                 localStorage.setItem("username", res.data.username);
 
@@ -339,6 +340,30 @@
             showAlert("网络异常，请重试", "error");
             console.error("登录接口异常：", err);
         }
+    }
+
+    // Token刷新函数
+    async function refreshToken() {
+        try {
+            const refreshToken = localStorage.getItem("refresh_token");
+            if (!refreshToken) return false;
+            
+            const res = await fetch("/api/auth/refresh", {
+                method: "POST",
+                headers: {
+                    "Authorization": "Bearer " + refreshToken
+                }
+            });
+            const json = await res.json();
+            
+            if (json.code === 200) {
+                localStorage.setItem("access_token", json.data.access_token);
+                return true;
+            }
+        } catch (e) {
+            console.error("Token刷新失败：", e);
+        }
+        return false;
     }
 
     function showRegister() {

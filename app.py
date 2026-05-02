@@ -37,7 +37,9 @@ def create_app(config_name="default"):
     @app.errorhandler(Exception)
     def handle_all_exception(e):
         import traceback
-        traceback.print_exc()
+        # 记录完整错误堆栈到日志
+        from core.logger import log_error
+        log_error(e, context="全局异常")
         return error(str(e), 500)
 
     # 注册蓝本

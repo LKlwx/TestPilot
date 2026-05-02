@@ -1,6 +1,6 @@
 // 全局GET请求
 async function httpGet(url) {
-    let token = localStorage.getItem("token");
+    let token = localStorage.getItem("access_token");
     let headers = {};
     if (token) {
         headers["Authorization"] = "Bearer " + token;
@@ -10,6 +10,15 @@ async function httpGet(url) {
         headers: headers
     });
     let json = await res.json();
+    
+    // Token过期，自动刷新
+    if (res.status === 401 && json.msg && json.msg.includes("Token")) {
+        const refreshed = await refreshToken();
+        if (refreshed) {
+            return httpGet(url); // 重试
+        }
+    }
+    
     if (json.code !== 200) {
         console.log("HTTP Error:", url, json);
     }
@@ -18,7 +27,7 @@ async function httpGet(url) {
 
 // 全局POST请求
 async function httpPost(url, data = {}) {
-    let token = localStorage.getItem("token");
+    let token = localStorage.getItem("access_token");
     let headers = {
         "Content-Type": "application/json"
     };
@@ -31,12 +40,22 @@ async function httpPost(url, data = {}) {
         headers: headers,
         body: JSON.stringify(data)
     });
-    return await res.json();
+    let json = await res.json();
+    
+    // Token过期，自动刷新
+    if (res.status === 401 && json.msg && json.msg.includes("Token")) {
+        const refreshed = await refreshToken();
+        if (refreshed) {
+            return httpPost(url, data); // 重试
+        }
+    }
+    
+    return json;
 }
 
 // 全局DELETE请求
 async function httpDelete(url) {
-    let token = localStorage.getItem("token");
+    let token = localStorage.getItem("access_token");
     let headers = {};
     if (token) {
         headers["Authorization"] = "Bearer " + token;
@@ -51,7 +70,7 @@ async function httpDelete(url) {
 
 // 全局PUT请求
 async function httpPut(url, data = {}) {
-    let token = localStorage.getItem("token");
+    let token = localStorage.getItem("access_token");
     let headers = {
         "Content-Type": "application/json"
     };
@@ -69,10 +88,36 @@ async function httpPut(url, data = {}) {
 
 function logout() {
     localStorage.removeItem("token");
+    localStorage.removeItem("refresh_token");
     showAlert("已退出登录", "success");
     setTimeout(() => {
         location.href = "/api/auth/login/page";
     }, 1000);
+}
+
+// Token自动刷新
+async function refreshToken() {
+    let refresh_token = localStorage.getItem("refresh_token");
+    if (!refresh_token) return false;
+    
+    try {
+        let res = await fetch("/api/auth/refresh", {
+            method: "POST",
+            headers: {
+                "Authorization": "Bearer " + refresh_token,
+                "Content-Type": "application/json"
+            }
+        });
+        let json = await res.json();
+        
+        if (json.code === 200) {
+            localStorage.setItem("access_token", json.data.access_token);
+            return true;
+        }
+    } catch (e) {
+        console.error("Token刷新失败:", e);
+    }
+    return false;
 }
 
 function toggleUserMenu() {
@@ -90,7 +135,7 @@ document.addEventListener("click", function(e) {
 });
 
 function checkLogin() {
-    const token = localStorage.getItem("token")
+    const token = localStorage.getItem("access_token")
     const isLoginPage = location.pathname.includes("/login/page");
     if (!token && !isLoginPage) {
         window.location.href = "/api/auth/login/page";

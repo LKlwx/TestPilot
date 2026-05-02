@@ -1,5 +1,5 @@
 from flask import Blueprint, request, render_template, session, redirect
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 
 from core.exception import AuthException, NotFoundException, APIException
 from core.response import success, error
@@ -81,14 +81,38 @@ def login():
     if not user:
         return error("用户名或密码错误")
 
-    token = create_access_token(identity=str(user.id))
+    # 生成双Token：Access Token（短期）+ Refresh Token（长期）
+    access_token = create_access_token(identity=str(user.id))
+    refresh_token = create_refresh_token(identity=str(user.id))
+    
     # 记录普通用户登录日志
     add_operation_log(user.id, user.username, "login", f"用户{username}登录系统")
     return success({
-        "token": token,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "username": user.username,
         "role": user.role
     }, "登录成功")
+
+
+# 刷新Token接口（无感刷新）
+@auth_bp.route("/refresh", methods=["POST"])
+@jwt_required(refresh=True)
+def refresh():
+    """使用Refresh Token换取新的Access Token"""
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    if not user:
+        return error("用户不存在")
+    
+    # 生成新的Access Token
+    new_access_token = create_access_token(identity=str(user.id))
+    
+    return success({
+        "access_token": new_access_token,
+        "username": user.username,
+        "role": user.role
+    }, "Token刷新成功")
 
 
 @auth_bp.route("/register", methods=["POST"])
@@ -255,16 +279,10 @@ def cleanup_logs():
 @jwt_required()
 def user_list_data():
     identity = get_jwt_identity()
-
-    # 允许：超级管理员 + 数据库管理员
-    allow = False
-    if identity == "admin":
-        allow = True
-    else:
-        u = User.query.get(identity)
-        if u and u.role == "admin":
-            allow = True
-    if not allow:
+    current_user = User.query.get(int(identity))
+    
+    # 允许：超级管理员 + 普通管理员
+    if not current_user or current_user.role != "admin":
         return error("无访问权限")
 
     users = User.query.all()
@@ -316,33 +334,32 @@ def change_user_role():
 @auth_bp.route("/user/delete/<int:uid>", methods=["POST"])
 @jwt_required()
 def delete_user(uid):
-    current_id = get_jwt_identity()
-
-    # 1. 超级管理员（写死）随意删除
-    if current_id == "admin":
-        user = User.query.get(uid)
-        if not user:
-            raise NotFoundException("用户不存在")
-        # 记录删除日志
-        add_operation_log("admin", "admin", "delete_user", f"超级管理员删除用户{user.username}(ID={uid})")
-        db.session.delete(user)
-        db.session.commit()
-        return success(msg="删除成功")
-
-    # 2. 普通管理员只能删除用户
-    admin_user = User.query.get(current_id)
-    if not admin_user or admin_user.role != "admin":
+    identity = get_jwt_identity()
+    current_user = User.query.get(int(identity))
+    
+    if not current_user:
         raise AuthException("无权限")
-
+    
     target = User.query.get(uid)
     if not target:
         raise NotFoundException("用户不存在")
-
+    
+    # 超级管理员可以删除任何人
+    if current_user.username == "admin":
+        add_operation_log(current_user.id, current_user.username, "delete_user", f"超级管理员删除用户{target.username}(ID={uid})")
+        db.session.delete(target)
+        db.session.commit()
+        return success(msg="删除成功")
+    
+    # 普通管理员只能删除普通用户
+    if current_user.role != "admin":
+        raise AuthException("无权限")
+    
     if target.role != "tester":
-        return APIException("普通管理员只能删除普通用户", 403)
-    # 记录删除日志
-    add_operation_log(admin_user.id, admin_user.username, "delete_user",
-                      f"管理员{admin_user.username}删除用户{target.username}(ID={uid})")
+        return error("普通管理员只能删除普通用户", 403)
+    
+    add_operation_log(current_user.id, current_user.username, "delete_user",
+                      f"管理员{current_user.username}删除用户{target.username}(ID={uid})")
     db.session.delete(target)
     db.session.commit()
     return success(msg="删除成功")
