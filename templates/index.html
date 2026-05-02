@@ -54,6 +54,8 @@
         initCharts();
         showLoginInfo();
         setTimeout(loadDashboardData, 50);
+        // 每5秒自动刷新看板数据
+        setInterval(loadDashboardData, 5000);
     };
 
     function initCharts() {
