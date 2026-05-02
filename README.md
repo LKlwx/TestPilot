@@ -1,8 +1,9 @@
 # TestPilot 智能自动化测试平台
-## 在线演示地址
-https://testpilot-production-da60.up.railway.app/
+
+[![CI Test](https://github.com/LKlwx/TestPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/LKlwx/TestPilot/actions/workflows/ci.yml)
+
 ## 项目介绍
-TestPilot 是基于 Python Flask 自主开发的**一站式轻量级自动化测试平台**，采用前后端不分离架构，按照路由层、服务层、模型层、工具层进行工程化分层设计。平台实现了**用户权限管理、接口自动化测试、UI 自动化测试、性能压测、AI 智能测试辅助**五大核心能力，支持用例管理、自动化执行、测试报告生成、数据可视化看板等完整基础流程，是面向测试开发岗位的实战型个人项目。
+TestPilot 是基于 Python Flask 自主开发的**一站式轻量级自动化测试平台**，采用前后端不分离架构，按照路由层、服务层、模型层、工具层进行工程化分层设计。平台实现了**用户权限管理、接口自动化测试、UI 自动化测试、性能压测、AI 智能测试辅助**五大核心能力，支持用例管理、自动化执行、测试报告生成、数据可视化看板等完整基础流程，是面向测试开发工程师岗位的实战型个人项目。
 
 ## 项目亮点
 - 完善的基础权限体系：支持用户登录、注册、超级管理员/管理员/普通用户三级权限控制
@@ -14,7 +15,7 @@ TestPilot 是基于 Python Flask 自主开发的**一站式轻量级自动化测
 - 全部功能基于本地环境运行，无第三方云服务依赖，轻量易部署
 
 ## 技术栈
-- 后端：Python 3 + Flask
+- 后端：Python 3.14 + Flask
 - 数据库：SQLite
 - ORM：Flask-SQLAlchemy
 - 身份认证：Flask-JWT-Extended、Flask-Login
@@ -29,34 +30,39 @@ TestPilot 是基于 Python Flask 自主开发的**一站式轻量级自动化测
 ```
 TestPilot/
 ├── run.py                 # 项目启动入口
-├── app.py                 # Flask 应用初始化与蓝图注册
-├── config.py              # 项目基础配置
-├── models.py              # 数据库表结构模型
-├── extensions.py          # db、jwt 等扩展实例化
-├── requirements.txt        # 依赖包列表
-├── .gitignore             # Git 忽略文件配置
-├── instance/
-│   └── testpilot.db       # SQLite 数据库文件
-├── api/                   # 接口路由层
-│   ├── auth.py            # 用户、权限、控制台接口
-│   ├── test.py            # 接口测试接口
-│   ├── ui.py              # UI 测试接口
-│   ├── performance.py     # 性能测试接口
-│   └── ai.py              # AI 辅助测试接口
-├── service/               # 业务逻辑层
+├── app.py                # Flask 应用初始化与蓝图注册
+├── config.py             # 项目基础配置
+├── models.py             # 数据库表结构模型
+├── extensions.py         # db、jwt 等扩展实例化
+├── requirements.txt     # 依赖包列表
+├── Dockerfile         # Docker 镜像配置
+├── docker-compose.yml  # Docker Compose 配置
+├── .gitignore        # Git 忽略文件配置
+├── .github/
+│   └── workflows/
+│       └── ci.yml    # GitHub Actions CI/CD 配置
+├── tests/             # 单元测试目录
+│   └── test_core.py
+├── api/              # 接口路由层
+│   ├── auth.py       # 用户、权限、控制台接口
+│   ├── test.py      # 接口测试接口
+│   ├── ui.py        # UI 测试接口
+│   ├── performance.py  # 性能测试接口
+│   └── ai.py        # AI 辅助测试接口
+├── service/          # 业务逻辑层
 │   ├── user_service.py
 │   ├── test_service.py
 │   ├── ui_service.py
 │   ├── performance_service.py
 │   └── ai_service.py
-├── agent/                 # AI 核心引擎（本地大模型调用与 JSON 解析）
+├── agent/            # AI 核心引擎
 │   └── ai_agent_core.py
-├── core/                  # 公共工具层
-│   ├── response.py        # 统一响应封装
-│   ├── exception.py       # 全局异常处理
+├── core/             # 公共工具层
+│   ├── response.py   # 统一响应封装
+│   ├── exception.py  # 全局异常处理
 │   └── middleware.py
-├── static/                # 前端静态资源
-└── templates/             # HTML 页面模板
+├── static/           # 前端静态资源
+└── templates/       # HTML 页面模板
 ```
 
 ## 数据模型说明
@@ -87,6 +93,38 @@ TestPilot/
    ```
    http://127.0.0.1:5000
    ```
+
+## Docker 容器化部署
+1. 确保已安装 Docker Desktop
+2. 进入项目根目录，执行构建命令：
+   ```bash
+   docker-compose up -d --build
+   ```
+3. 访问地址：
+   ```
+   http://localhost:5000
+   ```
+
+**架构优势**：
+- 零环境配置：无需安装 Python、Flask 或配置虚拟环境
+- 环境一致性：开发、测试、生产环境完全一致，避免"我本地能跑"问题
+- 数据持久化：通过 Volume 挂载实现数据库文件持久存储，容器重启数据不丢失
+
+## GitHub Actions CI/CD
+1. 推送代码到 GitHub 仓库
+2. 每次 push 自动触发 CI 流程：
+   - 自动安装项目依赖
+   - 自动运行单元测试
+   - 自动生成测试覆盖率报告
+3. 查看 Actions 运行结果：
+   ```
+   https://github.com/LKlwx/TestPilot/actions
+   ```
+
+**CI/CD 优势**：
+- 代码提交自动验证，确保主分支代码可运行
+- 及时发现代码问题，减少集成风险
+- 测试覆盖率可视化，提升代码质量感知
 
 ## 默认账号
 - 用户名：admin
