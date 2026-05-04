@@ -56,11 +56,13 @@ def add_case():
         return error("参数不完整!")
     case = TestCase(
         name=data["name"],
+        module=data.get("module"),
         method=data["method"],
         url=data["url"],
         headers=data.get("headers", "{}"),
         body=data.get("body", "{}"),
         expect=data.get("expect"),
+        extract_var=data.get("extract_var")
     )
     try:
         db.session.add(case)
@@ -112,7 +114,11 @@ def update_case(cid):
         raise NotFoundException("用例不存在")
     old_name = case.name
     data = request.get_json()
+    if not data:
+        return error("请求参数错误，请检查网络或重新登录")
+
     case.name = data.get("name", case.name)
+    case.module = data.get("module", case.module)
     case.method = data.get("method", case.method)
     case.url = data.get("url", case.url)
     case.headers = data.get("headers", case.headers)

@@ -9,7 +9,10 @@
     justify-content: space-between;
     align-items: center;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    position: relative;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
     z-index: 1000;
     border-bottom: 1px solid #e2e8f0;
 }
@@ -133,7 +136,8 @@
 /* 主布局容器 */
 .main {
     display: flex;
-    min-height: calc(100vh - 60px);
+    min-height: 100vh;
+    padding-top: 60px;
 }
 
 /* 左侧菜单栏 */
@@ -144,7 +148,12 @@
     padding: 0;
     flex-shrink: 0;
     box-shadow: 2px 0 12px rgba(0,0,0,0.08);
-    position: relative;
+    position: fixed;
+    top: 60px;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    z-index: 999;
 }
 
 .menu::after {
@@ -269,6 +278,7 @@
 /* 右侧内容区 */
 .content {
     flex: 1;
+    margin-left: 240px;
     padding: 24px;
     min-width: 980px;
     overflow-x: auto;

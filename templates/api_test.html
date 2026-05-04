@@ -25,7 +25,8 @@
     <input id="expect" class="form-input" placeholder="预期包含关键字（选填）">
     <input id="extract_var" class="form-input" placeholder="后置提取：例如 token=$.args.token (选填)">
     <br><br>
-    <button class="btn btn-primary" onclick="saveCase()">保存用例</button>
+    <button id="saveBtn" class="btn btn-primary" onclick="saveCase()">保存用例</button>
+    <button id="cancelEditBtn" class="btn btn-secondary" onclick="cancelEdit()" style="display:none;">取消</button>
     <button class="btn btn-success" onclick="batchRun()">批量执行</button>
     <div class="warning-tip"
          style="margin-top: 10px; padding: 10px 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; color: #856404; font-size: 13px;">
@@ -67,31 +68,6 @@
     <h3>测试结果</h3>
     <pre id="result" class="code-block">等待执行...</pre>
 </div>
-
-<!-- 4. 编辑用例弹窗 -->
-<div id="editModal" class="modal-overlay">
-    <div class="modal-content" style="width:600px;">
-        <h3 class="modal-header">编辑用例</h3>
-        <input id="edit_id" type="hidden">
-        <input id="edit_name" class="form-input" placeholder="用例名称">
-        <select id="edit_method" class="form-select">
-            <option value="GET">GET</option>
-            <option value="POST">POST</option>
-            <option value="PUT">PUT</option>
-            <option value="DELETE">DELETE</option>
-        </select>
-        <input id="edit_url" class="form-input" placeholder="请求URL">
-        <input id="edit_module" class="form-input" placeholder="所属模块">
-        <textarea id="edit_headers" class="form-textarea" rows="2" placeholder='请求头（JSON）'></textarea>
-        <textarea id="edit_body" class="form-textarea" rows="3" placeholder="请求体（选填）"></textarea>
-        <input id="edit_expect" class="form-input" placeholder="预期包含关键字（选填）">
-        <input id="edit_extract_var" class="form-input" placeholder="后置提取：例如 token=$.args.token">
-        <div class="modal-footer">
-            <button class="btn btn-secondary" onclick="closeEditModal()">取消</button>
-            <button class="btn btn-primary" onclick="saveEditCase()">保存</button>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -100,6 +76,7 @@
     let pageSize = 10;
     let totalPages = 1;
     let total = 0;
+    let editId = null;
 
     window.onload = function () {
         checkLogin();
@@ -178,89 +155,64 @@
             module: document.getElementById("module").value,
             method: document.getElementById("method").value,
             url: url,
-            headers: document.getElementById("headers").value,
-            body: document.getElementById("body").value,
+            headers: document.getElementById("headers").value || "{}",
+            body: document.getElementById("body").value || "{}",
             expect: document.getElementById("expect").value,
             extract_var: document.getElementById("extract_var").value
         };
         try {
-            await httpPost("/api/test/case", data);
-            showAlert("保存成功", "success");
+            if (editId) {
+                await httpPut(`/api/test/case/${editId}`, data);
+                showAlert("更新成功", "success");
+            } else {
+                await httpPost("/api/test/case", data);
+                showAlert("保存成功", "success");
+            }
             loadCases();
-            ["name", "url", "module", "headers", "body", "expect", "extract_var"].forEach(id => document.getElementById(id).value = "");
+            resetForm();
         } catch (err) {
-            showAlert("保存失败", "error");
+            showAlert("操作失败", "error");
         }
+    }
+
+    function resetForm() {
+        editId = null;
+        ["name", "url", "module", "headers", "body", "expect", "extract_var"].forEach(id => document.getElementById(id).value = "");
+        document.getElementById("method").value = "GET";
+        document.getElementById("saveBtn").innerText = "保存用例";
+        document.getElementById("cancelEditBtn").style.display = "none";
+    }
+
+    function cancelEdit() {
+        resetForm();
+        showAlert("已取消编辑", "info");
     }
 
     async function editCase(id) {
         try {
             const res = await httpGet("/api/test/cases?page=1&page_size=1000");
-            const caseData = (res.data.list || res.data).find(c => c.id === id);
+            const caseData = (res.data.list || res.data).find(c => c.id == id);
             if (!caseData) {
-                showAlert("用例不存在", "error");
+                showAlert("未找到该用例数据", "error");
                 return;
             }
 
-            document.getElementById("edit_id").value = caseData.id;
-            document.getElementById("edit_name").value = caseData.name;
-            document.getElementById("edit_method").value = caseData.method;
-            document.getElementById("edit_url").value = caseData.url;
-            document.getElementById("edit_module").value = caseData.module || "";
-            document.getElementById("edit_headers").value = caseData.headers || "{}";
-            document.getElementById("edit_body").value = caseData.body || "";
-            document.getElementById("edit_expect").value = caseData.expect || "";
-            document.getElementById("edit_extract_var").value = caseData.extract_var || "";
+            editId = id;
+            document.getElementById("name").value = caseData.name;
+            document.getElementById("method").value = caseData.method;
+            document.getElementById("url").value = caseData.url;
+            document.getElementById("module").value = caseData.module || "";
+            document.getElementById("headers").value = caseData.headers || "{}";
+            document.getElementById("body").value = caseData.body || "{}";
+            document.getElementById("expect").value = caseData.expect || "";
+            document.getElementById("extract_var").value = caseData.extract_var || "";
 
-            document.getElementById("editModal").classList.add("active");
+            document.getElementById("saveBtn").innerText = "更新用例";
+            document.getElementById("cancelEditBtn").style.display = "inline-block";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            showAlert("已加载用例，修改后点击更新", "info");
         } catch (err) {
-            showAlert("获取用例信息失败", "error");
-        }
-    }
-
-    function closeEditModal() {
-        document.getElementById("editModal").classList.remove("active");
-    }
-
-    async function saveEditCase() {
-        const id = document.getElementById("edit_id").value;
-        const name = document.getElementById("edit_name").value.trim();
-        const url = document.getElementById("edit_url").value.trim();
-        if (!name || !url) {
-            showAlert("用例名称和URL不能为空", "warning");
-            return;
-        }
-
-        const data = {
-            name: name,
-            module: document.getElementById("edit_module").value,
-            method: document.getElementById("edit_method").value,
-            url: url,
-            headers: document.getElementById("edit_headers").value,
-            body: document.getElementById("edit_body").value,
-            expect: document.getElementById("edit_expect").value,
-            extract_var: document.getElementById("edit_extract_var").value
-        };
-
-        try {
-            const res = await fetch(`/api/test/case/${id}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + localStorage.getItem("token")
-                },
-                body: JSON.stringify(data)
-            });
-            const result = await res.json();
-            if (result.code === 200) {
-                showAlert("更新成功", "success");
-                closeEditModal();
-                loadCases();
-            } else {
-                showAlert(result.msg || "更新失败", "error");
-            }
-        } catch (err) {
-            showAlert("请求失败", "error");
+            showAlert("加载数据失败: " + err.message, "error");
         }
     }
 

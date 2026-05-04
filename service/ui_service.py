@@ -104,15 +104,23 @@ def run_ui_case(case):
                         step_log.append(f"步骤{i}：点击 [{locator_type}] {params}")
 
                     elif action == "input":
-                        # 格式：username=admin
+                        # 支持格式：[input] [id] kw=Python 或 [input] [id] kw Python
+                        locator_val = params
+                        input_content = ""
+                        
                         if "=" in params:
-                            key, value = params.split("=", 1)
-                            elem = WebDriverWait(driver, 10).until(
-                                EC.visibility_of_element_located((by_map.get(locator_type, By.XPATH), key))
-                            )
-                            elem.clear()
-                            elem.send_keys(value)
-                            step_log.append(f"步骤{i}：输入 {key}={value}")
+                            locator_val, input_content = params.split("=", 1)
+                        elif " " in params:
+                            parts = params.split(" ", 1)
+                            locator_val = parts[0]
+                            input_content = parts[1]
+                        
+                        elem = WebDriverWait(driver, 10).until(
+                            EC.visibility_of_element_located((by_map.get(locator_type, By.XPATH), locator_val.strip()))
+                        )
+                        elem.clear()
+                        elem.send_keys(input_content)
+                        step_log.append(f"步骤{i}：输入 [{locator_type}] {locator_val} = {input_content}")
 
 
                     elif action == "enter":
@@ -128,7 +136,7 @@ def run_ui_case(case):
                         selector = parts[0]
                         timeout = int(parts[1]) if len(parts) > 1 else 5
                         WebDriverWait(driver, timeout).until(
-                            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                            EC.presence_of_element_located((by_map.get(locator_type, By.CSS_SELECTOR), selector))
                         )
                         step_log.append(f"步骤{i}：等待元素 {selector}")
 

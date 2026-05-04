@@ -7,6 +7,21 @@
 {% endblock %}
 
 {% block content %}
+<!-- 操作指引 -->
+<div class="card" style="background: #f0f4ff; border-left: 4px solid #667eea; margin-bottom: 20px;">
+    <h3 style="margin-top: 0; color: #667eea;">📖 使用指引</h3>
+    <div style="font-size: 14px; color: #4a5568; line-height: 1.8;">
+        <strong>UI 自动化测试通过“添加步骤”来构建操作流程：</strong><br>
+        1. 选择<strong>动作</strong>（点击/输入/等待）→ 选择<strong>定位方式</strong>（ID/XPath/CSS等）→ 填写<strong>定位值或内容</strong> → 点击“添加步骤”<br>
+        2. 重复上述操作，系统会自动生成操作步骤（每行一个步骤，无需手动换行）<br>
+        3. 示例：百度搜索 Python<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;① 动作选“输入”，定位选“id”，值填“kw=Python”→ 添加步骤 → 生成 <code>[input] [id] kw=Python</code><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;② 动作选“点击”，定位选“id”，值填“su”→ 添加步骤 → 生成 <code>[click] [id] su</code><br>
+        4. 最后点击“保存用例”即可<br>
+        <strong style="color: #dc3545;">注意：</strong>步骤文本框里的内容可以手动编辑，但格式必须为 <code>[动作] [定位方式] 值</code>，每行一个步骤。
+    </div>
+</div>
+
 <div class="card">
     <h3>UI测试用例</h3>
     <input id="name" class="form-input" placeholder="用例名称（如：百度搜索测试）">
@@ -31,7 +46,10 @@
 
     <textarea id="steps" class="form-textarea" rows="4" placeholder="自动生成的操作步骤（可编辑）"></textarea>
     <br>
-    <button class="btn btn-primary" onclick="saveCase()">保存用例</button>
+    <div style="display: flex; gap: 10px;">
+        <button id="saveUIBtn" class="btn btn-primary" onclick="saveCase()">保存用例</button>
+        <button id="cancelUIEditBtn" class="btn btn-secondary" onclick="cancelEditUI()" style="display:none;">取消</button>
+    </div>
 </div>
 
 <div class="card">
@@ -72,6 +90,7 @@
     let pageSize = 10;
     let totalPages = 1;
     let total = 0;
+    let editId = null;
 
     window.onload = function () {
         checkLogin();
@@ -150,13 +169,11 @@
     }
 
     async function saveCase() {
-        const nameEl = document.getElementById("name");
-        const name = nameEl.value.trim();
+        const name = document.getElementById("name").value.trim();
         const url = document.getElementById("url").value.trim();
         const steps = document.getElementById("steps").value.trim();
         const loc_type = document.getElementById("locator").value;
         const loc_value = document.getElementById("value").value;
-        const editId = nameEl.dataset.editId;
 
         if (!name || !url) {
             showAlert("请完善用例信息", "warning");
@@ -173,15 +190,7 @@
 
         try {
             if (editId) {
-                await fetch(`/api/ui/case/${editId}`, {
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": "Bearer " + localStorage.getItem("token")
-                    },
-                    body: JSON.stringify(payload)
-                });
-                delete nameEl.dataset.editId;
+                await httpPut(`/api/ui/case/${editId}`, payload);
                 showAlert("更新成功", "success");
             } else {
                 await httpPost("/api/ui/case/struct", payload);
@@ -189,13 +198,22 @@
             }
 
             loadCases();
-            nameEl.value = "";
-            document.getElementById("url").value = "";
-            document.getElementById("steps").value = "";
-            document.getElementById("value").value = "";
+            resetUIForm();
         } catch (err) {
             showAlert("操作失败", "error");
         }
+    }
+
+    function resetUIForm() {
+        editId = null;
+        document.getElementById("name").value = "";
+        document.getElementById("url").value = "";
+        document.getElementById("steps").value = "";
+        document.getElementById("value").value = "";
+        document.getElementById("action").value = "click";
+        document.getElementById("locator").value = "id";
+        document.getElementById("saveUIBtn").innerText = "保存用例";
+        document.getElementById("cancelUIEditBtn").style.display = "none";
     }
 
     async function del(id) {
@@ -218,16 +236,24 @@
                 return;
             }
 
+            editId = id;
             document.getElementById("name").value = caseData.name;
             document.getElementById("url").value = caseData.url;
             document.getElementById("locator").value = caseData.loc_type || "xpath";
             document.getElementById("value").value = caseData.loc_value || "";
             document.getElementById("steps").value = caseData.steps || "";
-            document.getElementById("name").dataset.editId = id;
-            showAlert("已加载用例信息，修改后点击保存即可", "info");
+            document.getElementById("saveUIBtn").innerText = "更新用例";
+            document.getElementById("cancelUIEditBtn").style.display = "inline-block";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            showAlert("已加载用例信息，修改后点击更新", "info");
         } catch (err) {
             showAlert("获取用例信息失败", "error");
         }
+    }
+
+    function cancelEditUI() {
+        resetUIForm();
+        showAlert("已取消编辑", "info");
     }
     
     async function runUICase(cid) {

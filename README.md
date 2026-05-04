@@ -5,6 +5,23 @@
 ## 项目介绍
 TestPilot 是基于 Python Flask 自主开发的**一站式轻量级自动化测试平台**，采用前后端不分离架构，按照路由层、服务层、模型层、工具层进行工程化分层设计。平台实现了**用户权限管理、接口自动化测试、UI 自动化测试、性能压测、AI 智能测试辅助**五大核心能力，支持用例管理、自动化执行、测试报告生成、数据可视化看板等完整基础流程，是面向测试开发工程师岗位的实战型个人项目。
 
+```mermaid
+graph TD
+    Client[浏览器客户端] --> API[路由层 /api/]
+    API --> Service[服务层 /service/]
+    Service --> DB[(数据库 /models/)]
+    Service --> AI[AI 引擎 /agent/]
+    Service --> Core[工具层 /core/]
+    
+    Core --> Log[日志系统]
+    Core --> Limit[限流/熔断]
+    Core --> Auth[JWT 认证]
+
+    style API fill:#e1f5fe,stroke:#01579b
+    style Service fill:#fff3e0,stroke:#e65100
+    style DB fill:#f3e5f5,stroke:#4a148c
+```
+
 ## 项目亮点
 - 完善的基础权限体系：支持用户登录、注册、超级管理员/管理员/普通用户三级权限控制
 - 标准化后端结构：统一响应封装、全局异常处理、代码模块化解耦
@@ -70,7 +87,7 @@ TestPilot/
 │   ├── ratelimit.py # 限流与熔断防护逻辑
 │   └── middleware.py
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
-├── static/           # 前端静态资源
+├── static/           # 静态资源
 └── templates/       # HTML 页面模板
 ```
 
@@ -150,6 +167,22 @@ TestPilot/
 - 用户名：admin
 - 密码：123456
 - 补充说明：项目首次启动时会自动检测并创建超级管理员账号
+
+## 功能展示
+### 主界面
+![主界面](static/images/index.png)
+
+### 接口自动化测试
+![接口测试](static/images/api_test.png)
+
+### UI 自动化测试
+![UI测试](static/images/ui_test.png)
+
+### 性能压测
+![性能测试](static/images/performance_test.png)
+
+### 系统管理
+![系统管理](static/images/system_management.png)
 
 ## 功能模块说明
 ### 1. 用户权限与登录模块

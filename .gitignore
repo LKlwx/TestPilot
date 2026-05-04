@@ -2,12 +2,11 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
 static/screenshots/
 
 # 虚拟环境
 venv/
+.venv/
 env/
 ENV/
 
@@ -23,11 +22,21 @@ instance/
 
 # 日志
 *.log
-logs/
+core/logs/
+
+# 测试相关
+.pytest_cache/
+.coverage
+htmlcov/
 
 # 系统文件
 .DS_Store
-.claudeignore
+Thumbs.db
 
 # 数据库同步脚本
 sync_db.py
+
+# 环境变量
+.env
+.env.*
+!.env.example

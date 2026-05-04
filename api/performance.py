@@ -75,6 +75,7 @@ def cases():
                 "id": item.id,
                 "name": item.name,
                 "url": item.url,
+                "method": item.method,
                 "concurrency": item.concurrency,
                 "total": item.total
             })
