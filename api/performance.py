@@ -189,16 +189,45 @@ def update_case(cid):
         if not case:
             return error("用例不存在")
         old_name = case.name
+        old_url = case.url
+        old_method = case.method
+        old_concurrency = case.concurrency
+        old_total = case.total
         d = request.json
-        case.name = d["name"]
-        case.url = d["url"]
-        case.method = d.get("method", "GET")
+
+        # 记录修改的字段
+        changes = []
+        new_name = d["name"]
+        new_url = d["url"]
+        new_method = d.get("method", "GET")
+        new_concurrency = int(d.get("concurrency", 10))
+        new_total = int(d.get("total", 50))
+
+        if old_name != new_name:
+            changes.append(f"名称({old_name}→{new_name})")
+        if old_url != new_url:
+            changes.append(f"URL({old_url[:30]}...→{new_url[:30]}...)")
+        if old_method != new_method:
+            changes.append(f"方法({old_method}→{new_method})")
+        if old_concurrency != new_concurrency:
+            changes.append(f"并发({old_concurrency}→{new_concurrency})")
+        if old_total != new_total:
+            changes.append(f"总请求数({old_total}→{new_total})")
+
+        case.name = new_name
+        case.url = new_url
+        case.method = new_method
         case.headers = d.get("headers", "{}")
         case.body = d.get("body")
-        case.concurrency = int(d.get("concurrency", 10))
-        case.total = int(d.get("total", 50))
+        case.concurrency = new_concurrency
+        case.total = new_total
+
         db.session.commit()
-        add_operation_log(user.id, username, "update_perf_case", f"修改性能用例: {old_name} → {case.name} (ID={cid})")
+        detail = f"修改性能用例: {old_name} → {case.name}"
+        if changes:
+            detail += "，" + "，".join(changes)
+        detail += f" (ID={cid})"
+        add_operation_log(user.id, username, "update_perf_case", detail)
         return success(msg="修改成功")
     except Exception as e:
         db.session.rollback()

@@ -9,16 +9,33 @@
 {% block content %}
 <!-- 操作指引 -->
 <div class="card" style="background: #f0f4ff; border-left: 4px solid #667eea; margin-bottom: 20px;">
-    <h3 style="margin-top: 0; color: #667eea;">📖 使用指引</h3>
-    <div style="font-size: 14px; color: #4a5568; line-height: 1.8;">
-        <strong>UI 自动化测试通过“添加步骤”来构建操作流程：</strong><br>
-        1. 选择<strong>动作</strong>（点击/输入/等待）→ 选择<strong>定位方式</strong>（ID/XPath/CSS等）→ 填写<strong>定位值或内容</strong> → 点击“添加步骤”<br>
-        2. 重复上述操作，系统会自动生成操作步骤（每行一个步骤，无需手动换行）<br>
-        3. 示例：百度搜索 Python<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;① 动作选“输入”，定位选“id”，值填“kw=Python”→ 添加步骤 → 生成 <code>[input] [id] kw=Python</code><br>
-        &nbsp;&nbsp;&nbsp;&nbsp;② 动作选“点击”，定位选“id”，值填“su”→ 添加步骤 → 生成 <code>[click] [id] su</code><br>
-        4. 最后点击“保存用例”即可<br>
-        <strong style="color: #dc3545;">注意：</strong>步骤文本框里的内容可以手动编辑，但格式必须为 <code>[动作] [定位方式] 值</code>，每行一个步骤。
+<h3 style="margin-top: 0; color: #667eea; cursor:pointer;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">📖 动作说明与格式（点击展开/收起）</h3>
+    <div style="font-size: 13px; color: #4a5568; line-height: 1.8; display:none;" id="guideContent">
+        <p style="margin-bottom:8px;"><strong>一、支持的动作：</strong></p>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <tr style="background:#f5f5f5;"><th style="padding:8px;border:1px solid #ddd;">动作</th><th style="padding:8px;border:1px solid #ddd;">说明</th><th style="padding:8px;border:1px solid #ddd;">格式</th><th style="padding:8px;border:1px solid #ddd;">示例</th></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">click</td><td style="padding:8px;border:1px solid #ddd;">点击元素</td><td style="padding:8px;border:1px solid #ddd;">[click] [定位方式] 值</td><td style="padding:8px;border:1px solid #ddd;">[click] [id] su</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">input</td><td style="padding:8px;border:1px solid #ddd;">输入文本</td><td style="padding:8px;border:1px solid #ddd;">[input] [定位方式] 值=内容</td><td style="padding:8px;border:1px solid #ddd;">[input] [id] kw=Python</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">enter</td><td style="padding:8px;border:1px solid #ddd;">按回车键</td><td style="padding:8px;border:1px solid #ddd;">[enter] [定位方式] 值</td><td style="padding:8px;border:1px solid #ddd;">[enter] [id] kw</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">wait</td><td style="padding:8px;border:1px solid #ddd;">等待元素出现（单位秒）</td><td style="padding:8px;border:1px solid #ddd;">[wait] [定位方式] 值 超时时间</td><td style="padding:8px;border:1px solid #ddd;">[wait] [id] su 3</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">assert_title</td><td style="padding:8px;border:1px solid #ddd;">断言页面标题</td><td style="padding:8px;border:1px solid #ddd;">[assert_title] [] 期望标题</td><td style="padding:8px;border:1px solid #ddd;">[assert_title] [] 百度一下</td></tr>
+            <tr><td style="padding:8px;border:1px solid #ddd;">assert_text</td><td style="padding:8px;border:1px solid #ddd;">断言页面包含文本</td><td style="padding:8px;border:1px solid #ddd;">[assert_text] [] 期望文本</td><td style="padding:8px;border:1px solid #ddd;">[assert_text] [] 测试</td></tr>
+        </table>
+        <p style="margin:15px 0 8px 0;"><strong>二、支持的定位方式：</strong></p>
+        <p style="font-size:12px;">ID、Name、XPath、CSS、linkText、className</p>
+        <p style="margin:15px 0 8px 0;"><strong>三、格式说明：</strong></p>
+        <div style="background:#f9f9f9;padding:10px;border-radius:4px;font-size:12px;">
+            • 基本格式：<code>[动作] [定位方式] 值</code><br>
+            • input 特殊格式：<code>[input] [定位方式] 值=输入内容</code>（用等号连接）<br>
+            • wait 特殊格式：<code>[wait] [定位方式] 值 超时秒数</code>（最后加数字）<br>
+            • 多个步骤用换行分隔，每行一个步骤
+        </div>
+        <p style="margin:15px 0 8px 0;"><strong>四、示例：</strong></p>
+        <div style="font-size:12px;background:#f0f0f0;padding:10px;border-radius:4px;">
+            <div>[input] [id] kw=Python</div>
+            <div>[click] [id] su</div>
+            <div>[assert_title] [] 百度一下</div>
+        </div>
     </div>
 </div>
 
@@ -31,7 +48,10 @@
         <select id="action" class="form-select">
             <option value="click">点击</option>
             <option value="input">输入</option>
+            <option value="enter">回车</option>
             <option value="wait">等待</option>
+            <option value="assert_title">断言标题</option>
+            <option value="assert_text">断言文本</option>
         </select>
         <select id="locator" class="form-select">
             <option value="id">ID 定位</option>
@@ -65,7 +85,7 @@
             <th>序号</th>
             <th>用例名</th>
             <th>网址</th>
-            <th>定位方式</th>
+            <th>步骤信息</th>
             <th>操作</th>
         </tr>
         </thead>
@@ -110,12 +130,42 @@
             let html = "";
             const startIndex = (currentPage - 1) * pageSize;
             list.forEach((c, i) => {
+                // 解析步骤为可读格式
+                let stepInfo = "-";
+                let fullSteps = "";
+                if (c.steps) {
+                    const lines = c.steps.split('\n').filter(l => l.trim());
+                    const stepCount = lines.length;
+                    // 动作和中文映射
+                    const actionMap = {'click': '点击', 'input': '输入', 'enter': '回车', 'wait': '等待', 'assert_title': '断言标题', 'assert_text': '断言文本'};
+                    const locMap = {'id': 'ID', 'name': 'Name', 'xpath': 'XPath', 'css': 'CSS', 'linkText': '链接文本', 'className': 'className'};
+                    
+                    // 解析为可读格式
+                    const parsedLines = lines.map(line => {
+                        const parts = line.replace(/[\[\]]/g, '').trim().split(/\s+/);
+                        const action = actionMap[parts[0]] || parts[0] || '';
+                        const locator = locMap[parts[1]] || parts[1] || '';
+                        const value = parts.slice(2).join(' ');
+                        // assert_title/assert_text 没有定位方式，直接显示
+                        if (!locator) {
+                            return action ? `${action}: ${value}` : line;
+                        }
+                        return action ? `${action} | ${locator}: ${value}` : line;
+                    });
+                    
+                    // 显示第一行摘要（截断到30字符，避免太长）
+                    const summary = parsedLines[0]?.substring(0, 35) + (parsedLines[0]?.length > 35 ? "..." : "");
+                    // 完整内容用于弹窗
+                    fullSteps = parsedLines.join('\n');
+                    stepInfo = `<div style="font-size:12px;">${stepCount}步 | ${summary}</div>
+                        <div style="font-size:11px;color:#999;cursor:pointer;" onclick="event.stopPropagation();showStepsModal('${c.name}', \`${fullSteps.replace(/`/g, '\\`').replace(/\n/g, '\\n')}\`)">查看详情</div>`;
+                }
                 html += `
                 <tr>
                     <td>${startIndex + i + 1}</td>
                     <td>${c.name}</td>
                     <td>${c.url}</td>
-                    <td>${c.loc_type}</td>
+                    <td>${stepInfo}</td>
                     <td>
                         <button class="btn btn-primary" onclick="editUICase(${c.id})">编辑</button>
                         <button class="btn btn-success" onclick="runUICase(${c.id})">执行</button>
@@ -189,12 +239,18 @@
         };
 
         try {
+            let res;
             if (editId) {
-                await httpPut(`/api/ui/case/${editId}`, payload);
-                showAlert("更新成功", "success");
+                res = await httpPut(`/api/ui/case/${editId}`, payload);
+                if (res.code === 200) showAlert("更新成功", "success");
             } else {
-                await httpPost("/api/ui/case/struct", payload);
-                showAlert("保存成功", "success");
+                res = await httpPost("/api/ui/case/struct", payload);
+                if (res.code === 200) showAlert("保存成功", "success");
+            }
+
+            if (res.code !== 200) {
+                showAlert(res.msg || "操作失败", "error");
+                return;
             }
 
             loadCases();
@@ -270,6 +326,20 @@
         } catch (err) {
             showAlert("执行请求失败", "error");
         }
+    }
+
+    function showStepsModal(caseName, steps) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+        modal.innerHTML = `
+            <div style="background:white;padding:20px;border-radius:8px;max-width:500px;width:90%;max-height:80vh;overflow:auto;">
+                <h4 style="margin:0 0 15px 0;">${caseName} - 步骤详情</h4>
+                <pre style="background:#f5f5f5;padding:10px;border-radius:4px;white-space:pre-wrap;word-wrap:break-word;max-height:400px;overflow:auto;">${steps}</pre>
+                <button onclick="this.closest('.modal-overlay').remove()" style="margin-top:10px;padding:8px 20px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;">关闭</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
     }
 </script>
 {% endblock %}

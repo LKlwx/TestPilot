@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
 from models import UICase
-from service.ui_service import run_ui_case
+from service.ui_service import run_ui_case, parse_steps
 from core.response import success, error
 from api.auth import add_operation_log
 
@@ -31,6 +31,14 @@ def add_ui_case():
     data = request.json
     if not data or not data.get("name") or not data.get("url"):
         return error("参数不完整!")
+
+    steps = data.get("steps", "")
+    if steps:
+        is_valid, _, errors = parse_steps(steps)
+        if not is_valid:
+            error_msg = "步骤格式不符合规范：\n" + "\n".join(errors)
+            return error(error_msg)
+
     case = UICase(
         name=data.get("name"),
         url=data.get("url"),
@@ -144,6 +152,14 @@ def add_struct_ui():
     data = request.json
     if not data or not data.get("name") or not data.get("url"):
         return error("参数不完整!")
+
+    steps = data.get("steps", "")
+    if steps:
+        is_valid, _, errors = parse_steps(steps)
+        if not is_valid:
+            error_msg = "步骤格式不符合规范：\n" + "\n".join(errors)
+            return error(error_msg)
+
     case = UICase(
         name=data["name"],
         url=data["url"],
@@ -155,6 +171,12 @@ def add_struct_ui():
     try:
         db.session.add(case)
         db.session.commit()
+        # 添加操作日志
+        from models import User
+        identity = get_jwt_identity()
+        user = User.query.get(int(identity))
+        username = user.username if user else "未知"
+        add_operation_log(user.id, username, "add_ui_case", f"新增 UI 用例：{data['name']}")
     except Exception as e:
         db.session.rollback()
         print(f"UI用例添加失败:{e}")
@@ -175,16 +197,51 @@ def update_ui_case(cid):
         return error("用例不存在")
 
     old_name = case.name
+    old_url = case.url
+    old_steps = case.steps
+    old_loc_type = case.loc_type
+    old_loc_value = case.loc_value
     data = request.json
-    case.name = data.get("name", case.name)
-    case.url = data.get("url", case.url)
-    case.steps = data.get("steps", case.steps)
-    case.loc_type = data.get("loc_type", case.loc_type)
-    case.loc_value = data.get("loc_value", case.loc_value)
+
+    steps = data.get("steps", case.steps)
+    if steps and steps != case.steps:
+        is_valid, _, errors = parse_steps(steps)
+        if not is_valid:
+            error_msg = "步骤格式不符合规范：\n" + "\n".join(errors)
+            return error(error_msg)
+
+    # 记录修改的字段
+    changes = []
+    new_name = data.get("name", case.name)
+    new_url = data.get("url", case.url)
+    new_steps = data.get("steps", case.steps)
+    new_loc_type = data.get("loc_type", case.loc_type)
+    new_loc_value = data.get("loc_value", case.loc_value)
+
+    if old_name != new_name:
+        changes.append(f"名称({old_name}→{new_name})")
+    if old_url != new_url:
+        changes.append(f"URL({old_url[:20]}...→{new_url[:20]}...)")
+    if old_steps != new_steps:
+        changes.append(f"步骤({old_steps.split(chr(10)) if old_steps else []}→{new_steps.split(chr(10)) if new_steps else []})")
+    if old_loc_type != new_loc_type:
+        changes.append(f"定位方式({old_loc_type}→{new_loc_type})")
+    if old_loc_value != new_loc_value:
+        changes.append(f"定位值({old_loc_value}→{new_loc_value})")
+
+    case.name = new_name
+    case.url = new_url
+    case.steps = new_steps
+    case.loc_type = new_loc_type
+    case.loc_value = new_loc_value
 
     try:
         db.session.commit()
-        add_operation_log(user.id, username, "update_ui_case", f"修改UI用例: {old_name} → {case.name} (ID={cid})")
+        detail = f"修改UI用例: {old_name} → {case.name}"
+        if changes:
+            detail += "，" + "，".join(changes)
+        detail += f" (ID={cid})"
+        add_operation_log(user.id, username, "update_ui_case", detail)
         return success(msg="更新成功")
     except Exception as e:
         db.session.rollback()

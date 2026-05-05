@@ -52,7 +52,11 @@
         }
         try {
             const res = await httpPost("/api/ai/save/ui", currentData);
-            showAlert(res.msg || "保存成功", "success");
+            if (res.code === 200) {
+                showAlert("保存成功", "success");
+            } else {
+                showAlert(res.msg || "保存失败", "error");
+            }
         } catch (err) {
             showAlert("保存失败", "error");
             console.error("保存UI用例异常：", err);

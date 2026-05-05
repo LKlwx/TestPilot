@@ -435,7 +435,8 @@ def dashboard_data():
             ).limit(5).all()
             
             for idx, d in enumerate(top5_details):
-                perf_names.append(d.url[:30] + "..." if len(d.url) > 30 else d.url)
+                url = d.url or "未知URL"
+                perf_names.append(url[:30] + "..." if len(url) > 30 else url)
                 perf_qps.append(round(last_perf_report.qps or 0, 1))
                 perf_rt.append(round(d.max_time or 0, 1))
         else:

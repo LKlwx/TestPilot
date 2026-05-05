@@ -14,31 +14,56 @@ def parse_steps(steps_text):
     解析结构化步骤，格式如：[action] [locator_type] value
     例如：[click] [xpath] //button[@id='login']
           [input] [name] username=admin
+    返回：(是否成功, 成功列表, 错误信息列表)
     """
-    parsed = []
-    if not steps_text:
-        return parsed
+    SUPPORTED_ACTIONS = ["click", "input", "enter", "wait", "assert_title", "assert_text"]
+    SUPPORTED_LOCATORS = ["id", "name", "xpath", "css", "linkText", "className"]
 
-    for line in steps_text.strip().split("\n"):
+    parsed = []
+    errors = []
+    if not steps_text:
+        return True, parsed, []
+
+    lines = steps_text.strip().split("\n")
+    for idx, line in enumerate(lines, 1):
         line = line.strip()
-        if not line or not line.startswith("["):
+        if not line:
+            continue
+        if not line.startswith("["):
+            errors.append(f"第{idx}行：格式错误，缺少动作标识 '['")
             continue
 
         parts = line.split("]", 2)
         if len(parts) < 3:
+            errors.append(f"第{idx}行：格式错误，缺少定位方式或参数")
             continue
 
         action = parts[0].replace("[", "").strip()
         locator_type = parts[1].replace("[", "").strip()
         params = parts[2].strip()
 
-        parsed.append({
-            "action": action,
-            "locator_type": locator_type,
-            "params": params
-        })
+        if not action:
+            errors.append(f"第{idx}行：动作不能为空")
+        elif action not in SUPPORTED_ACTIONS:
+            errors.append(f"第{idx}行：动作 '{action}' 不支持，支持的动作：{', '.join(SUPPORTED_ACTIONS)}")
 
-    return parsed
+        if not locator_type:
+            errors.append(f"第{idx}行：定位方式不能为空")
+        elif locator_type not in SUPPORTED_LOCATORS:
+            errors.append(f"第{idx}行：定位方式 '{locator_type}' 不支持，支持的定位方式：{', '.join(SUPPORTED_LOCATORS)}")
+
+        if not params:
+            errors.append(f"第{idx}行：参数不能为空")
+
+        if not errors or errors[-1].startswith(f"第{idx}"):
+            parsed.append({
+                "action": action,
+                "locator_type": locator_type,
+                "params": params
+            })
+
+    is_valid = len(errors) == 0
+    return is_valid, parsed, errors
 
 
 def find_element(driver, locator_type, value):
@@ -89,7 +114,13 @@ def run_ui_case(case):
 
         # 解析并执行步骤
         if case.steps:
-            steps = parse_steps(case.steps)
+            is_valid, steps, errors = parse_steps(case.steps)
+            if not is_valid:
+                step_log.append(f"步骤解析失败：")
+                for err in errors:
+                    step_log.append(f"  - {err}")
+                raise Exception("步骤格式或内容不符合规范，请检查后重试")
+
             for i, step in enumerate(steps, 1):
                 action = step["action"]
                 locator_type = step["locator_type"]

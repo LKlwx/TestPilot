@@ -113,20 +113,52 @@ def update_case(cid):
     if not case:
         raise NotFoundException("用例不存在")
     old_name = case.name
+    old_module = case.module
+    old_method = case.method
+    old_url = case.url
+    old_expect = case.expect
+    old_extract_var = case.extract_var
     data = request.get_json()
     if not data:
         return error("请求参数错误，请检查网络或重新登录")
 
-    case.name = data.get("name", case.name)
-    case.module = data.get("module", case.module)
-    case.method = data.get("method", case.method)
-    case.url = data.get("url", case.url)
+    # 记录修改的字段
+    changes = []
+    new_name = data.get("name", case.name)
+    new_module = data.get("module", case.module)
+    new_method = data.get("method", case.method)
+    new_url = data.get("url", case.url)
+    new_expect = data.get("expect", case.expect)
+    new_extract_var = data.get("extract_var", case.extract_var)
+
+    if old_name != new_name:
+        changes.append(f"名称({old_name}→{new_name})")
+    if old_module != new_module:
+        changes.append(f"模块({old_module}→{new_module})")
+    if old_method != new_method:
+        changes.append(f"方法({old_method}→{new_method})")
+    if old_url != new_url:
+        changes.append(f"URL({old_url[:30]}...→{new_url[:30]}...)")
+    if old_expect != new_expect:
+        changes.append(f"预期({old_expect}→{new_expect})")
+    if old_extract_var != new_extract_var:
+        changes.append(f"提取变量({old_extract_var}→{new_extract_var})")
+
+    case.name = new_name
+    case.module = new_module
+    case.method = new_method
+    case.url = new_url
     case.headers = data.get("headers", case.headers)
     case.body = data.get("body", case.body)
-    case.expect = data.get("expect", case.expect)
-    case.extract_var = data.get("extract_var", case.extract_var)
+    case.expect = new_expect
+    case.extract_var = new_extract_var
+
     db.session.commit()
-    add_operation_log(user.id, username, "update_case", f"修改接口用例: {old_name} → {case.name} (ID={cid})")
+    detail = f"修改接口用例: {old_name} → {case.name}"
+    if changes:
+        detail += "，" + "，".join(changes)
+    detail += f" (ID={cid})"
+    add_operation_log(user.id, username, "update_case", detail)
     return success(msg="更新成功")
 
 
