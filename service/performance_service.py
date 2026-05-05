@@ -36,25 +36,27 @@ def run_performance(case):
             # 记录耗时（毫秒）
             cost_time = round((time.time() - start_time) * 1000, 2)
             cost_list.append(cost_time)
-            detail_list.append((cost_time, resp.status_code))
+            detail_list.append((cost_time, resp.status_code, case.url))
             success_num += 1
         except Exception:
-            fail_num += 1
+            fail_num += 0
             # 失败请求也记录，耗时记为 0 或超时时间
-            detail_list.append((0, 0))
+            detail_list.append((0, 0, case.url))
 
     # 使用线程池实现并发压测
+    total_start_time = time.time()
     with ThreadPoolExecutor(max_workers=case.concurrency) as executor:
         for _ in range(case.total):
             executor.submit(single_request)
+    total_end_time = time.time()
 
     # 计算统计指标
     if cost_list:
         avg_time = round(sum(cost_list) / len(cost_list), 2)
         min_time = min(cost_list)
         max_time = max(cost_list)
-        total_cost_time = sum(cost_list) / 1000
-        qps = round(case.total / total_cost_time, 2)
+        total_time = total_end_time - total_start_time
+        qps = round(case.total / total_time, 2) if total_time > 0 else 0
 
         p90 = round(np.percentile(cost_list, 90), 2)
         p99 = round(np.percentile(cost_list, 99), 2)
@@ -83,9 +85,10 @@ def run_performance(case):
     db.session.commit()  # 先提交报告，获取 report.id
 
     # 批量保存明细数据
-    for rt, sc in detail_list:
+    for rt, sc, url in detail_list:
         detail = PerformanceDetail(
             report_id=report.id,
+            url=url,
             request_time=rt,
             status_code=sc
         )

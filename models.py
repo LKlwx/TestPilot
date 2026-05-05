@@ -143,6 +143,7 @@ class PerformanceDetail(db.Model):
     __tablename__ = "performance_detail"
     id = db.Column(db.Integer, primary_key=True)
     report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id"), comment="关联压测报告ID")
+    url = db.Column(db.String(500), comment="请求URL")
     request_time = db.Column(db.Float, comment="本次请求耗时(ms)")
     status_code = db.Column(db.Integer, comment="HTTP 状态码")
     create_time = db.Column(db.DateTime, default=datetime.now)

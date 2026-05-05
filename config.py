@@ -4,6 +4,7 @@ from datetime import timedelta
 # 获取项目根目录的绝对路径
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
+
 class Config:
     """基础配置类"""
     SECRET_KEY = os.environ.get("SECRET_KEY", "testpilot-2026-super-secure-key")
@@ -22,10 +23,16 @@ class Config:
     # AI 模型配置（LM Studio 本地大模型服务）
     AI_API_BASE = "http://127.0.0.1:1234"
     AI_MODEL = "qwen3.5-9b"
+    # AI 生成提示词配置
+    AI_API_PROMPT = """你是资深测试开发，请根据业务场景生成一个 JSON 对象。要求：必须包含 name, method, url, headers, body, expect 这 6 个英文键。示例：{"name": "登录测试", "method": "POST", "url": "/api/login", "headers": {}, "body": {}, "expect": "成功"}场景：{}"""
+    AI_UI_PROMPT = """你是 UI 自动化专家，请根据业务场景生成一个 JSON 对象。要求：必须包含 name, url, steps 这 3 个英文键。示例：{"name": "登录流程", "url": "http://localhost/login", "steps": "步骤 1；步骤 2"}场景：{}"""
+    AI_ANALYZE_PROMPT = """你是测试诊断专家，请分析日志生成一个 JSON 对象。要求：必须包含 cause, solution 这 2 个英文键。日志：{}"""
+
 
 class DevelopmentConfig(Config):
     """开发环境配置"""
     DEBUG = True
+
 
 class TestConfig(Config):
     """测试环境配置"""
@@ -33,15 +40,18 @@ class TestConfig(Config):
     # 测试环境用独立数据库
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'testpilot_test.db')}"
 
+
 class DemoConfig(Config):
     """演示环境配置"""
     DEBUG = False
     # 演示环境用独立数据库，数据独立
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'testpilot_demo.db')}"
 
+
 class ProductionConfig(Config):
     """生产环境配置"""
     DEBUG = False
+
 
 config = {
     "development": DevelopmentConfig,

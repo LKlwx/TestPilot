@@ -7,23 +7,13 @@ from config import Config
 class AITestAgent:
     """AI 测试助手：调用本地 LM Studio 模型生成用例或分析日志"""
     def __init__(self):
-        # 接口用例生成提示词，示例中的 {{}} 用于转义，避免 format 报错
-        self.api_prompt = """你是资深测试开发，请根据业务场景生成一个 JSON 对象。
-要求：必须包含 name, method, url, headers, body, expect 这 6 个英文键。
-示例：{{"name": "登录测试", "method": "POST", "url": "/api/login", "headers": {{}}, "body": {{}}, "expect": "成功"}}
-场景：{}"""
-        # UI 用例生成提示词
-        self.ui_prompt = """你是 UI 自动化专家，请根据业务场景生成一个 JSON 对象。
-要求：必须包含 name, url, steps 这 3 个英文键。
-示例：{{"name": "登录流程", "url": "http://localhost/login", "steps": "步骤 1；步骤 2"}}
-场景：{}"""
-        # 日志诊断分析提示词
-        self.analyze_prompt = """你是测试诊断专家，请分析日志生成一个 JSON 对象。
-要求：必须包含 cause, solution 这 2 个英文键。
-日志：{}"""
         # 从配置文件读取模型服务地址与名称
         self.api_base = Config.AI_API_BASE
         self.model = Config.AI_MODEL
+        # 从配置文件读取提示词
+        self.api_prompt = Config.AI_API_PROMPT
+        self.ui_prompt = Config.AI_UI_PROMPT
+        self.analyze_prompt = Config.AI_ANALYZE_PROMPT
 
     def _call_ai(self, prompt: str) -> str:
         """向本地 LM Studio 发起请求，获取模型返回内容"""

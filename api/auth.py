@@ -421,15 +421,23 @@ def dashboard_data():
 
         if last_perf_report:
             from models import PerformanceDetail
-            # 查询该报告关联的明细，按耗时降序取前 5 个
-            top5_details = PerformanceDetail.query.filter_by(
-                report_id=last_perf_report.id
-            ).order_by(PerformanceDetail.request_time.desc()).limit(5).all()
+            from sqlalchemy import func
+            # 按 URL 聚合，取每个 URL 最慢的一次请求，按耗时降序取前 5 个
+            top5_details = db.session.query(
+                PerformanceDetail.url,
+                func.max(PerformanceDetail.request_time).label('max_time')
+            ).filter(
+                PerformanceDetail.report_id == last_perf_report.id
+            ).group_by(
+                PerformanceDetail.url
+            ).order_by(
+                func.max(PerformanceDetail.request_time).desc()
+            ).limit(5).all()
             
             for idx, d in enumerate(top5_details):
-                perf_names.append(f"请求 {idx + 1}")
+                perf_names.append(d.url[:30] + "..." if len(d.url) > 30 else d.url)
                 perf_qps.append(round(last_perf_report.qps or 0, 1))
-                perf_rt.append(round(d.request_time or 0, 1))
+                perf_rt.append(round(d.max_time or 0, 1))
         else:
             perf_names.append("暂无压测")
             perf_qps.append(0)

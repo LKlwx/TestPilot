@@ -4,14 +4,14 @@
 
 ## 分支类型
 
-| 分支 | 用途 | 命名规则 |
-|------|------|----------|
-| main | 生产环境代码 | 保持稳定，不直接提交 |
-| develop | 开发环境代码 | 集成分支 |
-| feature/* | 新功能开发 | feature/功能名 |
-| bugfix/* | 普通Bug修复 | bugfix/功能名 |
-| hotfix/* | 紧急修复 | hotfix/问题描述 |
-| release/* | 发布准备 | release/版本号 |
+| 分支        | 用途      | 命名规则        |
+|-----------|---------|-------------|
+| main      | 生产环境代码  | 保持稳定，不直接提交  |
+| develop   | 开发环境代码  | 集成分支        |
+| feature/* | 新功能开发   | feature/功能名 |
+| bugfix/*  | 普通Bug修复 | bugfix/功能名  |
+| hotfix/*  | 紧急修复    | hotfix/问题描述 |
+| release/* | 发布准备    | release/版本号 |
 
 ## 常用命令
 
@@ -23,7 +23,6 @@ git checkout -b feature/xxx develop
 git checkout develop
 git merge feature/xxx
 git branch -d feature/xxx
-
 # 创建release分支
 git checkout -b release/v1.0 develop
 
