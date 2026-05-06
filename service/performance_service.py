@@ -3,6 +3,7 @@ import requests
 import json
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 from extensions import db
 from models import PerformanceReport, PerformanceDetail
 
@@ -13,6 +14,7 @@ def run_performance(case):
     detail_list = []  # 存储明细数据 (耗时，状态码)
     success_num = 0  # 成功请求数
     fail_num = 0  # 失败请求数
+    lock = Lock()  # 线程锁
 
     # 单个请求的执行逻辑
     def single_request():
@@ -35,13 +37,21 @@ def run_performance(case):
             )
             # 记录耗时（毫秒）
             cost_time = round((time.time() - start_time) * 1000, 2)
-            cost_list.append(cost_time)
-            detail_list.append((cost_time, resp.status_code, case.url))
-            success_num += 1
+            
+            # HTTP 状态码 >= 400 算失败
+            if resp.status_code >= 400:
+                with lock:
+                    fail_num += 1
+                    detail_list.append((cost_time, resp.status_code, case.url))
+            else:
+                with lock:
+                    cost_list.append(cost_time)
+                    detail_list.append((cost_time, resp.status_code, case.url))
+                    success_num += 1
         except Exception:
-            fail_num += 0
-            # 失败请求也记录，耗时记为 0 或超时时间
-            detail_list.append((0, 0, case.url))
+            with lock:
+                fail_num += 1
+                detail_list.append((0, 0, case.url))
 
     # 使用线程池实现并发压测
     total_start_time = time.time()
@@ -51,16 +61,19 @@ def run_performance(case):
     total_end_time = time.time()
 
     # 计算统计指标
-    if cost_list:
+    completed = success_num + fail_num
+    if cost_list and completed > 0:
         avg_time = round(sum(cost_list) / len(cost_list), 2)
         min_time = min(cost_list)
         max_time = max(cost_list)
         total_time = total_end_time - total_start_time
-        qps = round(case.total / total_time, 2) if total_time > 0 else 0
+        # 用实际完成的请求数计算 QPS
+        qps = round(completed / total_time, 2) if total_time > 0 else 0
 
         p90 = round(np.percentile(cost_list, 90), 2)
         p99 = round(np.percentile(cost_list, 99), 2)
-        success_rate = round((success_num / case.total) * 100, 2)
+        # 加除零保护
+        success_rate = round((success_num / completed) * 100, 2) if completed > 0 else 0
     else:
         avg_time = min_time = max_time = qps = 0
         p90 = p99 = success_rate = 0
