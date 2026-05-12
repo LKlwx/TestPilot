@@ -136,6 +136,7 @@ class PerformanceReport(db.Model):
     p90 = db.Column(db.Float, default=0)
     p99 = db.Column(db.Float, default=0)
     success_rate = db.Column(db.Float, default=0)
+    is_local = db.Column(db.Boolean, default=False, comment="是否本机压测（可能导致数据失真）")
 
 
 # 性能测试明细表：存储每次请求的详细耗时，用于分析慢接口

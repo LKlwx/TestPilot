@@ -16,6 +16,7 @@
             <th>失败</th>
             <th>QPS</th>
             <th>平均耗时</th>
+            <th>标签</th>
             <th>时间</th>
             <th>操作</th>
         </tr>
@@ -53,6 +54,7 @@
                 html = '<tr><td colspan="10" style="text-align:center; padding:40px; color:#999;">暂无性能压测报告数据</td></tr>';
             } else {
                 list.forEach((item, index) => {
+                    const localTag = item.is_local ? '<span style="background:#ffc107; color:#856404; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600;">本机压测</span>' : '-';
                     html += `
                     <tr>
                         <td>${index + 1}</td>
@@ -63,6 +65,7 @@
                         <td>${item.fail}</td>
                         <td>${item.qps}</td>
                         <td>${item.avg_time}ms</td>
+                        <td>${localTag}</td>
                         <td>${item.create_time}</td>
                         <td><button class="btn btn-primary" onclick="showDetail(${item.id})">查看</button></td>
                     </tr>`;
@@ -82,8 +85,9 @@
             window.currentPerfReportData = res.data; // 暂存数据用于复制
             const info = res.data;
 
+            const localLabel = info.is_local ? '<span style="background:#ffc107; color:#856404; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:8px;">⚠️ 本机压测（数据可能失真）</span>' : '';
             document.getElementById("detailContent").innerHTML = `
-                <p><strong>用例名称：</strong>${info.case_name}</p>
+                <p><strong>用例名称：</strong>${info.case_name}${localLabel}</p>
                 <p><strong>并发数：</strong>${info.concurrency}</p>
                 <p><strong>总请求：</strong>${info.total}</p>
                 <p><strong>成功：</strong>${info.success} ｜ <strong>失败：</strong>${info.fail}</p>
@@ -95,6 +99,7 @@
                 <p><strong>最小响应：</strong>${info.min_time ? info.min_time + 'ms' : '-'}</p>
                 <p><strong>最大响应：</strong>${info.max_time ? info.max_time + 'ms' : '-'}</p>
                 <p><strong>生成时间：</strong>${info.create_time}</p>
+                ${info.is_local ? '<p style="color:#856404; background:#fff7e6; padding:10px; border-radius:6px; margin-top:10px;"><strong>⚠️ 提醒：</strong>本测试针对本地服务发起，测得数据包含压测工具自身开销，仅供参考。</p>' : ''}
             `;
             document.getElementById("detailModal").classList.add("active");
         } catch (err) {

@@ -2,10 +2,26 @@ import time
 import requests
 import json
 import numpy as np
+from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from extensions import db
 from models import PerformanceReport, PerformanceDetail
+
+
+def is_local_url(url):
+    """检测是否为本地URL（可能导致压测数据失真）"""
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname.lower() if parsed.hostname else ""
+        port = parsed.port
+        if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+            return True
+        if host == "localhost":
+            return True
+        return False
+    except:
+        return False
 
 
 # 执行性能压测的核心方法
@@ -79,6 +95,7 @@ def run_performance(case):
         p90 = p99 = success_rate = 0
 
     # 保存测试报告到数据库
+    is_local = is_local_url(case.url)
     report = PerformanceReport(
         case_id=case.id,
         case_name=case.name,
@@ -93,6 +110,7 @@ def run_performance(case):
         p90=p90,
         p99=p99,
         success_rate=success_rate,
+        is_local=is_local,
     )
     db.session.add(report)
     db.session.commit()  # 先提交报告，获取 report.id

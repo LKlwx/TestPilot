@@ -4,6 +4,56 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="/static/css/pages/test-forms.css">
+<style>
+.warning-box {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: linear-gradient(135deg, #fff7e6 0%, #fff3cd 100%);
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    margin: 12px 0;
+}
+.warning-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+.warning-content {
+    flex: 1;
+}
+.warning-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #856404;
+    margin-bottom: 8px;
+}
+.warning-desc {
+    font-size: 13px;
+    color: #856404;
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+.warning-suggest {
+    font-size: 13px;
+    color: #856404;
+    background: rgba(255,255,255,0.6);
+    padding: 10px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+.warning-suggest ul {
+    margin: 6px 0 0 0;
+    padding-left: 20px;
+}
+.warning-suggest li {
+    margin-bottom: 4px;
+}
+.warning-note {
+    font-size: 12px;
+    color: #c77d0e;
+    font-style: italic;
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -11,10 +61,31 @@
 <div class="card">
     <h3>新建性能测试用例</h3>
     <input id="name" class="form-input" placeholder="用例名称（如：百度首页压测）">
-    <input id="url" class="form-input" placeholder="压测URL（https://www.baidu.com）">
+    <input id="url" class="form-input" placeholder="压测URL（https://www.baidu.com）" oninput="checkLocalUrl()">
     <input id="method" class="form-input" placeholder="请求方法" value="GET">
     <input id="concurrency" class="form-input" placeholder="并发数" value="10">
     <input id="total" class="form-input" placeholder="总请求数" value="50">
+
+    <!-- 本机压测警告框 -->
+    <div id="localWarning" class="warning-box" style="display: none;">
+        <div class="warning-icon">⚠️</div>
+        <div class="warning-content">
+            <div class="warning-title">检测到目标为本机服务</div>
+            <div class="warning-desc">
+                您正在压测 <strong>localhost</strong> 或 <strong>127.0.0.1</strong> 地址，这与 TestPilot 平台运行在同一进程内。
+                由于 ThreadPoolExecutor 受 Python GIL 限制，测得的结果会包含压测工具自身开销，而非真实的系统瓶颈。
+            </div>
+            <div class="warning-suggest">
+                <strong>建议方案：</strong>
+                <ul>
+                    <li>将待测服务部署到其他机器后用该机器的 IP/域名访问</li>
+                    <li>使用独立的压测工具（如 JMeter、Locust）从另一台机器发起请求</li>
+                </ul>
+            </div>
+            <div class="warning-note">如仍需执行，测试报告将打上"本机压测"标签以作区分。</div>
+        </div>
+    </div>
+
     <div style="display: flex; gap: 10px;">
         <button id="saveBtn" onclick="saveCase()" class="btn btn-primary">保存用例</button>
         <button id="cancelBtn" onclick="cancelEdit()" class="btn btn-secondary" style="display:none;">取消</button>
@@ -67,6 +138,27 @@
         checkLogin();
         loadList();
     };
+
+    function checkLocalUrl() {
+        const url = document.getElementById("url").value.trim().toLowerCase();
+        const warningBox = document.getElementById("localWarning");
+        if (!url) {
+            warningBox.style.display = "none";
+            return;
+        }
+        try {
+            const parsed = new URL(url);
+            const hostname = parsed.hostname;
+            const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+            if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "::1") {
+                warningBox.style.display = "flex";
+            } else {
+                warningBox.style.display = "none";
+            }
+        } catch (e) {
+            warningBox.style.display = "none";
+        }
+    }
 
     async function loadList(page = 1) {
         const keyword = document.getElementById("searchKeyword").value;

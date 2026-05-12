@@ -121,6 +121,7 @@ def reports():
                 "fail": item.fail,
                 "qps": item.qps,
                 "avg_time": item.avg_time,
+                "is_local": item.is_local,
                 "create_time": item.create_time.strftime("%Y-%m-%d %H:%M:%S")
             })
         return success(data=data)
@@ -149,6 +150,7 @@ def report_detail(rid):
             "p90": report.p90,
             "p99": report.p99,
             "success_rate": report.success_rate,
+            "is_local": report.is_local,
             "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S")
         }
         return success(data=data)
