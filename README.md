@@ -29,6 +29,7 @@ graph TD
 - AI 辅助测试：基于本地大模型（LM Studio）实现用例自动生成与失败日志智能诊断
 - 可视化数据看板：展示用例分布、缺陷发现趋势、慢接口分析等关键数据
 - 服务稳定性保障：全局限流（防刷）+ 熔断降级（防雪崩），只统计 5xx 触发熔断避免误杀
+- **生产环境安全加固**：启动时密钥强校验，拒绝弱密钥上线；JWT鉴权全覆盖（7个关键接口已补齐）；全局异常信息脱敏（生产环境不暴露堆栈）；用户注册多层防护（防admin绕过、防特殊字符注入）
 - 多环境隔离：开发/测试/演示/生产四环境独立数据库，通过环境变量一键切换
 - 全部功能基于本地环境运行，无第三方云服务依赖，轻量易部署
 
@@ -42,7 +43,7 @@ graph TD
 - UI 自动化：Selenium（无头模式）
 - 性能测试：Python 线程池并发
 - AI 模块：本地大模型集成（LM Studio + Qwen3.5 9B）
-- 其他：系统操作日志、统一响应封装、全局异常捕获
+- 其他：系统操作日志、统一响应封装、全局异常捕获、分级日志体系（DEBUG/INFO/ERROR）
 
 ## 项目结构
 ```
@@ -100,7 +101,7 @@ TestPilot/
 5. **UIReport**：UI 测试报告
 6. **PerformanceCase**：性能测试用例
 7. **PerformanceReport**：性能测试指标报告
-8. **TestTask**：定时任务（表结构已定义，功能待实现）
+8. **TestTask**：定时任务配置
 9. **AIAgentTask**：AI 操作记录（已落库，支持历史查看）
 10. **SysOperationLog**：系统操作日志（已落库，支持审计页面查看）
 11. **PerformanceDetail**：压测明细数据（存储每次请求耗时，用于慢接口分析）
@@ -111,33 +112,52 @@ TestPilot/
    ```bash
    pip install -r requirements.txt
    ```
-3. 启动项目（默认开发环境）
+3. 配置密钥环境变量（生产/演示环境必需，开发环境可选但建议配置）
+   ```bash
+   # 生成随机强密钥（推荐）
+   export SECRET_KEY=$(openssl rand -base64 32)
+   export JWT_SECRET_KEY=$(openssl rand -base64 32)
+   ```
+4. 启动项目（默认开发环境）
    ```bash
    python run.py
    ```
-4. 切换环境启动
+5. 切换环境启动
    ```bash
-   # 开发环境（默认）
+   # 开发环境（默认）- 未配置密钥时会打印 WARNING 但允许启动
    python run.py
+   
    # 测试环境（独立数据库）
    FLASK_ENV=test python run.py
-   # 演示环境（独立数据库）
-   FLASK_ENV=demo python run.py
-   # 生产环境
-   FLASK_ENV=production python run.py
+   
+   # 演示环境（独立数据库）- 必须配置强密钥，否则拒绝启动
+   FLASK_ENV=demo SECRET_KEY=xxx JWT_SECRET_KEY=xxx python run.py
+   
+   # 生产环境 - 必须配置强密钥，否则拒绝启动
+   FLASK_ENV=production SECRET_KEY=xxx JWT_SECRET_KEY=xxx python run.py
    ```
-5. 访问地址
+6. 访问地址
    ```
    http://127.0.0.1:5000
    ```
 
 ## Docker 容器化部署
 1. 确保已安装 Docker Desktop
-2. 进入项目根目录，执行构建命令：
+2. **配置密钥环境变量**（生产环境必需）：
+   ```bash
+   # 方法1：复制 .env.example 为 .env 并填写
+   cp .env.example .env
+   # 编辑 .env 文件，填入随机生成的密钥
+   
+   # 方法2：直接生成随机密钥
+   export SECRET_KEY=$(openssl rand -base64 32)
+   export JWT_SECRET_KEY=$(openssl rand -base64 32)
+   ```
+3. 执行构建命令：
    ```bash
    docker-compose up -d --build
    ```
-3. 访问地址：
+4. 访问地址：
    ```
    http://localhost:5000
    ```
@@ -146,6 +166,7 @@ TestPilot/
 - 零环境配置：无需安装 Python、Flask 或配置虚拟环境
 - 环境一致性：开发、测试、生产环境完全一致，避免"我本地能跑"问题
 - 数据持久化：通过 Volume 挂载实现数据库文件持久存储，容器重启数据不丢失
+- **安全强制**：生产环境未配置强密钥将拒绝启动，防止带病上线
 
 ## GitHub Actions CI/CD
 1. 推送代码到 GitHub 仓库
@@ -186,8 +207,10 @@ TestPilot/
 
 ## 功能模块说明
 ### 1. 用户权限与登录模块
-- 实现用户登录、注册、JWT 身份认证
+- 实现用户登录、注册、JWT 身份认证（双Token无感刷新）
 - 支持超级管理员/管理员/普通用户三级权限控制
+- 注册安全加固：`strip().lower()` 清理 + 正则合法字符限制，防止 `" admin"`、`"Admin"` 等变体绕过
+- 登录查询大小写不敏感，确保用户名一致性
 - 已实现完整的用户列表、角色管理及操作日志审计功能
 - 关键操作（登录、删除、修改）自动写入系统日志
 
@@ -225,11 +248,20 @@ TestPilot/
 - 生成性能测试报告并支持查看
 - **✨ 更新内容**：
   - **性能压测引擎升级**：引入 `numpy` 实现 **P90/P99 长尾延迟计算**与**成功率统计**，突破单一 QPS 指标局限，更精准定位性能瓶颈。
+  - **智能传参适配**：根据 Headers 中 `Content-Type` 自动判断使用 `json=` 还是 `data=`，修复 JSON 接口传参错误；非法 JSON 自动回退到 `data=` 模式并记录日志。
   - **多维可视化报告**：压测详情页完整展示 QPS、平均耗时、P90/P99 及成功率，辅助优化决策。
   - **全功能交互完善**：性能模块新增**用例在线编辑**功能，实现与接口/UI 模块体验统一；修复报告详情渲染与样式异常，提升系统稳定性。
   - **压测明细追踪**：新增 PerformanceDetail 表，自动记录每次请求的耗时与状态码，支持首页 Top 5 慢接口动态分析。
 
-### 6. AI 智能测试模块
+### 6. 日志与监控体系
+- **分级日志系统**：使用 Python `logging` 模块，按 DEBUG/INFO/ERROR 三级分离
+  - `app.log`：日常运行日志（保留 7 个文件，单文件 10MB）
+  - `error.log`：错误日志（保留 30 个文件，带完整堆栈）
+  - `debug.log`：开发环境专用（DEBUG 级别）
+- **Service 层日志规范化**：核心 Service（test_service.py 等）全部使用 `logger.info()/error()` 替代 `print()`，支持模块级日志名（`__name__`），方便定位问题来源
+- **全局异常与日志联动**：生产环境异常不暴露堆栈，仅返回"服务器内部错误"，同时完整堆栈写入 `error.log`，兼顾安全与排错
+
+### 7. AI 智能测试模块
 - 基于本地大模型（LM Studio）实现 AI 能力，无云端依赖
 - 根据业务场景自动生成接口测试用例（包含请求方法、路径、头、体、断言）
 - 根据业务场景自动生成 UI 测试用例（包含 URL 与操作步骤）
@@ -240,9 +272,3 @@ TestPilot/
   - 通过 `requests` 调用 LM Studio OpenAI 兼容接口，实现本地模型推理
   - 健壮的 JSON 解析机制：支持 Markdown 代码块提取、中文键自动映射、容错降级
   - 配置集中管理：模型地址与名称统一在 `config.py` 中维护，方便后续切换模型
-
-## 后续优化方向
-1. 定时任务可视化配置页面（目前仅支持数据库手动配置）
-2. 测试报告导出为 HTML/PDF 格式
-3. 支持 MySQL 数据库无缝迁移
-4. 前端引入 Vue3 实现前后端分离架构
