@@ -40,7 +40,10 @@ def create_app(config_name="default"):
         # 记录完整错误堆栈到日志
         from core.logger import log_error
         log_error(e, context="全局异常")
-        return error(str(e), 500)
+        if app.config["DEBUG"]:
+            return error(str(e), 500)
+        else:
+            return error("服务器内部错误", 500)
 
     # 注册蓝本
     app.register_blueprint(auth_bp, url_prefix="/api/auth")

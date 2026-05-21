@@ -124,16 +124,25 @@ def register():
     if not username or not password:
         return error("用户名和密码不能为空")
 
-    # 用户不能和超级管理员重名
-    if username.lower() == "admin":
+    # 用户名格式检查
+    import re
+    username_clean = username.strip().lower()
+    
+    # 用户不能和超级管理员重名（包括变体）
+    if username_clean == "admin":
         return error("该用户名已被系统占用，无法注册")
 
-    # 检查用户名是否已存在
-    if User.query.filter_by(username=username).first():
+    # 检查用户名是否只包含合法字符
+    username_pattern = r'^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$'
+    if not re.match(username_pattern, username_clean):
+        return error("用户名只能包含字母、数字、下划线、中划线和中文")
+
+    # 检查用户名是否已存在（大小写不敏感）
+    if User.query.filter_by(username=username_clean).first():
         return error("用户名已存在")
 
-    # 新建用户（默认普通用户 tester）
-    new_user = User(username=username)
+    # 新建用户（默认普通用户 tester），存储小写用户名
+    new_user = User(username=username_clean)
     new_user.set_password(password)
     new_user.role = "tester"
 
@@ -367,6 +376,7 @@ def delete_user(uid):
 
 # 数据统计大屏
 @auth_bp.route("/dashboard/data", methods=["GET"])
+@jwt_required()
 def dashboard_data():
     import traceback
     from datetime import datetime, timedelta
