@@ -14,6 +14,7 @@ test_bp = Blueprint("test", __name__)
 
 
 @test_bp.route("/cases", methods=["GET"])
+@jwt_required()
 def get_cases():
     page = request.args.get("page", 1, type=int)
     page_size = request.args.get("page_size", 10, type=int)
@@ -163,6 +164,7 @@ def update_case(cid):
 
 
 @test_bp.route("/reports/data", methods=["GET"])
+@jwt_required()
 def reports():
     reports = TestReport.query.order_by(TestReport.id.desc()).limit(20).all()
     data = [{

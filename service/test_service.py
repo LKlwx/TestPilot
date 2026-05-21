@@ -3,6 +3,9 @@ import json
 from models import TestReport
 from extensions import db
 import time
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 # 全局变量池，用于接口间的参数依赖传递（如 Token）
 GLOBAL_VARS = {}
@@ -56,9 +59,9 @@ def execute_test_case(case):
 
                 # 存入全局变量池，后续用例可用
                 GLOBAL_VARS[var_name] = val
-                print(f"变量提取成功: {var_name} = {val}")
+                logger.info(f"变量提取成功: {var_name} = {val}")
             except Exception as e:
-                print(f"变量提取失败: {str(e)}")
+                logger.error(f"变量提取失败: {str(e)}", exc_info=True)
 
         cost_time = round(time.time() - start_time, 3)
         passed = True

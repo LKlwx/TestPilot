@@ -58,6 +58,7 @@ def add_ui_case():
 
 
 @ui_bp.route("/cases", methods=["GET"])
+@jwt_required()
 def get_ui_cases():
     page = request.args.get("page", 1, type=int)
     page_size = request.args.get("page_size", 10, type=int)
@@ -112,6 +113,7 @@ def delete_ui_case(cid):
 
 
 @ui_bp.route("/reports/data", methods=["GET"])
+@jwt_required()
 def get_ui_reports():
     from models import UIReport
     reports = UIReport.query.order_by(UIReport.id.desc()).limit(20).all()

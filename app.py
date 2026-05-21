@@ -13,7 +13,14 @@ from api.ai import ai_bp
 
 def create_app(config_name="default"):
     app = Flask(__name__)
-    app.config.from_object(config[config_name])
+    config_class = config[config_name]
+    app.config.from_object(config_class)
+
+    # ===== 启动时强校验密钥 =====
+    # 生产环境（production/demo）必须配置强密钥，否则拒绝启动
+    is_production = config_name in ("production", "demo")
+    config_class.validate_secrets(is_production=is_production)
+    # ================================================
 
     # 初始化扩展
     db.init_app(app)

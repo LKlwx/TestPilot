@@ -44,13 +44,35 @@ def run_performance(case):
             except:
                 headers = {}
             
-            resp = requests.request(
-                method=case.method,
-                url=case.url,
-                headers=headers,
-                data=case.body,
-                timeout=10
-            )
+            # 根据 Content-Type 判断使用 json= 还是 data=
+            content_type = headers.get("Content-Type", "")
+            if "application/json" in content_type and case.body:
+                try:
+                    body_json = json.loads(case.body)
+                    resp = requests.request(
+                        method=case.method,
+                        url=case.url,
+                        headers=headers,
+                        json=body_json,
+                        timeout=10
+                    )
+                except json.JSONDecodeError:
+                    # body 不是合法 JSON，回退到 data=
+                    resp = requests.request(
+                        method=case.method,
+                        url=case.url,
+                        headers=headers,
+                        data=case.body,
+                        timeout=10
+                    )
+            else:
+                resp = requests.request(
+                    method=case.method,
+                    url=case.url,
+                    headers=headers,
+                    data=case.body,
+                    timeout=10
+                )
             # 记录耗时（毫秒）
             cost_time = round((time.time() - start_time) * 1000, 2)
             

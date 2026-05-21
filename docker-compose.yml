@@ -6,7 +6,9 @@ services:
     environment:
       - FLASK_APP=run.py
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
-      - SECRET_KEY=${SECRET_KEY:-testpilot-2026-super-secure-key}
+      # 生产环境必须设置强密钥（通过 .env 文件或 docker-compose 命令传入）
+      - SECRET_KEY=${SECRET_KEY:?Please set SECRET_KEY environment variable}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Please set JWT_SECRET_KEY environment variable}
     volumes:
       - ./instance:/app/instance
     restart: unless-stopped

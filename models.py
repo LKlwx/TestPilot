@@ -72,6 +72,24 @@ class TestTask(db.Model):
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     create_time = db.Column(db.DateTime, default=datetime.now)
 
+    @db.validates('case_ids')
+    def validate_case_ids(self, key, case_ids):
+        """验证 case_ids 格式：只允许逗号分隔的正整数"""
+        if case_ids is None or case_ids == "":
+            return case_ids
+        
+        import re
+        # 验证格式：只允许 "1,2,3" 这样的格式
+        # 不允许：空元素 "1,,3"、非数字 "1,a,3"、空格 "1, 2,3"
+        pattern = r'^[1-9]\d*(?:,[1-9]\d*)*$'
+        if not re.match(pattern, str(case_ids)):
+            from core.exception import APIException
+            raise APIException(
+                "case_ids 格式错误：必须是逗号分隔的正整数，如 '1,2,3'", 
+                400
+            )
+        return case_ids
+
 
 # ------------------------------
 # UI 自动化用例表

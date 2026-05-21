@@ -56,6 +56,7 @@ def add_case():
 
 # 获取用例列表
 @performance_bp.route("/cases", methods=["GET"])
+@jwt_required()
 def cases():
     try:
         page = request.args.get("page", 1, type=int)
@@ -107,6 +108,7 @@ def run(cid):
 
 # 报告列表
 @performance_bp.route("/reports", methods=["GET"])
+@jwt_required()
 def reports():
     try:
         report_list = PerformanceReport.query.order_by(PerformanceReport.id.desc()).limit(20).all()

@@ -1,13 +1,67 @@
 import os
+import sys
 from datetime import timedelta
 
 # 获取项目根目录的绝对路径
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
+# 弱密钥黑名单（启动时会被拒绝）
+_WEAK_KEY_BLACKLIST = {
+    "testpilot-jwt-secret",
+    "testpilot-2026-super-secure-key",
+    "secret",
+    "jwt-secret",
+    "password",
+    "123456",
+    "admin",
+    "default",
+}
+
+
+def _validate_secret_key(key_name: str, key_value: str, is_production: bool) -> None:
+    """
+    校验密钥强度
+    
+    规则：
+    1. 生产环境：强制要求从环境变量读取，禁止使用默认值
+    2. 密钥长度 >= 32 字符
+    3. 密钥不能是常见弱密钥
+    4. 开发环境：允许使用默认值，但打印警告
+    """
+    # 检查是否是默认值（环境变量未设置时使用的值）
+    is_default = key_value in _WEAK_KEY_BLACKLIST or len(key_value) < 32
+    
+    if is_production and is_default:
+        # 生产环境使用默认密钥 = 直接拒绝启动
+        print(f"\n{'='*60}")
+        print(f"FATAL ERROR: {key_name} 使用了弱密钥或默认值！")
+        print(f"{'='*60}")
+        print(f"当前值: {key_value[:10]}...")
+        print(f"\n生产环境必须设置强密钥，请执行以下操作之一：")
+        print(f"  1. 设置环境变量：export {key_name}=<your-strong-secret-key>")
+        print(f"  2. 或使用随机生成：export {key_name}=$(openssl rand -base64 32)")
+        print(f"{'='*60}\n")
+        sys.exit(1)
+    
+    if is_default:
+        # 开发环境允许，但强烈警告
+        print(f"\n{'!'*60}")
+        print(f"WARNING: {key_name} 使用了默认弱密钥！")
+        print(f"{'!'*60}")
+        print(f"这会导致 JWT Token 可被伪造，存在严重安全隐患。")
+        print(f"请在生产环境前设置强密钥：")
+        print(f"  export {key_name}=$(openssl rand -base64 32)")
+        print(f"{'!'*60}\n")
+
 
 class Config:
     """基础配置类"""
-    SECRET_KEY = os.environ.get("SECRET_KEY", "testpilot-2026-super-secure-key")
+    # 默认密钥（仅用于开发环境，生产环境会被拒绝启动）
+    _DEFAULT_SECRET_KEY = "testpilot-2026-super-secure-key"
+    _DEFAULT_JWT_SECRET_KEY = "testpilot-jwt-secret"
+    
+    # 从环境变量读取，如果未设置则使用默认值
+    SECRET_KEY = os.environ.get("SECRET_KEY", _DEFAULT_SECRET_KEY)
     DEBUG = False
     # 请求超时时间（秒）
     REQUEST_TIMEOUT = 10
@@ -16,9 +70,15 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # JWT 配置（登录鉴权）
-    JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "testpilot-jwt-secret")
+    JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", _DEFAULT_JWT_SECRET_KEY)
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=2)  # Access Token 2小时
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)  # Refresh Token 30天
+
+    @classmethod
+    def validate_secrets(cls, is_production: bool = False) -> None:
+        """启动时校验密钥强度"""
+        _validate_secret_key("SECRET_KEY", cls.SECRET_KEY, is_production)
+        _validate_secret_key("JWT_SECRET_KEY", cls.JWT_SECRET_KEY, is_production)
 
     # AI 模型配置（LM Studio 本地大模型服务）
     AI_API_BASE = "http://127.0.0.1:1234"
