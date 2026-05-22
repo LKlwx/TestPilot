@@ -1,7 +1,11 @@
 import os
+from dotenv import load_dotenv
 from app import create_app
 from extensions import db
 from models import User, TestCase
+
+# 加载 .env 文件（如果存在），使 os.environ.get() 能读取到配置值
+load_dotenv()
 
 # 从环境变量读取配置，默认development
 env = os.environ.get("FLASK_ENV", "development")

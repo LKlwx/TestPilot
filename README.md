@@ -112,11 +112,14 @@ TestPilot/
    ```bash
    pip install -r requirements.txt
    ```
-3. 配置密钥环境变量（生产/演示环境必需，开发环境可选但建议配置）
+3. 配置环境变量（推荐使用 `.env` 文件，建议第一步就做）
    ```bash
-   # 生成随机强密钥（推荐）
-   export SECRET_KEY=$(openssl rand -base64 32)
-   export JWT_SECRET_KEY=$(openssl rand -base64 32)
+   # 复制模板文件
+   cp .env.example .env
+   
+   # 编辑 .env 文件，填入随机生成的密钥
+   # SECRET_KEY 和 JWT_SECRET_KEY 生产环境必填，长度 >= 32 字符
+   # 可使用 openssl rand -base64 32 一键生成
    ```
 4. 启动项目（默认开发环境）
    ```bash
@@ -131,11 +134,12 @@ TestPilot/
    FLASK_ENV=test python run.py
    
    # 演示环境（独立数据库）- 必须配置强密钥，否则拒绝启动
-   FLASK_ENV=demo SECRET_KEY=xxx JWT_SECRET_KEY=xxx python run.py
+   FLASK_ENV=demo python run.py
    
    # 生产环境 - 必须配置强密钥，否则拒绝启动
-   FLASK_ENV=production SECRET_KEY=xxx JWT_SECRET_KEY=xxx python run.py
+   FLASK_ENV=production python run.py
    ```
+   > **注意**：密钥配置通过 `.env` 文件后，启动命令无需再传入 `SECRET_KEY=xxx`。`FLASK_ENV` 也可以通过 `.env` 文件设置，或通过命令动态覆盖。
 6. 访问地址
    ```
    http://127.0.0.1:5000

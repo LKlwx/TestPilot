@@ -33,15 +33,13 @@ def _validate_secret_key(key_name: str, key_value: str, is_production: bool) -> 
     
     if is_production and is_default:
         # 生产环境使用默认密钥 = 直接拒绝启动
-        print(f"\n{'='*60}")
-        print(f"FATAL ERROR: {key_name} 使用了弱密钥或默认值！")
-        print(f"{'='*60}")
-        print(f"当前值: {key_value[:10]}...")
-        print(f"\n生产环境必须设置强密钥，请执行以下操作之一：")
-        print(f"  1. 设置环境变量：export {key_name}=<your-strong-secret-key>")
-        print(f"  2. 或使用随机生成：export {key_name}=$(openssl rand -base64 32)")
-        print(f"{'='*60}\n")
-        sys.exit(1)
+        raise RuntimeError(
+            f"FATAL ERROR: {key_name} 使用了弱密钥或默认值！\n"
+            f"当前值: {key_value[:10]}...\n"
+            f"生产环境必须设置强密钥，请执行以下操作之一：\n"
+            f"  1. 设置环境变量：export {key_name}=<your-strong-secret-key>\n"
+            f"  2. 或使用随机生成：export {key_name}=$(openssl rand -base64 32)"
+        )
     
     if is_default:
         # 开发环境允许，但强烈警告
