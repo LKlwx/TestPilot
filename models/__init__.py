@@ -2,6 +2,7 @@ from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db
+from models.base_case import BaseCaseMixin
 
 
 # ------------------------------
@@ -27,11 +28,9 @@ class User(UserMixin, db.Model):
 # ------------------------------
 # 测试用例表
 # ------------------------------
-class TestCase(db.Model):
+class TestCase(BaseCaseMixin, db.Model):
     __tablename__ = "test_case"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    module = db.Column(db.String(50),default="默认模块",comment="所属模块")
+    module = db.Column(db.String(50), default="默认模块", index=True, comment="所属模块")
     method = db.Column(db.String(10), nullable=False)  # GET/POST/PUT/DELETE
     url = db.Column(db.String(500), nullable=False)
     headers = db.Column(db.Text, default="{}")
@@ -39,7 +38,6 @@ class TestCase(db.Model):
     expect = db.Column(db.String(200))  # 预期结果关键字
     extract_var = db.Column(db.String(200), comment="后置提取：格式如 token=$.args.token")
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    create_time = db.Column(db.DateTime, default=datetime.now)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
 
@@ -49,14 +47,14 @@ class TestCase(db.Model):
 class TestReport(db.Model):
     __tablename__ = "test_report"
     id = db.Column(db.Integer, primary_key=True)
-    case_id = db.Column(db.Integer, db.ForeignKey("test_case.id"))
+    case_id = db.Column(db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"))
     case_name = db.Column(db.String(100))
-    status = db.Column(db.String(20))  # pass/fail/error
+    status = db.Column(db.String(20), index=True)  # pass/fail/error
     cost_time = db.Column(db.Float)  # 耗时（秒）
     response_code = db.Column(db.Integer)
     response_body = db.Column(db.Text)
     error_msg = db.Column(db.Text)
-    create_time = db.Column(db.DateTime, default=datetime.now)
+    create_time = db.Column(db.DateTime, default=datetime.now, index=True)
 
 
 # ------------------------------
@@ -94,17 +92,14 @@ class TestTask(db.Model):
 # ------------------------------
 # UI 自动化用例表
 # ------------------------------
-class UICase(db.Model):
+class UICase(BaseCaseMixin, db.Model):
     __tablename__ = "ui_case"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
     url = db.Column(db.String(500), nullable=False)
     steps = db.Column(db.Text)  # 操作步骤
     loc_type = db.Column(db.String(20), default="xpath", comment="元素定位方式：id/xpath/css")
     loc_value = db.Column(db.String(500), comment="元素定位值")
     screenshot_path = db.Column(db.String(500), comment="测试截图路径")
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
-    create_time = db.Column(db.DateTime, default=datetime.now)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
 
@@ -114,33 +109,30 @@ class UICase(db.Model):
 class UIReport(db.Model):
     __tablename__ = "ui_report"
     id = db.Column(db.Integer, primary_key=True)
-    case_id = db.Column(db.Integer, db.ForeignKey("ui_case.id"))
+    case_id = db.Column(db.Integer, db.ForeignKey("ui_case.id", ondelete="CASCADE"))
     case_name = db.Column(db.String(100))
     status = db.Column(db.String(20))  # pass/fail/error
     cost_time = db.Column(db.Float)
     error_msg = db.Column(db.Text)
-    create_time = db.Column(db.DateTime, default=datetime.now)
+    create_time = db.Column(db.DateTime, default=datetime.now, index=True)
 
 
 # 性能测试用例表：存储压测的地址、并发、请求总数等配置
-class PerformanceCase(db.Model):
+class PerformanceCase(BaseCaseMixin, db.Model):
     __tablename__ = "performance_case"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)  # 用例名称
     url = db.Column(db.String(500), nullable=False)  # 压测URL
     method = db.Column(db.String(10), default="GET")  # 请求方法
     headers = db.Column(db.Text, default="{}")  # 请求头
     body = db.Column(db.Text)  # 请求体
     concurrency = db.Column(db.Integer, default=10)  # 并发线程数
     total = db.Column(db.Integer, default=50)  # 总请求次数
-    create_time = db.Column(db.DateTime, default=datetime.now)
 
 
 # 性能测试报告表：存储每次压测的结果数据
 class PerformanceReport(db.Model):
     __tablename__ = "performance_report"
     id = db.Column(db.Integer, primary_key=True)
-    case_id = db.Column(db.Integer)  # 对应的用例ID
+    case_id = db.Column(db.Integer, db.ForeignKey("performance_case.id", ondelete="CASCADE"), index=True)  # 对应的用例ID
     case_name = db.Column(db.String(100))  # 用例名称
     concurrency = db.Column(db.Integer)  # 并发数
     total = db.Column(db.Integer)  # 总请求数
@@ -150,7 +142,7 @@ class PerformanceReport(db.Model):
     avg_time = db.Column(db.Float)  # 平均响应时间(ms)
     min_time = db.Column(db.Float)  # 最小响应时间(ms)
     max_time = db.Column(db.Float)  # 最大响应时间(ms)
-    create_time = db.Column(db.DateTime, default=datetime.now)
+    create_time = db.Column(db.DateTime, default=datetime.now, index=True)
     p90 = db.Column(db.Float, default=0)
     p99 = db.Column(db.Float, default=0)
     success_rate = db.Column(db.Float, default=0)
@@ -161,7 +153,7 @@ class PerformanceReport(db.Model):
 class PerformanceDetail(db.Model):
     __tablename__ = "performance_detail"
     id = db.Column(db.Integer, primary_key=True)
-    report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id"), comment="关联压测报告ID")
+    report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id", ondelete="CASCADE"), comment="关联压测报告ID")
     url = db.Column(db.String(500), comment="请求URL")
     request_time = db.Column(db.Float, comment="本次请求耗时(ms)")
     status_code = db.Column(db.Integer, comment="HTTP 状态码")

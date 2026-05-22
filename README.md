@@ -51,8 +51,10 @@ TestPilot/
 ├── run.py                 # 项目启动入口
 ├── app.py                # Flask 应用初始化与蓝图注册
 ├── config.py             # 项目基础配置
-├── models.py             # 数据库表结构模型
-├── extensions.py         # db、jwt 等扩展实例化
+├── models/             # 数据库表结构模型（包结构）
+│   ├── __init__.py     # 模型导入入口（原 models.py）
+│   └── base_case.py    # 用例基础抽象类 BaseCaseMixin
+├── extensions.py       # db、jwt 等扩展实例化
 ├── requirements.txt     # 依赖包列表
 ├── Dockerfile         # Docker 镜像配置
 ├── docker-compose.yml  # Docker Compose 配置
