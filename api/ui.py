@@ -4,6 +4,8 @@ from extensions import db
 from models import UICase
 from service.ui_service import run_ui_case, parse_steps
 from core.response import success, error
+from core.schema import validate_request
+from api.schemas import AddUICaseSchema, UpdateUICaseSchema
 from api.auth import add_operation_log
 
 ui_bp = Blueprint("ui", __name__)
@@ -28,9 +30,7 @@ def add_ui_case():
     identity = get_jwt_identity()
     user = User.query.get(int(identity))
     username = user.username if user else "未知"
-    data = request.json
-    if not data or not data.get("name") or not data.get("url"):
-        return error("参数不完整!")
+    data = validate_request(AddUICaseSchema, request.json)
 
     steps = data.get("steps", "")
     if steps:
@@ -40,9 +40,9 @@ def add_ui_case():
             return error(error_msg)
 
     case = UICase(
-        name=data.get("name"),
-        url=data.get("url"),
-        steps=data.get("steps", ""),
+        name=data["name"],
+        url=data["url"],
+        steps=steps,
         loc_type=data.get("loc_type", "xpath"),
         loc_value=data.get("loc_value", ""),
     )
@@ -52,7 +52,8 @@ def add_ui_case():
         add_operation_log(user.id, username, "add_ui_case", f"新增 UI 用例：{data['name']}")
     except Exception as e:
         db.session.rollback()
-        print(f"UI用例添加失败:{e}")
+        from core.logger import log_error
+        log_error(e, context="UI用例添加失败")
         return error("保存失败")
     return success(msg="成功")
 
@@ -203,7 +204,7 @@ def update_ui_case(cid):
     old_steps = case.steps
     old_loc_type = case.loc_type
     old_loc_value = case.loc_value
-    data = request.json
+    data = validate_request(UpdateUICaseSchema, request.json)
 
     steps = data.get("steps", case.steps)
     if steps and steps != case.steps:

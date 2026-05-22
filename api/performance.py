@@ -3,6 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
 from models import PerformanceCase, PerformanceReport
 from core.response import success, error
+from core.schema import validate_request
+from api.schemas import AddPerformanceCaseSchema, UpdatePerformanceCaseSchema
 from service.performance_service import run_performance
 from api.auth import add_operation_log
 
@@ -30,19 +32,15 @@ def add_case():
         identity = get_jwt_identity()
         user = User.query.get(int(identity))
         username = user.username if user else "未知"
-        data = request.json
-        if not data or not data.get("name") or not data.get("url"):
-            return error("参数不完整!")
-        concurrency = int(data.get("concurrency", 10))
-        total = int(data.get("total", 50))
+        data = validate_request(AddPerformanceCaseSchema, request.json)
         case = PerformanceCase(
             name=data["name"],
             url=data["url"],
             method=data.get("method", "GET"),
             headers=data.get("headers", "{}"),
             body=data.get("body"),
-            concurrency=concurrency,
-            total=total
+            concurrency=data.get("concurrency", 10),
+            total=data.get("total", 50)
         )
         db.session.add(case)
         db.session.commit()
@@ -50,7 +48,8 @@ def add_case():
         return success(msg="保存成功")
     except Exception as e:
         db.session.rollback()
-        print(f"性能用例添加失败:{e}")
+        from core.logger import log_error
+        log_error(e, context="性能用例添加失败")
         return error("保存失败")
 
 
@@ -197,15 +196,15 @@ def update_case(cid):
         old_method = case.method
         old_concurrency = case.concurrency
         old_total = case.total
-        d = request.json
+        d = validate_request(UpdatePerformanceCaseSchema, request.json)
 
         # 记录修改的字段
         changes = []
-        new_name = d["name"]
-        new_url = d["url"]
-        new_method = d.get("method", "GET")
-        new_concurrency = int(d.get("concurrency", 10))
-        new_total = int(d.get("total", 50))
+        new_name = d.get("name", case.name)
+        new_url = d.get("url", case.url)
+        new_method = d.get("method", case.method)
+        new_concurrency = d.get("concurrency", case.concurrency)
+        new_total = d.get("total", case.total)
 
         if old_name != new_name:
             changes.append(f"名称({old_name}→{new_name})")

@@ -38,6 +38,7 @@ graph TD
 - 数据库：SQLite
 - ORM：Flask-SQLAlchemy
 - 身份认证：Flask-JWT-Extended（双Token无感刷新）、Flask-Login
+- 参数校验：marshmallow 4.x（Schema 声明式校验）
 - 前端：HTML + CSS + JavaScript + ECharts
 - 接口自动化：Requests
 - UI 自动化：Selenium（无头模式）
@@ -69,6 +70,7 @@ TestPilot/
 │   ├── __init__.py
 │   └── test_core.py
 ├── api/              # 接口路由层
+│   ├── schemas.py    # API 请求参数校验 Schema（marshmallow）
 │   ├── auth.py       # 用户、权限、控制台接口
 │   ├── test.py      # 接口测试接口
 │   ├── ui.py        # UI 测试接口
@@ -85,10 +87,13 @@ TestPilot/
 ├── core/             # 公共工具层
 │   ├── response.py   # 统一响应封装
 │   ├── exception.py  # 全局异常处理
+│   ├── schema.py     # marshmallow 统一校验入口
 │   ├── logger.py    # 日志配置
 │   ├── logs/        # 日志文件目录（运行时自动生成）
 │   ├── ratelimit.py # 限流与熔断防护逻辑
 │   └── middleware.py
+├── scripts/          # 数据迁移与运维脚本
+│   └── migrate_task_cases.py  # TestTask 关联表数据迁移
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
 ├── static/           # 静态资源
 └── templates/       # HTML 页面模板

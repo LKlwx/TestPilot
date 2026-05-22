@@ -5,6 +5,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from core.exception import NotFoundException
 from core.response import success, error
+from core.schema import validate_request
+from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema
 from models import TestCase, TestReport
 from extensions import db
 from service.test_service import execute_test_case
@@ -52,9 +54,7 @@ def add_case():
     identity = get_jwt_identity()
     user = User.query.get(int(identity))
     username = user.username if user else "未知"
-    data = request.get_json()
-    if not data or not data.get("name") or not data.get("method") or not data.get("url"):
-        return error("参数不完整!")
+    data = validate_request(AddTestCaseSchema, request.get_json())
     case = TestCase(
         name=data["name"],
         module=data.get("module"),
@@ -71,7 +71,8 @@ def add_case():
         add_operation_log(user.id, username, "add_case", f"新增接口用例: {data['name']}")
     except Exception as e:
         db.session.rollback()
-        print(f"接口用例添加失败:{e}")
+        from core.logger import log_error
+        log_error(e, context="接口用例添加失败")
         return error("保存失败")
     return success(msg="成功")
 
@@ -119,9 +120,7 @@ def update_case(cid):
     old_url = case.url
     old_expect = case.expect
     old_extract_var = case.extract_var
-    data = request.get_json()
-    if not data:
-        return error("请求参数错误，请检查网络或重新登录")
+    data = validate_request(UpdateTestCaseSchema, request.get_json())
 
     # 记录修改的字段
     changes = []

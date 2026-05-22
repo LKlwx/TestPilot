@@ -60,30 +60,38 @@ class TestReport(db.Model):
 # ------------------------------
 # 定时任务表
 # ------------------------------
+
+task_case_association = db.Table(
+    "task_case_association",
+    db.Column("task_id", db.Integer, db.ForeignKey("test_task.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("case_id", db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 class TestTask(db.Model):
     __tablename__ = "test_task"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
     cron_expr = db.Column(db.String(50))  # 定时表达式，如 "0 0 * * *"
-    case_ids = db.Column(db.Text)  # 要执行的用例ID列表，逗号分隔
+    case_ids = db.Column(db.Text)  # 兼容层：任务8删除，迁移后不再使用
     status = db.Column(db.String(20), default="enabled")  # enabled/disabled
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     create_time = db.Column(db.DateTime, default=datetime.now)
 
+    cases = db.relationship("TestCase", secondary=task_case_association, lazy="dynamic",
+                            backref=db.backref("tasks", lazy="dynamic"))
+
     @db.validates('case_ids')
     def validate_case_ids(self, key, case_ids):
-        """验证 case_ids 格式：只允许逗号分隔的正整数"""
+        """兼容层校验：任务8删除此方法"""
         if case_ids is None or case_ids == "":
             return case_ids
-        
         import re
-        # 验证格式：只允许 "1,2,3" 这样的格式
-        # 不允许：空元素 "1,,3"、非数字 "1,a,3"、空格 "1, 2,3"
         pattern = r'^[1-9]\d*(?:,[1-9]\d*)*$'
         if not re.match(pattern, str(case_ids)):
             from core.exception import APIException
             raise APIException(
-                "case_ids 格式错误：必须是逗号分隔的正整数，如 '1,2,3'", 
+                "case_ids 格式错误：必须是逗号分隔的正整数，如 '1,2,3'",
                 400
             )
         return case_ids
