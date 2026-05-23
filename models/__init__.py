@@ -73,28 +73,12 @@ class TestTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
     cron_expr = db.Column(db.String(50))  # 定时表达式，如 "0 0 * * *"
-    case_ids = db.Column(db.Text)  # 兼容层：任务8删除，迁移后不再使用
     status = db.Column(db.String(20), default="enabled")  # enabled/disabled
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     create_time = db.Column(db.DateTime, default=datetime.now)
 
     cases = db.relationship("TestCase", secondary=task_case_association, lazy="dynamic",
                             backref=db.backref("tasks", lazy="dynamic"))
-
-    @db.validates('case_ids')
-    def validate_case_ids(self, key, case_ids):
-        """兼容层校验：任务8删除此方法"""
-        if case_ids is None or case_ids == "":
-            return case_ids
-        import re
-        pattern = r'^[1-9]\d*(?:,[1-9]\d*)*$'
-        if not re.match(pattern, str(case_ids)):
-            from core.exception import APIException
-            raise APIException(
-                "case_ids 格式错误：必须是逗号分隔的正整数，如 '1,2,3'",
-                400
-            )
-        return case_ids
 
 
 # ------------------------------
