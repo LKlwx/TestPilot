@@ -6,7 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from core.exception import NotFoundException
 from core.response import success, error
 from core.schema import validate_request
-from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema
+from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema, BatchRunSchema
 from models import TestCase, TestReport
 from extensions import db
 from service.test_service import execute_test_case
@@ -212,12 +212,8 @@ def get_report_detail(rid):
 @jwt_required()
 def batch_run():
     from app import create_app
-    req = request.json
-    if not req:
-        return error("参数不完整!")
-    ids = req.get("ids", [])
-    if not ids:
-        return error("请选择用例")
+    req = validate_request(BatchRunSchema, request.json)
+    ids = req["ids"]
     res_list = []
     app = create_app()
 

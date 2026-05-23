@@ -5,7 +5,7 @@ from models import UICase
 from service.ui_service import run_ui_case, parse_steps
 from core.response import success, error
 from core.schema import validate_request
-from api.schemas import AddUICaseSchema, UpdateUICaseSchema
+from api.schemas import AddUICaseSchema, UpdateUICaseSchema, AddUIStructSchema
 from api.auth import add_operation_log
 
 ui_bp = Blueprint("ui", __name__)
@@ -152,13 +152,10 @@ def get_ui_report_detail(rid):
 @ui_bp.route("/case/struct", methods=["POST"])
 @jwt_required()
 def add_struct_ui():
-    data = request.json
-    if not data or not data.get("name") or not data.get("url"):
-        return error("参数不完整!")
+    data = validate_request(AddUIStructSchema, request.json)
 
-    steps = data.get("steps", "")
-    if steps:
-        is_valid, _, errors = parse_steps(steps)
+    if data["steps"]:
+        is_valid, _, errors = parse_steps(data["steps"])
         if not is_valid:
             error_msg = "步骤格式不符合规范：\n" + "\n".join(errors)
             return error(error_msg)
@@ -166,15 +163,14 @@ def add_struct_ui():
     case = UICase(
         name=data["name"],
         url=data["url"],
-        steps=data.get("steps", ""),
-        loc_type=data.get("loc_type", "xpath"),
-        loc_value=data.get("loc_value", ""),
-        screenshot_path=data.get("screenshot_path", ""),
+        steps=data["steps"],
+        loc_type=data["loc_type"],
+        loc_value=data["loc_value"],
+        screenshot_path=data["screenshot_path"],
     )
     try:
         db.session.add(case)
         db.session.commit()
-        # 添加操作日志
         from models import User
         identity = get_jwt_identity()
         user = User.query.get(int(identity))
@@ -182,7 +178,8 @@ def add_struct_ui():
         add_operation_log(user.id, username, "add_ui_case", f"新增 UI 用例：{data['name']}")
     except Exception as e:
         db.session.rollback()
-        print(f"UI用例添加失败:{e}")
+        from core.logger import get_logger
+        get_logger(__name__).error("UI用例添加失败: %s", str(e))
         return error("保存失败")
     return success(msg="创建成功")
 

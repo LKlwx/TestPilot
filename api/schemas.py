@@ -57,3 +57,68 @@ class UpdatePerformanceCaseSchema(Schema):
     body = fields.String()
     concurrency = fields.Integer(validate=validate.Range(min=1, max=10000))
     total = fields.Integer(validate=validate.Range(min=1, max=100000))
+
+
+# ========== Auth 模块 ==========
+
+class LoginSchema(Schema):
+    username = fields.String(required=True, validate=validate.Length(min=1, max=50))
+    password = fields.String(required=True, validate=validate.Length(min=1, max=128))
+
+
+class RegisterSchema(Schema):
+    username = fields.String(required=True, validate=validate.Length(min=1, max=50))
+    password = fields.String(required=True, validate=validate.Length(min=1, max=128))
+
+
+class ChangePasswordSchema(Schema):
+    old_password = fields.String(required=True, validate=validate.Length(min=1, max=128))
+    new_password = fields.String(required=True, validate=validate.Length(min=6, max=128))
+
+
+class ChangeRoleSchema(Schema):
+    id = fields.Integer(required=True, strict=True, validate=validate.Range(min=1))
+    role = fields.String(required=True, validate=validate.OneOf(["admin", "tester"]))
+
+
+# ========== AI 模块 ==========
+
+class AIGenerateSchema(Schema):
+    scene = fields.String(required=True, validate=validate.Length(min=1, max=1000))
+
+
+class AIAnalyzeSchema(Schema):
+    log = fields.String(required=True, validate=validate.Length(min=1, max=10000))
+
+
+class AISaveApiSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=100))
+    method = fields.String(required=True, validate=validate.OneOf(["GET", "POST", "PUT", "DELETE"]))
+    url = fields.String(required=True, validate=validate.Length(max=500))
+    headers = fields.String(missing="{}")
+    body = fields.String(missing="{}")
+    expect = fields.String()
+    extract_var = fields.String()
+
+
+class AISaveUiSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=100))
+    url = fields.String(required=True, validate=validate.Length(max=500))
+    steps = fields.String(missing="")
+
+
+# ========== 批量执行 ==========
+
+class BatchRunSchema(Schema):
+    ids = fields.List(fields.Integer(strict=True), required=True, validate=validate.Length(min=1))
+
+
+# ========== UI 结构化创建 ==========
+
+class AddUIStructSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=100))
+    url = fields.String(required=True, validate=validate.Length(max=500))
+    steps = fields.String(missing="")
+    loc_type = fields.String(validate=validate.OneOf(["xpath", "id", "css"]), missing="xpath")
+    loc_value = fields.String(missing="")
+    screenshot_path = fields.String(missing="")

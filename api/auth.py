@@ -6,6 +6,11 @@ from core.response import success, error
 from models import TestCase, UICase, TestReport, UIReport, User, PerformanceReport, SysOperationLog
 from service.user_service import check_user_password
 from extensions import db
+from core.logger import get_logger
+from core.schema import validate_request
+from api.schemas import LoginSchema, RegisterSchema, ChangePasswordSchema, ChangeRoleSchema
+
+logger = get_logger(__name__)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -69,12 +74,9 @@ def add_operation_log(user_id, username, operation, detail):
 # 登录接口
 @auth_bp.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
-
-    if not username or not password:
-        return error("用户名或密码不能为空")
+    data = validate_request(LoginSchema, request.get_json())
+    username = data["username"]
+    password = data["password"]
 
     # 统一通过数据库校验
     user = check_user_password(username, password)
@@ -117,33 +119,22 @@ def refresh():
 
 @auth_bp.route("/register", methods=["POST"])
 def register():
-    data = request.get_json()
-    username = data.get("username")
-    password = data.get("password")
-
-    if not username or not password:
-        return error("用户名和密码不能为空")
-
-    # 用户名格式检查
+    data = validate_request(RegisterSchema, request.get_json())
     import re
-    username_clean = username.strip().lower()
+    username_clean = data["username"].strip().lower()
     
-    # 用户不能和超级管理员重名（包括变体）
     if username_clean == "admin":
         return error("该用户名已被系统占用，无法注册")
 
-    # 检查用户名是否只包含合法字符
     username_pattern = r'^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$'
     if not re.match(username_pattern, username_clean):
         return error("用户名只能包含字母、数字、下划线、中划线和中文")
 
-    # 检查用户名是否已存在（大小写不敏感）
     if User.query.filter_by(username=username_clean).first():
         return error("用户名已存在")
 
-    # 新建用户（默认普通用户 tester），存储小写用户名
     new_user = User(username=username_clean)
-    new_user.set_password(password)
+    new_user.set_password(data["password"])
     new_user.role = "tester"
 
     db.session.add(new_user)
@@ -196,20 +187,11 @@ def change_password():
     if not user:
         return error("用户不存在")
 
-    data = request.get_json()
-    old_password = data.get("old_password")
-    new_password = data.get("new_password")
-
-    if not old_password or not new_password:
-        return error("密码不能为空")
-
-    if not user.check_password(old_password):
+    data = validate_request(ChangePasswordSchema, request.get_json())
+    if not user.check_password(data["old_password"]):
         return error("当前密码错误")
 
-    if len(new_password) < 6:
-        return error("新密码长度不能少于6位")
-
-    user.set_password(new_password)
+    user.set_password(data["new_password"])
     db.session.commit()
 
     add_operation_log(user.id, user.username, "change_password", "用户修改密码")
@@ -316,26 +298,18 @@ def change_user_role():
     identity = get_jwt_identity()
     current_user = User.query.get(int(identity))
     
-    # 只有超级管理员（username == "admin"）可以修改用户权限
     if not current_user or current_user.username != "admin":
         raise AuthException("无权限")
 
-    data = request.get_json()
-    uid = data.get("id")
-    role = data.get("role")
-
-    if role not in ["admin", "tester"]:
-        raise APIException("角色不合法", 400)
-
-    user = User.query.get(uid)
+    data = validate_request(ChangeRoleSchema, request.get_json())
+    user = User.query.get(data["id"])
     if not user:
         raise NotFoundException("用户不存在")
 
     old_role = user.role
-    user.role = role
+    user.role = data["role"]
     db.session.commit()
-    # 记录修改角色日志
-    add_operation_log(current_user.id, current_user.username, "change_role", f"将用户{user.username}(ID={uid})从{old_role}修改为{role}")
+    add_operation_log(current_user.id, current_user.username, "change_role", f"将用户{user.username}(ID={data['id']})从{old_role}修改为{data['role']}")
     return success(msg="角色修改成功")
 
 
@@ -468,8 +442,7 @@ def dashboard_data():
             "perf_rt": perf_rt
         })
     except Exception as e:
-        print("Dashboard Error:", str(e))
-        print(traceback.format_exc())
+        logger.error("Dashboard Error: %s", str(e), exc_info=True)
         return error(str(e), 500)
 
 
