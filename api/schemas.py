@@ -95,8 +95,8 @@ class AISaveApiSchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1, max=100))
     method = fields.String(required=True, validate=validate.OneOf(["GET", "POST", "PUT", "DELETE"]))
     url = fields.String(required=True, validate=validate.Length(max=500))
-    headers = fields.String(missing="{}")
-    body = fields.String(missing="{}")
+    headers = fields.String(load_default="{}")
+    body = fields.String(load_default="{}")
     expect = fields.String()
     extract_var = fields.String()
 
@@ -104,7 +104,7 @@ class AISaveApiSchema(Schema):
 class AISaveUiSchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1, max=100))
     url = fields.String(required=True, validate=validate.Length(max=500))
-    steps = fields.String(missing="")
+    steps = fields.String(load_default="")
 
 
 # ========== 批量执行 ==========
@@ -118,7 +118,7 @@ class BatchRunSchema(Schema):
 class AddUIStructSchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1, max=100))
     url = fields.String(required=True, validate=validate.Length(max=500))
-    steps = fields.String(missing="")
-    loc_type = fields.String(validate=validate.OneOf(["xpath", "id", "css"]), missing="xpath")
-    loc_value = fields.String(missing="")
-    screenshot_path = fields.String(missing="")
+    steps = fields.String(load_default="")
+    loc_type = fields.String(validate=validate.OneOf(["xpath", "id", "css"]), load_default="xpath")
+    loc_value = fields.String(load_default="")
+    screenshot_path = fields.String(load_default="")
