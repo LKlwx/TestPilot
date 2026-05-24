@@ -91,7 +91,8 @@ TestPilot/
 │   ├── logger.py    # 日志配置
 │   ├── logs/        # 日志文件目录（运行时自动生成）
 │   ├── ratelimit.py # 限流与熔断防护逻辑
-│   └── middleware.py
+│   ├── middleware.py
+│   └── execution_context.py  # 执行上下文（变量替换、日志记录）
 ├── scripts/          # 数据迁移与运维脚本
 │   └── migrate_task_cases.py  # TestTask 关联表数据迁移
 ├── instance/         # SQLite 数据库目录（运行时自动生成）

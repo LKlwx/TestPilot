@@ -118,6 +118,8 @@ class PerformanceCase(BaseCaseMixin, db.Model):
     body = db.Column(db.Text)  # 请求体
     concurrency = db.Column(db.Integer, default=10)  # 并发线程数
     total = db.Column(db.Integer, default=50)  # 总请求次数
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
 
 # 性能测试报告表：存储每次压测的结果数据

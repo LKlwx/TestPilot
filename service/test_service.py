@@ -4,26 +4,18 @@ from models import TestReport
 from extensions import db
 import time
 from core.logger import get_logger
+from core.execution_context import ExecutionContext
 
 logger = get_logger(__name__)
 
-# 全局变量池，用于接口间的参数依赖传递（如 Token）
-GLOBAL_VARS = {}
 
-
-def execute_test_case(case):
+def execute_test_case(case, context=None):
+    if context is None:
+        context = ExecutionContext()
     start_time = time.time()
     try:
-        # 1. 变量替换逻辑：扫描 URL 和 Body，把 ${xxx} 替换成全局变量池里的值
-        final_url = case.url
-        final_body = case.body
-
-        for key, value in GLOBAL_VARS.items():
-            placeholder = "${" + key + "}"
-            if placeholder in final_url:
-                final_url = final_url.replace(placeholder, str(value))
-            if final_body and placeholder in final_body:
-                final_body = final_body.replace(placeholder, str(value))
+        final_url = context.replace_placeholders(case.url)
+        final_body = context.replace_placeholders(case.body)
 
         try:
             headers = json.loads(case.headers) if case.headers else {}
@@ -57,8 +49,7 @@ def execute_test_case(case):
                 for k in keys:
                     val = val[k]
 
-                # 存入全局变量池，后续用例可用
-                GLOBAL_VARS[var_name] = val
+                context.set_var(var_name, val)
                 logger.info(f"变量提取成功: {var_name} = {val}")
             except Exception as e:
                 logger.error(f"变量提取失败: {str(e)}", exc_info=True)
@@ -87,7 +78,7 @@ def execute_test_case(case):
             "code": resp.status_code,
             "time": cost_time,
             "msg": msg,
-            "current_vars": dict(GLOBAL_VARS)
+            "current_vars": dict(context.vars)
         }
 
     except Exception as e:
