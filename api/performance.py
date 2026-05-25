@@ -6,7 +6,7 @@ from core.response import success, error
 from core.schema import validate_request
 from api.schemas import AddPerformanceCaseSchema, UpdatePerformanceCaseSchema
 from service.performance_service import run_performance
-from api.auth import add_operation_log
+from service.operation_log_service import add_operation_log
 
 performance_bp = Blueprint("performance", __name__)
 

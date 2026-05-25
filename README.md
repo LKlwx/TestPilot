@@ -77,6 +77,7 @@ TestPilot/
 │   ├── performance.py  # 性能测试接口
 │   └── ai.py        # AI 辅助测试接口
 ├── service/          # 业务逻辑层
+│   ├── operation_log_service.py  # 操作日志服务
 │   ├── user_service.py
 │   ├── test_service.py
 │   ├── ui_service.py

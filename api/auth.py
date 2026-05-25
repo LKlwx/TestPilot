@@ -8,7 +8,9 @@ from service.user_service import check_user_password
 from extensions import db
 from core.logger import get_logger
 from core.schema import validate_request
+from core.require_role import require_role
 from api.schemas import LoginSchema, RegisterSchema, ChangePasswordSchema, ChangeRoleSchema
+from service.operation_log_service import add_operation_log
 
 logger = get_logger(__name__)
 
@@ -57,18 +59,6 @@ def stats():
         "pass_rate": f"{pass_rate}%"
     })
 
-
-# 系统操作日志记录函数
-def add_operation_log(user_id, username, operation, detail):
-    log = SysOperationLog(
-        user_id=user_id,
-        username=username,
-        operation=operation,
-        ip=request.remote_addr,  # 自动获取操作IP
-        detail=detail
-    )
-    db.session.add(log)
-    db.session.commit()
 
 
 # 登录接口
@@ -200,13 +190,8 @@ def change_password():
 
 # 操作日志接口
 @auth_bp.route("/operation/logs", methods=["GET"])
-@jwt_required()
+@require_role(["admin"])
 def operation_logs():
-    identity = get_jwt_identity()
-    user = User.query.get(int(identity))
-    if not user or user.role != "admin":
-        return error("无访问权限")
-
     page = request.args.get("page", 1, type=int)
     page_size = request.args.get("page_size", 10, type=int)
     keyword = request.args.get("keyword", "", type=str)
@@ -249,12 +234,8 @@ def operation_logs():
 
 # 清理旧日志
 @auth_bp.route("/operation/logs/cleanup", methods=["POST"])
-@jwt_required()
+@require_role(["admin"])
 def cleanup_logs():
-    identity = get_jwt_identity()
-    user = User.query.get(int(identity))
-    if not user or user.role != "admin":
-        return error("无访问权限")
 
     from datetime import datetime, timedelta
     cutoff_date = datetime.now() - timedelta(days=30)
@@ -267,14 +248,8 @@ def cleanup_logs():
 
 # 用户数据接口（返回JSON，带JWT）
 @auth_bp.route("/user/list/data", methods=["GET"])
-@jwt_required()
+@require_role(["admin"])
 def user_list_data():
-    identity = get_jwt_identity()
-    current_user = User.query.get(int(identity))
-    
-    # 允许：超级管理员 + 普通管理员
-    if not current_user or current_user.role != "admin":
-        return error("无访问权限")
 
     users = User.query.all()
     res = []
@@ -315,28 +290,19 @@ def change_user_role():
 
 # 删除用户
 @auth_bp.route("/user/delete/<int:uid>", methods=["POST"])
-@jwt_required()
+@require_role(["admin"])
 def delete_user(uid):
-    identity = get_jwt_identity()
-    current_user = User.query.get(int(identity))
+    current_user = User.query.get(int(get_jwt_identity()))
     
-    if not current_user:
-        raise AuthException("无权限")
-    
-    target = User.query.get(uid)
+    target = UserModel.query.get(uid)
     if not target:
         raise NotFoundException("用户不存在")
     
-    # 超级管理员可以删除任何人
     if current_user.username == "admin":
         add_operation_log(current_user.id, current_user.username, "delete_user", f"超级管理员删除用户{target.username}(ID={uid})")
         db.session.delete(target)
         db.session.commit()
         return success(msg="删除成功")
-    
-    # 普通管理员只能删除普通用户
-    if current_user.role != "admin":
-        raise AuthException("无权限")
     
     if target.role != "tester":
         return error("普通管理员只能删除普通用户", 403)

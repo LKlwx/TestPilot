@@ -6,7 +6,7 @@ from service.ui_service import run_ui_case, parse_steps
 from core.response import success, error
 from core.schema import validate_request
 from api.schemas import AddUICaseSchema, UpdateUICaseSchema, AddUIStructSchema
-from api.auth import add_operation_log
+from service.operation_log_service import add_operation_log
 
 ui_bp = Blueprint("ui", __name__)
 

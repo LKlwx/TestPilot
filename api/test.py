@@ -10,7 +10,7 @@ from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema, BatchRunSchema
 from models import TestCase, TestReport
 from extensions import db
 from service.test_service import execute_test_case
-from api.auth import add_operation_log
+from service.operation_log_service import add_operation_log
 
 test_bp = Blueprint("test", __name__)
 
