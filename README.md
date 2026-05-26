@@ -60,13 +60,17 @@ TestPilot/
 ├── Dockerfile         # Docker 镜像配置
 ├── docker-compose.yml  # Docker Compose 配置
 ├── .gitignore        # Git 忽略文件配置
+├── .flaskenv          # Flask CLI 环境变量
 ├── .gitflow           # GitFlow 分支管理配置
 ├── migrations/        # 数据库迁移脚本（Alembic）
 ├── .github/
 │   └── workflows/
 │       └── ci.yml    # GitHub Actions CI/CD 配置
 ├── docs/              # 项目文档
-│   └── GITFLOW.md   # Git分支管理规范
+│   ├── GITFLOW.md   # Git分支管理规范
+│   ├── api-design-guide.md  # API 设计规范
+│   └── adr/
+│       └── 001-case-model-refactor.md
 ├── tests/             # 单元测试目录
 │   ├── __init__.py
 │   └── test_core.py
@@ -93,8 +97,9 @@ TestPilot/
 │   ├── logger.py    # 日志配置
 │   ├── logs/        # 日志文件目录（运行时自动生成）
 │   ├── ratelimit.py # 限流与熔断防护逻辑
-│   ├── middleware.py
-│   └── execution_context.py  # 执行上下文（变量替换、日志记录）
+│   ├── middleware.py # 全局中间件
+│   ├── require_role.py         # @require_role 权限装饰器
+│   └── execution_context.py    # 执行上下文（变量替换、日志记录）
 ├── scripts/          # 数据迁移与运维脚本
 │   └── migrate_task_cases.py  # TestTask 关联表数据迁移
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
@@ -222,11 +227,11 @@ TestPilot/
 ## 功能模块说明
 ### 1. 用户权限与登录模块
 - 实现用户登录、注册、JWT 身份认证（双Token无感刷新）
-- 支持超级管理员/管理员/普通用户三级权限控制
+- 支持超级管理员/管理员/普通用户三级权限控制，封装 @require_role 声明式装饰器统一权限校验
+- 操作日志服务独立解耦至 Service 层，关键操作（登录、删除、修改）自动写入系统日志
 - 注册安全加固：`strip().lower()` 清理 + 正则合法字符限制，防止 `" admin"`、`"Admin"` 等变体绕过
 - 登录查询大小写不敏感，确保用户名一致性
 - 已实现完整的用户列表、角色管理及操作日志审计功能
-- 关键操作（登录、删除、修改）自动写入系统日志
 
 ### 2. 控制台数据看板
 - 展示用例总数、接口/UI/性能用例分布（ECharts 环形图）
@@ -240,7 +245,7 @@ TestPilot/
 - 支持单条用例执行与批量执行
 - 自动生成测试报告，支持报告列表与详情查看
 - **✨ 进阶能力**：
-  - 接口链路测试：创新性地实现了基于内存变量池的上下文传递机制，支持通过自定义路径表达式提取响应数据并动态注入后续请求，解决了登录 Token 传递等经典痛点。
+  - 接口链路测试：创新性地实现了基于 ExecutionContext 独立执行上下文的变量传递机制，实现变量生命周期隔离与多线程安全传递，支持通过自定义路径表达式提取响应数据并动态注入后续请求，解决了登录 Token 传递等经典痛点。
   - 高并发回归：引入 ThreadPoolExecutor 线程池模型，将批量用例执行模式从串行升级为并行，在保证 SQLite 数据一致性的前提下，显著缩短了大规模回归测试的耗时。
   - 工程化规范：遵循 RESTful 风格设计 API，实现了统一的全局异常捕获与标准化响应封装，提升了前后端交互的稳定性。
 ### 4. UI 自动化测试模块
