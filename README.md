@@ -36,7 +36,7 @@ graph TD
 ## 技术栈
 - 后端：Python 3.14 + Flask
 - 数据库：SQLite
-- ORM：Flask-SQLAlchemy + Flask-Migrate（数据库迁移）
+- ORM：Flask-SQLAlchemy
 - 身份认证：Flask-JWT-Extended（双Token无感刷新）、Flask-Login
 - 参数校验：marshmallow 4.x（Schema 声明式校验）
 - 前端：HTML + CSS + JavaScript + ECharts
@@ -61,7 +61,6 @@ TestPilot/
 ├── docker-compose.yml  # Docker Compose 配置
 ├── .gitignore        # Git 忽略文件配置
 ├── .gitflow           # GitFlow 分支管理配置
-├── migrations/        # 数据库迁移脚本（Alembic）
 ├── .github/
 │   └── workflows/
 │       └── ci.yml    # GitHub Actions CI/CD 配置
