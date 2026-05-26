@@ -183,7 +183,7 @@ def test_page():
     return render_template("api_test.html")
 
 
-@test_bp.route("/reports")
+@test_bp.route("/page/reports")
 def report_page():
     return render_template("report.html")
 

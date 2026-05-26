@@ -17,7 +17,7 @@ def ui_page():
     return render_template("ui_test.html")
 
 
-@ui_bp.route("/reports")
+@ui_bp.route("/page/reports")
 def ui_reports_page():
     return render_template("ui_report.html")
 

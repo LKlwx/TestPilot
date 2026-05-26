@@ -332,7 +332,7 @@
                 localStorage.setItem("username", res.data.username);
 
                 showAlert("登录成功，即将跳转", "success");
-                setTimeout(() => location.href = "/api/auth/home", 800);
+                setTimeout(() => location.href = "/api/auth/page/home", 800);
             } else {
                 showAlert(res.msg || "登录失败", "error");
             }

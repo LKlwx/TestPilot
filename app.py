@@ -3,7 +3,7 @@ from config import config
 from core.exception import APIException
 from core.middleware import register_middleware
 from core.response import error
-from extensions import db, login_manager, jwt
+from extensions import db, login_manager, jwt, migrate
 from api.auth import auth_bp
 from api.test import test_bp
 from api.ui import ui_bp
@@ -24,6 +24,7 @@ def create_app(config_name="default"):
 
     # 初始化扩展
     db.init_app(app)
+    migrate.init_app(app, db)
     login_manager.init_app(app)
     jwt.init_app(app)
 
@@ -64,7 +65,7 @@ def create_app(config_name="default"):
         from flask import redirect
         from flask_login import current_user
         if current_user.is_authenticated:
-            return redirect("/api/auth/home")
+            return redirect("/api/auth/page/home")
         else:
             return redirect("/api/auth/login/page")
 

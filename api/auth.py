@@ -23,7 +23,7 @@ def login_page():
     return render_template("login.html")
 
 
-@auth_bp.route("/home", methods=["GET"])
+@auth_bp.route("/page/home", methods=["GET"])
 def home():
     return render_template("index.html")
 
@@ -135,7 +135,7 @@ def register():
 
 # 用户管理模块
 # 获取所有用户列表
-@auth_bp.route("/user/list", methods=["GET"])
+@auth_bp.route("/page/user/list", methods=["GET"])
 def user_list():
     return render_template("user_list.html")
 
