@@ -1,9 +1,11 @@
 from flask import Flask
+from flask_cors import CORS
 from config import config
 from core.exception import APIException
 from core.middleware import register_middleware
 from core.response import error
 from extensions import db, login_manager, jwt, migrate
+from core.blocklist import is_blocklisted
 from api.auth import auth_bp
 from api.test import test_bp
 from api.ui import ui_bp
@@ -28,10 +30,20 @@ def create_app(config_name="default"):
     login_manager.init_app(app)
     jwt.init_app(app)
 
+    # CORS 配置
+    if config_name == "development":
+        CORS(app, origins="*", supports_credentials=True)
+    else:
+        CORS(app, origins=config_class.CORS_ORIGINS, supports_credentials=True)
+
     @login_manager.user_loader
     def user_loader(user_id):
         from models import User
         return User.query.get(int(user_id))
+
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        return is_blocklisted(jwt_payload["jti"])
 
     # 注册全局中间件
     register_middleware(app)

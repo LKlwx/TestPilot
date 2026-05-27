@@ -42,15 +42,15 @@
                 let buttons = "";
                 if (currentUser === "admin") {
                     if (user.role === "admin") {
-                        // 对方已经是管理员，只提供降级选项
                         buttons = `
                         <button class="btn btn-secondary" onclick="changeRole(${user.id}, 'tester')">设为普通用户</button>
+                        <button class="btn btn-warning" onclick="resetPassword(${user.id}, '${user.username}')">重置密码</button>
                         <button class="btn btn-danger" onclick="deleteUser(${user.id})">删除</button>
                         `;
                     } else {
-                        // 对方是普通用户，只提供升级选项
                         buttons = `
                         <button class="btn btn-primary" onclick="changeRole(${user.id}, 'admin')">设为管理员</button>
+                        <button class="btn btn-warning" onclick="resetPassword(${user.id}, '${user.username}')">重置密码</button>
                         <button class="btn btn-danger" onclick="deleteUser(${user.id})">删除</button>
                         `;
                     }
@@ -102,6 +102,20 @@
                 loadUserList();
             } else {
                 showAlert(res.msg || "删除失败", "error");
+            }
+        } catch (err) {
+            showAlert("请求失败", "error");
+        }
+    }
+
+    async function resetPassword(userId, username) {
+        if (!confirm(`确定重置用户 ${username} 的密码为默认密码（123456）吗？`)) return;
+        try {
+            let res = await httpPost(`/api/auth/user/${userId}/reset-password`);
+            if (res.code === 200) {
+                showAlert(`用户 ${username} 的密码已重置为 123456`, "success");
+            } else {
+                showAlert(res.msg || "重置失败", "error");
             }
         } catch (err) {
             showAlert("请求失败", "error");

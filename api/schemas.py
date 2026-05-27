@@ -1,4 +1,15 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import Schema, fields, validate, ValidationError
+
+
+def _validate_password(value):
+    if len(value) < 8:
+        raise ValidationError("密码长度不能少于8位")
+    if len(value) > 128:
+        raise ValidationError("密码长度不能超过128位")
+    if not any(c.isalpha() for c in value):
+        raise ValidationError("密码必须包含字母")
+    if not any(c.isdigit() for c in value):
+        raise ValidationError("密码必须包含数字")
 
 
 class AddTestCaseSchema(Schema):
@@ -68,12 +79,12 @@ class LoginSchema(Schema):
 
 class RegisterSchema(Schema):
     username = fields.String(required=True, validate=validate.Length(min=1, max=50))
-    password = fields.String(required=True, validate=validate.Length(min=1, max=128))
+    password = fields.String(required=True, validate=_validate_password)
 
 
 class ChangePasswordSchema(Schema):
     old_password = fields.String(required=True, validate=validate.Length(min=1, max=128))
-    new_password = fields.String(required=True, validate=validate.Length(min=6, max=128))
+    new_password = fields.String(required=True, validate=_validate_password)
 
 
 class ChangeRoleSchema(Schema):

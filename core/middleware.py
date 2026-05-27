@@ -1,35 +1,54 @@
 from flask import request, g, jsonify
 from datetime import datetime
 from extensions import db
-from core.ratelimit import global_limiter, global_circuit
+from core.ratelimit import global_limiter, global_circuit, tiered_limiter
+from flask_jwt_extended import get_jwt_identity
 
 def register_middleware(app):
     @app.before_request
     def before_request():
-        # 1. 全局限流检查
+        # 全局限流检查（兜底）
         if not global_limiter.is_allowed():
-            return jsonify({"code": 429, "msg": "请求过于频繁，请稍后再试"}), 429
-        
-        # 2. 全局熔断检查
+            return jsonify({"code": 429, "msg": "全局限流触发：请求过于频繁，请稍后再试"}), 429
+
+        # IP 级限流：200 req/min
+        ip_key = f"ip:{request.remote_addr}"
+        if not tiered_limiter.is_allowed(ip_key, 200, 60):
+            return jsonify({"code": 429, "msg": "IP 级限流触发：请求过于频繁，请稍后再试"}), 429
+
+        # 用户级限流：100 req/min（已登录用户）
+        try:
+            identity = get_jwt_identity()
+            if identity:
+                user_key = f"user:{identity}"
+                if not tiered_limiter.is_allowed(user_key, 100, 60):
+                    return jsonify({"code": 429, "msg": "用户级限流触发：请求过于频繁，请稍后再试"}), 429
+        except Exception:
+            pass
+
+        # 登录接口限流：5 req/min（防暴力破解）
+        if request.path.endswith("/login") and request.method == "POST":
+            login_key = f"login:{request.remote_addr}"
+            if not tiered_limiter.is_allowed(login_key, 5, 60):
+                return jsonify({"code": 429, "msg": "登录限流触发：登录尝试过于频繁，请稍后再试"}), 429
+
+        # 全局熔断检查
         if not global_circuit.is_allowed():
             return jsonify({"code": 503, "msg": "服务暂不可用，请稍后再试"}), 503
-        
+
         # 请求前钩子：记录请求开始时间和客户端IP
         g.start_time = datetime.now()
         g.ip = request.remote_addr
 
     @app.after_request
     def after_request(response):
-        # 请求后钩子：根据状态码记录结果
         status_code = response.status_code
-        
-        # 只记录5xx错误为失败
+
         if status_code >= 500:
-            global_circuit.record_failure()  # 5xx算失败
+            global_circuit.record_failure()
         elif status_code < 400:
-            global_circuit.record_success()  # 2xx/3xx算成功
-        
-        # 请求后钩子，释放数据库链接，防止内存泄露
+            global_circuit.record_success()
+
         try:
             db.session.remove()
         except:

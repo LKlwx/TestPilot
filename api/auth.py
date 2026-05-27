@@ -68,12 +68,18 @@ def login():
     username = data["username"]
     password = data["password"]
 
-    # 统一通过数据库校验
+    from core.blocklist import is_login_locked, record_login_failure, reset_login_attempts
+    username_key = username.strip().lower()
+    if is_login_locked(username_key):
+        return error("账号已锁定，请15分钟后再试")
+
     user = check_user_password(username, password)
     if not user:
+        record_login_failure(username_key)
         return error("用户名或密码错误")
 
-    # 生成双Token：Access Token（短期）+ Refresh Token（长期）
+    reset_login_attempts(username_key)
+
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))
     
@@ -105,6 +111,34 @@ def refresh():
         "username": user.username,
         "role": user.role
     }, "Token刷新成功")
+
+
+@auth_bp.route("/logout", methods=["POST"])
+@jwt_required(verify_type=False)
+def logout():
+    from flask_jwt_extended import get_jwt
+    from core.blocklist import add_to_blocklist
+    jti = get_jwt()["jti"]
+    add_to_blocklist(jti)
+    return success(msg="已登出")
+
+
+@auth_bp.route("/user/<int:uid>/reset-password", methods=["POST"])
+@require_role(["admin"])
+def admin_reset_password(uid):
+    from core.blocklist import reset_login_attempts
+    target = User.query.get(uid)
+    if not target:
+        raise NotFoundException("用户不存在")
+    default_pwd = "123456"
+    target.set_password(default_pwd)
+    reset_login_attempts(target.username)
+    db.session.commit()
+    identity = get_jwt_identity()
+    current_user = User.query.get(int(identity))
+    add_operation_log(current_user.id, current_user.username, "reset_password",
+                      f"管理员重置用户{target.username}(ID={uid})的密码")
+    return success(msg=f"用户 {target.username} 的密码已重置为默认密码")
 
 
 @auth_bp.route("/register", methods=["POST"])
