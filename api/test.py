@@ -7,10 +7,11 @@ from core.exception import NotFoundException
 from core.response import success, error
 from core.schema import validate_request
 from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema, BatchRunSchema
-from models import TestCase, TestReport
+from models import TestCase, TestReport, AsyncTask, BatchTask, BatchResult
 from extensions import db
 from service.test_service import execute_test_case
 from service.operation_log_service import add_operation_log
+from celery_app import celery_app
 
 test_bp = Blueprint("test", __name__)
 
@@ -208,38 +209,54 @@ def get_report_detail(rid):
 
 
 # 批量执行
+import uuid
+from datetime import datetime
+
+
 @test_bp.route("/batch/run", methods=["POST"])
 @jwt_required()
 def batch_run():
-    from app import create_app
+    uid = int(get_jwt_identity())
     req = validate_request(BatchRunSchema, request.json)
     ids = req["ids"]
-    res_list = []
-    app = create_app()
 
-    def run_single_case(cid):
-        # 执行单个用例
-        with app.app_context():
-            case = TestCase.query.get(cid)
-            if case:
-                res = execute_test_case(case)
-                return res
-            return None
+    task_id = str(uuid.uuid4())
+    task = AsyncTask(
+        id=task_id,
+        task_type="batch_run",
+        status="pending",
+        creator_id=uid,
+        create_time=datetime.now(),
+    )
+    db.session.add(task)
+    db.session.commit()
+    celery_app.send_task("batch_run", args=[ids, uid], task_id=task_id)
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        # 提交任务
-        future_to_cid = {executor.submit(run_single_case, cid): cid for cid in ids}
-        # 获取结果
-        for future in as_completed(future_to_cid):
-            try:
-                res = future.result()
-                if res:
-                    res_list.append(res)
-            except Exception as e:
-                cid = future_to_cid[future]
-                res_list.append({
-                    "case_id": cid,
-                    "status": "ERROR",
-                    "msg": str(e),
-                })
-    return success(res_list, "批量执行完成")
+    return success({"task_id": task_id}, "批量任务已提交")
+
+
+@test_bp.route("/batch/<int:bid>/results", methods=["GET"])
+@jwt_required()
+def get_batch_results(bid):
+    batch = BatchTask.query.get(bid)
+    if not batch:
+        return error("批次不存在")
+    results = BatchResult.query.filter_by(batch_id=bid).all()
+    return success({
+        "batch_id": batch.id,
+        "total": batch.total,
+        "passed": batch.passed,
+        "failed": batch.failed,
+        "create_time": batch.create_time.isoformat() if batch.create_time else None,
+        "results": [
+            {
+                "case_id": r.case_id,
+                "case_name": r.case_name,
+                "status": r.status,
+                "cost_time": r.cost_time,
+                "response_code": r.response_code,
+                "error_msg": r.error_msg,
+            }
+            for r in results
+        ],
+    })

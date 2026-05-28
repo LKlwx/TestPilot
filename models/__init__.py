@@ -172,6 +172,45 @@ class AIAgentTask(db.Model):
     creator = db.relationship("User", backref="ai_tasks")
 
 
+# Celery 异步任务表
+class AsyncTask(db.Model):
+    __tablename__ = "async_task"
+
+    id = db.Column(db.String(36), primary_key=True)  # UUID
+    task_type = db.Column(db.String(32), nullable=False, comment="任务类型: ai_generate / batch_run / ui_run / perf_run")
+    status = db.Column(db.String(16), default="pending", comment="pending / running / success / failed")
+    result = db.Column(db.Text, nullable=True, comment="任务结果（JSON）")
+    error_msg = db.Column(db.Text, nullable=True, comment="错误信息")
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), comment="创建者ID")
+    create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+    finish_time = db.Column(db.DateTime, nullable=True, comment="完成时间")
+
+
+# 批量执行任务表
+class BatchTask(db.Model):
+    __tablename__ = "batch_task"
+    id = db.Column(db.Integer, primary_key=True)
+    total = db.Column(db.Integer, default=0, comment="总用例数")
+    passed = db.Column(db.Integer, default=0, comment="通过数")
+    failed = db.Column(db.Integer, default=0, comment="失败数")
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), comment="创建者")
+    create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
+    results = db.relationship("BatchResult", backref="batch", lazy="dynamic")
+
+
+# 批量执行明细表
+class BatchResult(db.Model):
+    __tablename__ = "batch_result"
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey("batch_task.id"), comment="所属批次")
+    case_id = db.Column(db.Integer, comment="用例ID")
+    case_name = db.Column(db.String(100), comment="用例名称")
+    status = db.Column(db.String(20), comment="pass / fail / error")
+    cost_time = db.Column(db.Float, comment="耗时（秒）")
+    response_code = db.Column(db.Integer, comment="响应状态码")
+    error_msg = db.Column(db.Text, comment="错误信息")
+
+
 # 系统操作日志表
 class SysOperationLog(db.Model):
     __tablename__ = "sys_operation_log"

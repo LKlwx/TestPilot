@@ -26,7 +26,7 @@ graph TD
 - 完善的基础权限体系：支持用户登录、注册、超级管理员/管理员/普通用户三级权限控制
 - 标准化后端结构：统一响应封装、全局异常处理、代码模块化解耦
 - 核心测试能力全覆盖：集成接口、UI、性能三大常用自动化测试模块
-- AI 辅助测试：基于本地大模型（LM Studio）实现用例自动生成与失败日志智能诊断
+- AI 辅助测试：基于本地大模型（LM Studio）实现用例自动生成与失败日志智能诊断，支持异步提交不阻塞 HTTP
 - 可视化数据看板：展示用例分布、缺陷发现趋势、慢接口分析等关键数据
 - 服务稳定性保障：三层限流（全局限流兜底 + IP 级 + 用户级）+ 熔断降级（防雪崩），只统计 5xx 触发熔断避免误杀
 - **生产环境安全加固**：启动时密钥强校验，拒绝弱密钥上线；JWT 鉴权全覆盖 + 登出黑名单机制；全局异常信息脱敏（生产环境不暴露堆栈）；用户注册多层防护（防admin绕过、防特殊字符注入）；密码强度强制（8位+字母+数字）；登录防暴力破解（5次失败锁定15分钟）
@@ -38,6 +38,7 @@ graph TD
 - 数据库：SQLite
 - ORM：Flask-SQLAlchemy + Flask-Migrate（数据库迁移）
 - 身份认证：Flask-JWT-Extended（双Token无感刷新）、Flask-Login
+- 异步任务：Celery + Redis（异步任务队列）
 - 参数校验：marshmallow 4.x（Schema 声明式校验）
 - 前端：HTML + CSS + JavaScript + ECharts
 - 接口自动化：Requests
@@ -52,6 +53,7 @@ TestPilot/
 ├── run.py                 # 项目启动入口
 ├── app.py                # Flask 应用初始化与蓝图注册
 ├── config.py             # 项目基础配置
+├── celery_app.py         # Celery 异步任务配置与任务定义
 ├── models/             # 数据库表结构模型（包结构）
 │   ├── __init__.py     # 模型导入入口（原 models.py）
 │   └── base_case.py    # 用例基础抽象类 BaseCaseMixin
@@ -98,17 +100,16 @@ TestPilot/
 │   ├── logs/        # 日志文件目录（运行时自动生成）
 │   ├── ratelimit.py # 限流与熔断防护逻辑
 │   ├── middleware.py # 全局中间件
+│   ├── blocklist.py  # JWT 登出黑名单
 │   ├── require_role.py         # @require_role 权限装饰器
 │   └── execution_context.py    # 执行上下文（变量替换、日志记录）
-├── scripts/          # 数据迁移与运维脚本
-│   └── migrate_task_cases.py  # TestTask 关联表数据迁移
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
 ├── static/           # 静态资源
 └── templates/       # HTML 页面模板
 ```
 
 ## 数据模型说明
-项目共设计 11 张核心数据表，全部持久化存储：
+项目共设计 14 张核心数据表，全部持久化存储：
 1. **User**：用户信息、角色、密码
 2. **TestCase**：接口测试用例
 3. **TestReport**：接口测试报告
@@ -120,6 +121,9 @@ TestPilot/
 9. **AIAgentTask**：AI 操作记录（已落库，支持历史查看）
 10. **SysOperationLog**：系统操作日志（已落库，支持审计页面查看）
 11. **PerformanceDetail**：压测明细数据（存储每次请求耗时，用于慢接口分析）
+12. **AsyncTask**：异步任务记录（Celery 任务状态与结果存储）
+13. **BatchTask**：批量执行批次记录（汇总数据：总用例数、通过/失败数）
+14. **BatchResult**：批量执行明细记录（每个用例的执行结果与耗时）
 
 ## 本地运行方式
 1. 进入项目根目录
@@ -136,11 +140,20 @@ TestPilot/
    # SECRET_KEY 和 JWT_SECRET_KEY 生产环境必填，长度 >= 32 字符
    # 可使用 openssl rand -base64 32 一键生成
    ```
-4. 启动项目（默认开发环境）
+4. 启动 Redis（异步任务队列依赖，可选）
+   ```bash
+   docker run -d --name testpilot-redis -p 6379:6379 redis:7-alpine
+   ```
+   > **不启动 Redis 的影响**：JWT 登出黑名单失效、登录防暴力破解不可用、AI 生成 / 批量执行无法异步。Flask 本身不受影响，可正常启动和测试其他功能。
+5. 启动 Celery Worker（可选，不启动则 AI 等功能走同步模式）
+   ```bash
+   celery -A celery_app.celery_app worker --loglevel=info
+   ```
+6. 启动项目（默认开发环境）
    ```bash
    python run.py
    ```
-5. 切换环境启动
+7. 切换环境启动
    ```bash
    # 开发环境（默认）- 未配置密钥时会打印 WARNING 但允许启动
    python run.py
@@ -154,8 +167,8 @@ TestPilot/
    # 生产环境 - 必须配置强密钥，否则拒绝启动
    FLASK_ENV=production python run.py
    ```
-   > **注意**：密钥配置通过 `.env` 文件后，启动命令无需再传入 `SECRET_KEY=xxx`。`FLASK_ENV` 也可以通过 `.env` 文件设置，或通过命令动态覆盖。
-6. 访问地址
+    > **注意**：密钥配置通过 `.env` 文件后，启动命令无需再传入 `SECRET_KEY=xxx`。`FLASK_ENV` 也可以通过 `.env` 文件设置，或通过命令动态覆盖。
+8. 访问地址
    ```
    http://127.0.0.1:5000
    ```
@@ -180,6 +193,12 @@ TestPilot/
    ```
    http://localhost:5000
    ```
+
+**Docker Compose 启动的服务**：
+- `web`：Flask 应用（监听 5000 端口）
+- `redis`：异步任务消息队列
+- `worker`：Celery 后台任务执行器（AI 生成、批量执行等）
+- `flower`：任务监控面板（监听 5555 端口，可选）
 
 **架构优势**：
 - 零环境配置：无需安装 Python、Flask 或配置虚拟环境
@@ -246,7 +265,7 @@ TestPilot/
 - 自动生成测试报告，支持报告列表与详情查看
 - **✨ 进阶能力**：
   - 接口链路测试：创新性地实现了基于 ExecutionContext 独立执行上下文的变量传递机制，实现变量生命周期隔离与多线程安全传递，支持通过自定义路径表达式提取响应数据并动态注入后续请求，解决了登录 Token 传递等经典痛点。
-  - 高并发回归：引入 ThreadPoolExecutor 线程池模型，将批量用例执行模式从串行升级为并行，在保证 SQLite 数据一致性的前提下，显著缩短了大规模回归测试的耗时。
+  - 高并发回归：基于 Celery + Redis 异步任务队列实现批量用例异步并发执行，HTTP 请求立即返回 task_id，前端轮询任务进度。
   - 工程化规范：遵循 RESTful 风格设计 API，实现了统一的全局异常捕获与标准化响应封装，提升了前后端交互的稳定性。
 ### 4. UI 自动化测试模块
 - 支持 UI 用例新增、删除、列表查询

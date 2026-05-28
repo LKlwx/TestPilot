@@ -1,4 +1,12 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
   web:
     build: .
     ports:
@@ -6,9 +14,11 @@ services:
     environment:
       - FLASK_APP=run.py
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
-      # 生产环境必须设置强密钥（通过 .env 文件或 docker-compose 命令传入）
+      - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:?Please set SECRET_KEY environment variable}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Please set JWT_SECRET_KEY environment variable}
+    depends_on:
+      - redis
     volumes:
       - ./instance:/app/instance
     restart: unless-stopped
@@ -18,3 +28,31 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+
+  worker:
+    build: .
+    command: celery -A celery_app.celery_app worker --loglevel=info
+    environment:
+      - FLASK_APP=run.py
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:?Please set SECRET_KEY environment variable}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?Please set JWT_SECRET_KEY environment variable}
+    depends_on:
+      - redis
+    volumes:
+      - ./instance:/app/instance
+    restart: unless-stopped
+
+  flower:
+    build: .
+    command: celery -A celery_app.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+volumes:
+  redis_data:

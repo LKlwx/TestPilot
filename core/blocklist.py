@@ -1,39 +1,51 @@
-"""JWT Token 黑名单 + 登录防暴力破解（2.1换 Redis）"""
+"""JWT Token 黑名单 + 登录防暴力破解（Phase 2.1 已迁至 Redis，懒加载连接）"""
 
-import time
+import redis
+from config import Config
 
-_blocklist = set()
-_login_attempts = {}
+_redis_client = None
+
+BLOCKLIST_KEY = "jwt:blocklist"
+BLOCKLIST_TTL = 7200   # 2 小时
+
+LOGIN_ATTEMPTS_PREFIX = "login:attempts:"
+LOGIN_LOCK_TTL = 900   # 15 分钟
+
+
+def _get_redis():
+    """懒加载 Redis 连接，避免导入时 Redis 未就绪导致启动失败"""
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.from_url(Config.REDIS_URL)
+    return _redis_client
 
 
 def add_to_blocklist(jti: str) -> None:
-    _blocklist.add(jti)
+    r = _get_redis()
+    r.sadd(BLOCKLIST_KEY, jti)
+    r.expire(BLOCKLIST_KEY, BLOCKLIST_TTL)
 
 
 def is_blocklisted(jti: str) -> bool:
-    return jti in _blocklist
+    r = _get_redis()
+    return r.sismember(BLOCKLIST_KEY, jti)
 
 
 def record_login_failure(username: str) -> int:
-    """记录登录失败，返回连续失败次数"""
-    now = time.time()
-    if username not in _login_attempts:
-        _login_attempts[username] = []
-    attempts = _login_attempts[username]
-    attempts.append(now)
-    return len(attempts)
+    key = LOGIN_ATTEMPTS_PREFIX + username
+    r = _get_redis()
+    count = r.incr(key)
+    r.expire(key, LOGIN_LOCK_TTL)
+    return count
 
 
 def is_login_locked(username: str) -> bool:
-    """检查账号是否被锁定（连续失败5次后锁定15分钟）"""
-    if username not in _login_attempts:
-        return False
-    now = time.time()
-    attempts = [t for t in _login_attempts[username] if now - t < 900]
-    _login_attempts[username] = attempts
-    return len(attempts) >= 5
+    key = LOGIN_ATTEMPTS_PREFIX + username
+    r = _get_redis()
+    count = r.get(key)
+    return count is not None and int(count) >= 5
 
 
 def reset_login_attempts(username: str) -> None:
-    """登录成功后重置失败记录"""
-    _login_attempts.pop(username, None)
+    r = _get_redis()
+    r.delete(LOGIN_ATTEMPTS_PREFIX + username)

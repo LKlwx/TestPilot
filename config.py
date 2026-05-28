@@ -65,6 +65,8 @@ class Config:
     REQUEST_TIMEOUT = 10
     # CORS：生产环境只允许配置的域名
     CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:5000").split(",")
+    # Redis 连接地址（Celery 异步任务用）
+    REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     # 数据库配置（使用绝对路径，避免不同工作目录下数据丢失）
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'testpilot.db')}"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
