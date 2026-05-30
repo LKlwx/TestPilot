@@ -87,6 +87,19 @@ def test_execution_context_replace_no_match():
     assert result == "/api/user/1"
 
 
+def test_execution_context_recursive_limit():
+    """测试循环引用触发深度上限"""
+    from core.execution_context import ExecutionContext, RecursiveVariableError
+    ctx = ExecutionContext()
+    ctx.set_var("a", "${b}")
+    ctx.set_var("b", "${a}")
+    try:
+        ctx.replace_placeholders("${a}")
+        assert False, "应该抛出 RecursiveVariableError"
+    except RecursiveVariableError:
+        pass
+
+
 def test_execution_context_replace_none_text():
     """测试传入 None/空 不报错"""
     from core.execution_context import ExecutionContext

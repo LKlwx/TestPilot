@@ -322,7 +322,7 @@ def change_user_role():
 
 
 # 删除用户
-@auth_bp.route("/user/delete/<int:uid>", methods=["POST"])
+@auth_bp.route("/user/<int:uid>", methods=["DELETE"])
 @require_role(["admin"])
 def delete_user(uid):
     current_user = User.query.get(int(get_jwt_identity()))

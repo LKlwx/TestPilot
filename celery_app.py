@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from celery import Celery
 from config import Config
+from core.execution_context import ExecutionContext
 
 REDIS_URL = Config.REDIS_URL
 
@@ -103,11 +104,12 @@ def async_batch_run(self, case_ids: list, user_id: int):
             db.session.flush()
 
             passed = 0
+            ctx = ExecutionContext()
             for cid in case_ids:
                 case = TestCase.query.get(cid)
                 if not case:
                     continue
-                res = execute_test_case(case)
+                res = execute_test_case(case, ctx)
                 status = "pass" if res.get("status", "").upper() == "PASS" else "fail"
                 if status == "pass":
                     passed += 1

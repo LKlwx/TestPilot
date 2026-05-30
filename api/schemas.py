@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, validate, ValidationError
+from marshmallow import Schema, fields, validate, ValidationError, validates_schema
 
 
 def _validate_password(value):
@@ -80,6 +80,12 @@ class LoginSchema(Schema):
 class RegisterSchema(Schema):
     username = fields.String(required=True, validate=validate.Length(min=1, max=50))
     password = fields.String(required=True, validate=_validate_password)
+    confirm_password = fields.String(required=True)
+
+    @validates_schema
+    def validate_passwords_match(self, data, **kwargs):
+        if data.get("password") != data.get("confirm_password"):
+            raise ValidationError("两次输入的密码不一致", field_name="confirm_password")
 
 
 class ChangePasswordSchema(Schema):

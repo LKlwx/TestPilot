@@ -14,9 +14,17 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     email = db.Column(db.String(100), unique=True)
-    role = db.Column(db.String(20), default="tester")  # admin/tester
+    role = db.Column(db.String(20), default="tester", index=True)  # admin/tester
     create_time = db.Column(db.DateTime, default=datetime.now)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    # 关系回引
+    test_cases = db.relationship("TestCase", backref="creator", lazy="dynamic")
+    ui_cases = db.relationship("UICase", backref="creator", lazy="dynamic")
+    performance_cases = db.relationship("PerformanceCase", backref="creator", lazy="dynamic")
+    test_tasks = db.relationship("TestTask", backref="creator", lazy="dynamic")
+    async_tasks = db.relationship("AsyncTask", backref="creator", lazy="dynamic")
+    batch_tasks = db.relationship("BatchTask", backref="creator", lazy="dynamic")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -37,8 +45,11 @@ class TestCase(BaseCaseMixin, db.Model):
     body = db.Column(db.Text, default="{}")
     expect = db.Column(db.String(200))  # 预期结果关键字
     extract_var = db.Column(db.String(200), comment="后置提取：格式如 token=$.args.token")
-    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    # 关系回引
+    reports = db.relationship("TestReport", backref="case", lazy="dynamic")
 
 
 # ------------------------------
@@ -47,7 +58,7 @@ class TestCase(BaseCaseMixin, db.Model):
 class TestReport(db.Model):
     __tablename__ = "test_report"
     id = db.Column(db.Integer, primary_key=True)
-    case_id = db.Column(db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"))
+    case_id = db.Column(db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"), index=True)
     case_name = db.Column(db.String(100))
     status = db.Column(db.String(20), index=True)  # pass/fail/error
     cost_time = db.Column(db.Float)  # 耗时（秒）
@@ -91,8 +102,11 @@ class UICase(BaseCaseMixin, db.Model):
     loc_type = db.Column(db.String(20), default="xpath", comment="元素定位方式：id/xpath/css")
     loc_value = db.Column(db.String(500), comment="元素定位值")
     screenshot_path = db.Column(db.String(500), comment="测试截图路径")
-    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    # 关系回引
+    reports = db.relationship("UIReport", backref="case", lazy="dynamic")
 
 
 # ------------------------------
@@ -101,9 +115,9 @@ class UICase(BaseCaseMixin, db.Model):
 class UIReport(db.Model):
     __tablename__ = "ui_report"
     id = db.Column(db.Integer, primary_key=True)
-    case_id = db.Column(db.Integer, db.ForeignKey("ui_case.id", ondelete="CASCADE"))
+    case_id = db.Column(db.Integer, db.ForeignKey("ui_case.id", ondelete="CASCADE"), index=True)
     case_name = db.Column(db.String(100))
-    status = db.Column(db.String(20))  # pass/fail/error
+    status = db.Column(db.String(20), index=True)  # pass/fail/error
     cost_time = db.Column(db.Float)
     error_msg = db.Column(db.Text)
     create_time = db.Column(db.DateTime, default=datetime.now, index=True)
@@ -118,8 +132,11 @@ class PerformanceCase(BaseCaseMixin, db.Model):
     body = db.Column(db.Text)  # 请求体
     concurrency = db.Column(db.Integer, default=10)  # 并发线程数
     total = db.Column(db.Integer, default=50)  # 总请求次数
-    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    # 关系回引
+    reports = db.relationship("PerformanceReport", backref="case", lazy="dynamic")
 
 
 # 性能测试报告表：存储每次压测的结果数据
@@ -142,12 +159,15 @@ class PerformanceReport(db.Model):
     success_rate = db.Column(db.Float, default=0)
     is_local = db.Column(db.Boolean, default=False, comment="是否本机压测（可能导致数据失真）")
 
+    # 关系回引
+    details = db.relationship("PerformanceDetail", backref="report", lazy="dynamic")
+
 
 # 性能测试明细表：存储每次请求的详细耗时，用于分析慢接口
 class PerformanceDetail(db.Model):
     __tablename__ = "performance_detail"
     id = db.Column(db.Integer, primary_key=True)
-    report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id", ondelete="CASCADE"), comment="关联压测报告ID")
+    report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id", ondelete="CASCADE"), index=True, comment="关联压测报告ID")
     url = db.Column(db.String(500), comment="请求URL")
     request_time = db.Column(db.Float, comment="本次请求耗时(ms)")
     status_code = db.Column(db.Integer, comment="HTTP 状态码")
@@ -160,11 +180,10 @@ class AIAgentTask(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, comment="主键ID")
     # 任务类型：generate_api=生成接口用例 generate_ui=生成UI用例 analyze_failure=失败分析 summarize_report=报告总结
-    task_type = db.Column(db.String(32), nullable=False, comment="任务类型")
+    task_type = db.Column(db.String(32), nullable=False, index=True, comment="任务类型")
     input_content = db.Column(db.Text, nullable=False, comment="用户输入内容")
     output_result = db.Column(db.Text, nullable=True, comment="AI输出结果")
-    status = db.Column(db.String(16), default="completed", comment="任务状态")
-    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), comment="创建人ID")
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True, comment="创建人ID")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="更新时间")
 
@@ -178,10 +197,10 @@ class AsyncTask(db.Model):
 
     id = db.Column(db.String(36), primary_key=True)  # UUID
     task_type = db.Column(db.String(32), nullable=False, comment="任务类型: ai_generate / batch_run / ui_run / perf_run")
-    status = db.Column(db.String(16), default="pending", comment="pending / running / success / failed")
+    status = db.Column(db.String(16), default="pending", index=True, comment="pending / running / success / failed")
     result = db.Column(db.Text, nullable=True, comment="任务结果（JSON）")
     error_msg = db.Column(db.Text, nullable=True, comment="错误信息")
-    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), comment="创建者ID")
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True, comment="创建者ID")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
     finish_time = db.Column(db.DateTime, nullable=True, comment="完成时间")
 
@@ -215,9 +234,9 @@ class BatchResult(db.Model):
 class SysOperationLog(db.Model):
     __tablename__ = "sys_operation_log"
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="操作用户ID（admin为超级管理员）")
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="SET NULL"), nullable=True, index=True, comment="操作用户ID（admin为超级管理员）")
     username = db.Column(db.String(50), nullable=False, comment="操作用户名")
-    operation = db.Column(db.String(50), nullable=False, comment="操作类型：login/delete_user/change_role/add_case等")
+    operation = db.Column(db.String(50), nullable=False, index=True, comment="操作类型：login/delete_user/change_role/add_case等")
     ip = db.Column(db.String(50), comment="操作IP地址")
-    operate_time = db.Column(db.DateTime, default=datetime.now, comment="操作时间")
+    operate_time = db.Column(db.DateTime, default=datetime.now, index=True, comment="操作时间")
     detail = db.Column(db.Text, comment="操作详情（如：删除用户ID=1，修改角色为admin等）")

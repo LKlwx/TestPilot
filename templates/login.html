@@ -305,6 +305,7 @@
         <h3 class="modal-header">注册新账号</h3>
         <input type="text" id="regUsername" class="form-input" placeholder="请输入用户名" autocomplete="off">
         <input type="password" id="regPassword" class="form-input" placeholder="请输入密码" autocomplete="off">
+        <input type="password" id="regConfirmPassword" class="form-input" placeholder="请再次输入密码" autocomplete="off" style="margin-top:8px;">
         <div class="modal-footer">
             <button class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;" onclick="doRegister()">确认注册</button>
             <button class="btn" style="background: #f7fafc; color: #4a5568; border: 1px solid #e2e8f0;" onclick="hideRegister()">取消</button>
@@ -377,13 +378,18 @@
     async function doRegister() {
         let username = document.getElementById("regUsername").value.trim();
         let password = document.getElementById("regPassword").value.trim();
+        let confirm_password = document.getElementById("regConfirmPassword").value.trim();
         if (!username || !password) {
             showAlert("用户名和密码不能为空", "warning");
             return;
         }
+        if (password !== confirm_password) {
+            showAlert("两次输入的密码不一致", "warning");
+            return;
+        }
 
         try {
-            const res = await httpPost("/api/auth/register", {username, password});
+            const res = await httpPost("/api/auth/register", {username, password, confirm_password});
             if (res.code === 200) {
                 showAlert("注册成功，请登录", "success");
                 hideRegister();
