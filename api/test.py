@@ -5,6 +5,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from core.exception import NotFoundException
 from core.response import success, error
+from core.pagination import paginate
+from core.db_guard import db_write_guard
 from core.schema import validate_request
 from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema, BatchRunSchema
 from models import TestCase, TestReport, AsyncTask, BatchTask, BatchResult
@@ -19,16 +21,13 @@ test_bp = Blueprint("test", __name__)
 @test_bp.route("/cases", methods=["GET"])
 @jwt_required()
 def get_cases():
-    page = request.args.get("page", 1, type=int)
-    page_size = request.args.get("page_size", 10, type=int)
     keyword = request.args.get("keyword", "", type=str)
 
     query = TestCase.query
     if keyword:
         query = query.filter(TestCase.name.like(f"%{keyword}%"))
 
-    total = query.count()
-    cases = query.order_by(TestCase.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    result = paginate(query, order_by=TestCase.id.desc())
 
     data = [{
         "id": c.id,
@@ -37,14 +36,14 @@ def get_cases():
         "method": c.method,
         "url": c.url,
         "expect": c.expect
-    } for c in cases]
+    } for c in result.items]
 
     return success({
         "list": data,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size
+        "total": result.total,
+        "page": result.page,
+        "page_size": result.page_size,
+        "total_pages": result.total_pages,
     })
 
 
@@ -66,15 +65,10 @@ def add_case():
         expect=data.get("expect"),
         extract_var=data.get("extract_var")
     )
-    try:
+    with db_write_guard("接口用例添加失败"):
         db.session.add(case)
-        db.session.commit()
-        add_operation_log(user.id, username, "add_case", f"新增接口用例: {data['name']}")
-    except Exception as e:
-        db.session.rollback()
-        from core.logger import log_error
-        log_error(e, context="接口用例添加失败")
-        return error("保存失败")
+        db.session.flush()
+    add_operation_log(user.id, username, "add_case", f"新增接口用例: {data['name']}")
     return success(msg="成功")
 
 

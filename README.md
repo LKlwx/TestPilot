@@ -102,7 +102,9 @@ TestPilot/
 │   ├── middleware.py # 全局中间件
 │   ├── blocklist.py  # JWT 登出黑名单
 │   ├── require_role.py         # @require_role 权限装饰器
-│   └── execution_context.py    # 执行上下文（变量替换、日志记录）
+│   ├── execution_context.py    # 执行上下文（变量替换、日志记录）
+│   ├── pagination.py          # 通用分页查询工具
+│   └── db_guard.py            # DB 写入保护上下文管理器
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
 ├── static/           # 静态资源
 └── templates/       # HTML 页面模板
@@ -140,18 +142,21 @@ TestPilot/
    # SECRET_KEY 和 JWT_SECRET_KEY 生产环境必填，长度 >= 32 字符
    # 可使用 openssl rand -base64 32 一键生成
    ```
-4. 启动 Redis（异步任务队列依赖，可选）
+4. 启动项目（自动执行数据库迁移 + 初始化管理员）
+   ```bash
+   python run.py
+   ```
+   > **首次启动**：自动创建全部数据表及默认 admin 账号。
+   > **升级启动**：自动执行未完成的数据库迁移脚本（ALTER TABLE），数据不丢失。
+   > **数据库文件位置**：`instance/testpilot.db`。如需完全重置，删除该文件后重新启动。
+5. 启动 Redis（异步任务队列依赖，可选）
    ```bash
    docker run -d --name testpilot-redis -p 6379:6379 redis:7-alpine
    ```
    > **不启动 Redis 的影响**：JWT 登出黑名单失效、登录防暴力破解不可用、AI 生成 / 批量执行无法异步。Flask 本身不受影响，可正常启动和测试其他功能。
-5. 启动 Celery Worker（可选，不启动则 AI 等功能走同步模式）
+6. 启动 Celery Worker（可选，不启动则 AI 等功能走同步模式）
    ```bash
    celery -A celery_app.celery_app worker --loglevel=info
-   ```
-6. 启动项目（默认开发环境）
-   ```bash
-   python run.py
    ```
 7. 切换环境启动
    ```bash

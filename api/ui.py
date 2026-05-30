@@ -4,6 +4,8 @@ from extensions import db
 from models import UICase
 from service.ui_service import run_ui_case, parse_steps
 from core.response import success, error
+from core.pagination import paginate
+from core.db_guard import db_write_guard
 from core.schema import validate_request
 from api.schemas import AddUICaseSchema, UpdateUICaseSchema, AddUIStructSchema
 from service.operation_log_service import add_operation_log
@@ -46,31 +48,24 @@ def add_ui_case():
         loc_type=data.get("loc_type", "xpath"),
         loc_value=data.get("loc_value", ""),
     )
-    try:
+    with db_write_guard("UI用例添加失败"):
         db.session.add(case)
-        db.session.commit()
-        add_operation_log(user.id, username, "add_ui_case", f"新增 UI 用例：{data['name']}")
-    except Exception as e:
-        db.session.rollback()
-        from core.logger import log_error
-        log_error(e, context="UI用例添加失败")
-        return error("保存失败")
+        db.session.flush()
+    cur = User.query.get(int(get_jwt_identity()))
+    add_operation_log(cur.id, cur.username if cur else "未知", "add_ui_case", f"新增 UI 用例：{data['name']}")
     return success(msg="成功")
 
 
 @ui_bp.route("/cases", methods=["GET"])
 @jwt_required()
 def get_ui_cases():
-    page = request.args.get("page", 1, type=int)
-    page_size = request.args.get("page_size", 10, type=int)
     keyword = request.args.get("keyword", "", type=str)
 
     query = UICase.query
     if keyword:
         query = query.filter(UICase.name.like(f"%{keyword}%"))
 
-    total = query.count()
-    cases = query.order_by(UICase.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    result = paginate(query, order_by=UICase.id.desc())
 
     return success({
         "list": [{
@@ -79,11 +74,11 @@ def get_ui_cases():
             "url": c.url,
             "loc_type": c.loc_type,
             "steps": c.steps
-        } for c in cases],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size
+        } for c in result.items],
+        "total": result.total,
+        "page": result.page,
+        "page_size": result.page_size,
+        "total_pages": result.total_pages,
     })
 
 
@@ -169,19 +164,12 @@ def add_struct_ui():
         loc_value=data["loc_value"],
         screenshot_path=data["screenshot_path"],
     )
-    try:
+    with db_write_guard("UI用例添加失败"):
         db.session.add(case)
-        db.session.commit()
-        from models import User
-        identity = get_jwt_identity()
-        user = User.query.get(int(identity))
-        username = user.username if user else "未知"
-        add_operation_log(user.id, username, "add_ui_case", f"新增 UI 用例：{data['name']}")
-    except Exception as e:
-        db.session.rollback()
-        from core.logger import get_logger
-        get_logger(__name__).error("UI用例添加失败: %s", str(e))
-        return error("保存失败")
+        db.session.flush()
+    from models import User
+    cur = User.query.get(int(get_jwt_identity()))
+    add_operation_log(cur.id, cur.username if cur else "未知", "add_ui_case", f"新增 UI 用例：{data['name']}")
     return success(msg="创建成功")
 
 
@@ -236,14 +224,11 @@ def update_ui_case(cid):
     case.loc_type = new_loc_type
     case.loc_value = new_loc_value
 
-    try:
-        db.session.commit()
-        detail = f"修改UI用例: {old_name} → {case.name}"
-        if changes:
-            detail += "，" + "，".join(changes)
-        detail += f" (ID={cid})"
-        add_operation_log(user.id, username, "update_ui_case", detail)
-        return success(msg="更新成功")
-    except Exception as e:
-        db.session.rollback()
-        return error(f"更新失败：{str(e)}")
+    with db_write_guard("UI用例更新失败"):
+        db.session.flush()
+    detail = f"修改UI用例: {old_name} → {case.name}"
+    if changes:
+        detail += "，" + "，".join(changes)
+    detail += f" (ID={cid})"
+    add_operation_log(user.id, username, "update_ui_case", detail)
+    return success(msg="更新成功")

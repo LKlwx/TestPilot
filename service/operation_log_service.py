@@ -3,12 +3,14 @@ from models import SysOperationLog
 from extensions import db
 
 
-def add_operation_log(user_id, username, operation, detail):
+def add_operation_log(user_id, username, operation, detail, ip=None):
+    if ip is None:
+        ip = request.remote_addr
     log = SysOperationLog(
         user_id=user_id,
         username=username,
         operation=operation,
-        ip=request.remote_addr,
+        ip=ip,
         detail=detail
     )
     db.session.add(log)

@@ -9,6 +9,7 @@ from extensions import db
 from core.logger import get_logger
 from core.schema import validate_request
 from core.require_role import require_role
+from core.pagination import paginate
 from api.schemas import LoginSchema, RegisterSchema, ChangePasswordSchema, ChangeRoleSchema
 from service.operation_log_service import add_operation_log
 
@@ -228,8 +229,6 @@ def change_password():
 @auth_bp.route("/operation/logs", methods=["GET"])
 @require_role(["admin"])
 def operation_logs():
-    page = request.args.get("page", 1, type=int)
-    page_size = request.args.get("page_size", 10, type=int)
     keyword = request.args.get("keyword", "", type=str)
     date = request.args.get("date", "", type=str)
 
@@ -249,8 +248,7 @@ def operation_logs():
             SysOperationLog.operate_time < next_day
         )
 
-    total = query.count()
-    logs = query.order_by(SysOperationLog.operate_time.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    result = paginate(query, order_by=SysOperationLog.operate_time.desc())
 
     return success({
         "list": [{
@@ -260,11 +258,11 @@ def operation_logs():
             "detail": log.detail,
             "ip": log.ip or "-",
             "operate_time": log.operate_time.strftime("%Y-%m-%d %H:%M:%S") if log.operate_time else "-"
-        } for log in logs],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size
+        } for log in result.items],
+        "total": result.total,
+        "page": result.page,
+        "page_size": result.page_size,
+        "total_pages": result.total_pages,
     })
 
 

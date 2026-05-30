@@ -3,6 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
 from models import PerformanceCase, PerformanceReport
 from core.response import success, error
+from core.pagination import paginate
+from core.db_guard import db_write_guard
 from core.schema import validate_request
 from core.logger import get_logger
 from api.schemas import AddPerformanceCaseSchema, UpdatePerformanceCaseSchema
@@ -46,13 +48,11 @@ def add_case():
             total=data.get("total", 50)
         )
         db.session.add(case)
-        db.session.commit()
+        with db_write_guard("性能用例添加失败"):
+            db.session.flush()
         add_operation_log(user.id, username, "add_perf_case", f"新增性能用例: {data['name']}")
         return success(msg="保存成功")
     except Exception as e:
-        db.session.rollback()
-        from core.logger import log_error
-        log_error(e, context="性能用例添加失败")
         return error("保存失败")
 
 
@@ -61,19 +61,16 @@ def add_case():
 @jwt_required()
 def cases():
     try:
-        page = request.args.get("page", 1, type=int)
-        page_size = request.args.get("page_size", 10, type=int)
         keyword = request.args.get("keyword", "", type=str)
 
         query = PerformanceCase.query
         if keyword:
             query = query.filter(PerformanceCase.name.like(f"%{keyword}%"))
 
-        total = query.count()
-        case_list = query.order_by(PerformanceCase.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        result = paginate(query, order_by=PerformanceCase.id.desc())
 
         data = []
-        for item in case_list:
+        for item in result.items:
             data.append({
                 "id": item.id,
                 "name": item.name,
@@ -85,10 +82,10 @@ def cases():
 
         return success({
             "list": data,
-            "total": total,
-            "page": page,
-            "page_size": page_size,
-            "total_pages": (total + page_size - 1) // page_size
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
         })
     except Exception as e:
         logger.error("获取压测用例列表失败: %s", str(e), exc_info=True)
@@ -180,12 +177,11 @@ def delete_case(cid):
             return error("用例不存在")
         case_name = case.name
         db.session.delete(case)
-        db.session.commit()
+        with db_write_guard("删除压测用例"):
+            db.session.flush()
         add_operation_log(user.id, username, "delete_perf_case", f"删除性能用例: {case_name} (ID={cid})")
         return success(msg="删除成功")
     except Exception as e:
-        db.session.rollback()
-        logger.error("删除压测用例失败: %s", str(e), exc_info=True)
         return error("服务器内部错误，请查看日志")
 
 # 更新用例
@@ -234,7 +230,8 @@ def update_case(cid):
         case.concurrency = new_concurrency
         case.total = new_total
 
-        db.session.commit()
+        with db_write_guard("修改压测用例"):
+            db.session.flush()
         detail = f"修改性能用例: {old_name} → {case.name}"
         if changes:
             detail += "，" + "，".join(changes)
@@ -242,6 +239,4 @@ def update_case(cid):
         add_operation_log(user.id, username, "update_perf_case", detail)
         return success(msg="修改成功")
     except Exception as e:
-        db.session.rollback()
-        logger.error("修改压测用例失败: %s", str(e), exc_info=True)
         return error("服务器内部错误，请查看日志")
