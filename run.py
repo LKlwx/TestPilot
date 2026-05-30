@@ -1,11 +1,11 @@
 import os
 from dotenv import load_dotenv
+# 必须在 create_app 导入前加载 .env，否则 Config 类属性求值时读不到
+load_dotenv()
 from app import create_app
 from extensions import db
 from models import User, TestCase
 
-# 加载 .env 文件（如果存在），使 os.environ.get() 能读取到配置值
-load_dotenv()
 
 # 从环境变量读取配置，默认development
 env = os.environ.get("FLASK_ENV", "development")
@@ -30,4 +30,4 @@ def init_admin():
 
 if __name__ == "__main__":
     init_admin()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=app.config.get("DEBUG", False))

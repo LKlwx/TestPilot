@@ -32,8 +32,7 @@ def get_flask_app():
     global _flask_app
     if _flask_app is None:
         from app import create_app
-        _flask_app = create_app()
-        _flask_app.app_context().push()
+        _flask_app = create_app(os.environ.get("FLASK_ENV", "development"))
     return _flask_app
 
 
@@ -56,7 +55,8 @@ def async_ai_generate_api(self, scene: str, user_id: int):
     _update_task(task_id, status="running")
     try:
         from service.ai_service import ai_service
-        result = ai_service.generate_api(scene, user_id)
+        with get_flask_app().app_context():
+            result = ai_service.generate_api(scene, user_id)
         _update_task(task_id, status="success", result=str(result), finish_time=datetime.now())
     except Exception as e:
         _update_task(task_id, status="failed", error_msg=str(e), finish_time=datetime.now())
@@ -68,7 +68,8 @@ def async_ai_generate_ui(self, scene: str, user_id: int):
     _update_task(task_id, status="running")
     try:
         from service.ai_service import ai_service
-        result = ai_service.generate_ui(scene, user_id)
+        with get_flask_app().app_context():
+            result = ai_service.generate_ui(scene, user_id)
         _update_task(task_id, status="success", result=str(result), finish_time=datetime.now())
     except Exception as e:
         _update_task(task_id, status="failed", error_msg=str(e), finish_time=datetime.now())
@@ -80,7 +81,8 @@ def async_ai_analyze(self, log: str, user_id: int):
     _update_task(task_id, status="running")
     try:
         from service.ai_service import ai_service
-        result = ai_service.analyze_log(log, user_id)
+        with get_flask_app().app_context():
+            result = ai_service.analyze_log(log, user_id)
         _update_task(task_id, status="success", result=str(result), finish_time=datetime.now())
     except Exception as e:
         _update_task(task_id, status="failed", error_msg=str(e), finish_time=datetime.now())

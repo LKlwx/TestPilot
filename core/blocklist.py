@@ -22,13 +22,12 @@ def _get_redis():
 
 def add_to_blocklist(jti: str) -> None:
     r = _get_redis()
-    r.sadd(BLOCKLIST_KEY, jti)
-    r.expire(BLOCKLIST_KEY, BLOCKLIST_TTL)
+    r.setex(f"jwt:blocklist:{jti}", BLOCKLIST_TTL, "1")
 
 
 def is_blocklisted(jti: str) -> bool:
     r = _get_redis()
-    return r.sismember(BLOCKLIST_KEY, jti)
+    return r.exists(f"jwt:blocklist:{jti}")
 
 
 def record_login_failure(username: str) -> int:
