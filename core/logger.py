@@ -1,6 +1,6 @@
 import logging
 import os
-from logging.handlers import RotatingFileHandler
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from logging import Formatter
 
 
@@ -18,9 +18,9 @@ def setup_logger(app):
     )
 
     # 1. 常规日志（INFO及以上） - 每天切割，保留7天
-    info_handler = RotatingFileHandler(
+    info_handler = TimedRotatingFileHandler(
         os.path.join(log_dir, "app.log"),
-        maxBytes=10 * 1024 * 1024,  # 10MB
+        when="midnight",
         backupCount=7,
         encoding="utf-8"
     )
@@ -47,15 +47,12 @@ def setup_logger(app):
     debug_handler.setLevel(logging.DEBUG)
     debug_handler.setFormatter(log_format)
 
-    # 注册到Flask应用
-    app.logger.addHandler(info_handler)
-    app.logger.addHandler(error_handler)
-
-    # 同时设置root logger，让其他模块的日志也能写入
+    # 设置 root logger（避免重复添加 handler）
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    root_logger.addHandler(info_handler)
-    root_logger.addHandler(error_handler)
+    if not root_logger.handlers:
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(info_handler)
+        root_logger.addHandler(error_handler)
 
     # 开发环境加debug日志
     if app.debug:

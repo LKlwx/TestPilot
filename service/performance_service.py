@@ -135,18 +135,16 @@ def run_performance(case):
         is_local=is_local,
     )
     db.session.add(report)
-    db.session.commit()  # 先提交报告，获取 report.id
+    db.session.add(report)
+    db.session.flush()  # 先 flush 获取 report.id，但不提交
 
-    # 批量保存明细数据
-    for rt, sc, url in detail_list:
-        detail = PerformanceDetail(
-            report_id=report.id,
-            url=url,
-            request_time=rt,
-            status_code=sc
-        )
-        db.session.add(detail)
-    db.session.commit()
+    # 批量保存明细数据（bulk_insert_mappings 跳过 ORM 追踪，万级写入 < 1 秒）
+    detail_dicts = [
+        {"report_id": report.id, "url": url, "request_time": rt, "status_code": sc}
+        for rt, sc, url in detail_list
+    ]
+    db.session.bulk_insert_mappings(PerformanceDetail, detail_dicts)
+    db.session.commit()  # 报告 + 明细 同一个事务提交，原子性
 
     return {
         "success": success_num,

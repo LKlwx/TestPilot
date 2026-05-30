@@ -203,7 +203,7 @@ class BatchResult(db.Model):
     __tablename__ = "batch_result"
     id = db.Column(db.Integer, primary_key=True)
     batch_id = db.Column(db.Integer, db.ForeignKey("batch_task.id"), comment="所属批次")
-    case_id = db.Column(db.Integer, comment="用例ID")
+    case_id = db.Column(db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"), comment="用例ID")
     case_name = db.Column(db.String(100), comment="用例名称")
     status = db.Column(db.String(20), comment="pass / fail / error")
     cost_time = db.Column(db.Float, comment="耗时（秒）")
@@ -215,7 +215,7 @@ class BatchResult(db.Model):
 class SysOperationLog(db.Model):
     __tablename__ = "sys_operation_log"
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, comment="操作用户ID（admin为超级管理员）")
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="操作用户ID（admin为超级管理员）")
     username = db.Column(db.String(50), nullable=False, comment="操作用户名")
     operation = db.Column(db.String(50), nullable=False, comment="操作类型：login/delete_user/change_role/add_case等")
     ip = db.Column(db.String(50), comment="操作IP地址")
