@@ -75,9 +75,13 @@ def analyze():
 @ai_bp.route("/task/<task_id>", methods=["GET"])
 @jwt_required()
 def get_task_status(task_id):
+    from core.exception import AuthException
     task = AsyncTask.query.get(task_id)
     if not task:
         return error("任务不存在")
+    uid = int(get_jwt_identity())
+    if task.creator_id != uid:
+        raise AuthException("无权访问该任务")
     return success({
         "task_id": task.id,
         "status": task.status,

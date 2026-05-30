@@ -131,6 +131,7 @@ def get_ui_reports():
 
 # 报告详情
 @ui_bp.route("/report/<int:rid>", methods=["GET"])
+@jwt_required()
 def get_ui_report_detail(rid):
     from models import UIReport
     report = UIReport.query.get(rid)

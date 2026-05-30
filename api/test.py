@@ -191,6 +191,7 @@ def report_page():
 
 # 获取报告详情
 @test_bp.route("/report/<int:rid>", methods=["GET"])
+@jwt_required()
 def get_report_detail(rid):
     report = TestReport.query.get(rid)
     if not report:

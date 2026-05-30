@@ -4,9 +4,12 @@ from extensions import db
 from models import PerformanceCase, PerformanceReport
 from core.response import success, error
 from core.schema import validate_request
+from core.logger import get_logger
 from api.schemas import AddPerformanceCaseSchema, UpdatePerformanceCaseSchema
 from service.performance_service import run_performance
 from service.operation_log_service import add_operation_log
+
+logger = get_logger(__name__)
 
 performance_bp = Blueprint("performance", __name__)
 
@@ -88,7 +91,8 @@ def cases():
             "total_pages": (total + page_size - 1) // page_size
         })
     except Exception as e:
-        return error("获取用例失败：" + str(e))
+        logger.error("获取压测用例列表失败: %s", str(e), exc_info=True)
+        return error("服务器内部错误，请查看日志")
 
 
 # 执行压测
@@ -102,7 +106,8 @@ def run(cid):
         report = run_performance(case)
         return success(data=report, msg="压测完成")
     except Exception as e:
-        return error("执行失败：" + str(e))
+        logger.error("压测执行失败: %s", str(e), exc_info=True)
+        return error("服务器内部错误，请查看日志")
 
 
 # 报告列表
@@ -127,11 +132,13 @@ def reports():
             })
         return success(data=data)
     except Exception as e:
-        return error("获取报告失败：" + str(e))
+        logger.error("获取压测报告列表失败: %s", str(e), exc_info=True)
+        return error("服务器内部错误，请查看日志")
 
 
 # 报告详情
 @performance_bp.route("/report/<int:rid>", methods=["GET"])
+@jwt_required()
 def report_detail(rid):
     try:
         report = PerformanceReport.query.get(rid)
@@ -156,7 +163,8 @@ def report_detail(rid):
         }
         return success(data=data)
     except Exception as e:
-        return error("获取详情失败：" + str(e))
+        logger.error("获取压测报告详情失败: %s", str(e), exc_info=True)
+        return error("服务器内部错误，请查看日志")
 
 # 删除用例
 @performance_bp.route("/case/<int:cid>", methods=["DELETE"])
@@ -177,7 +185,8 @@ def delete_case(cid):
         return success(msg="删除成功")
     except Exception as e:
         db.session.rollback()
-        return error("删除失败：" + str(e))
+        logger.error("删除压测用例失败: %s", str(e), exc_info=True)
+        return error("服务器内部错误，请查看日志")
 
 # 更新用例
 @performance_bp.route("/case/<int:cid>", methods=["PUT"])
@@ -234,4 +243,5 @@ def update_case(cid):
         return success(msg="修改成功")
     except Exception as e:
         db.session.rollback()
-        return error("修改失败：" + str(e))
+        logger.error("修改压测用例失败: %s", str(e), exc_info=True)
+        return error("服务器内部错误，请查看日志")

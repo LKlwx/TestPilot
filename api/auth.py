@@ -69,9 +69,11 @@ def login():
     password = data["password"]
 
     from core.blocklist import is_login_locked, record_login_failure, reset_login_attempts
+    from core.logger import get_logger
     username_key = username.strip().lower()
     if is_login_locked(username_key):
-        return error("账号已锁定，请15分钟后再试")
+        get_logger(__name__).warning("登录失败（账号锁定）: %s", username_key)
+        return error("用户名或密码错误")
 
     user = check_user_password(username, password)
     if not user:
@@ -270,7 +272,6 @@ def operation_logs():
 @auth_bp.route("/operation/logs/cleanup", methods=["POST"])
 @require_role(["admin"])
 def cleanup_logs():
-
     from datetime import datetime, timedelta
     cutoff_date = datetime.now() - timedelta(days=30)
 
@@ -284,7 +285,6 @@ def cleanup_logs():
 @auth_bp.route("/user/list/data", methods=["GET"])
 @require_role(["admin"])
 def user_list_data():
-
     users = User.query.all()
     res = []
     for u in users:
@@ -306,7 +306,6 @@ def user_list_data():
 def change_user_role():
     identity = get_jwt_identity()
     current_user = User.query.get(int(identity))
-    
     if not current_user or current_user.username != "admin":
         raise AuthException("无权限")
 
@@ -328,7 +327,7 @@ def change_user_role():
 def delete_user(uid):
     current_user = User.query.get(int(get_jwt_identity()))
     
-    target = UserModel.query.get(uid)
+    target = User.query.get(uid)
     if not target:
         raise NotFoundException("用户不存在")
     
@@ -446,7 +445,11 @@ def dashboard_data():
         return error(str(e), 500)
 
 
-# 测试接口
+# 测试接口（仅开发环境可用）
 @auth_bp.route("/test/fast")
 def test_fast():
+    from flask import current_app
+    if not current_app.config.get("DEBUG", False):
+        from core.exception import NotFoundException
+        raise NotFoundException("接口不存在")
     return success({"msg": "fast"})
