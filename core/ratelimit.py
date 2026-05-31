@@ -2,6 +2,7 @@
 简易限流与雪崩防护模块
 """
 import time
+import uuid
 from functools import wraps
 from threading import Lock
 
@@ -31,33 +32,42 @@ class RateLimiter:
             return max(0, self.max_requests - len(self.requests))
 
 
-class KeyedRateLimiter:
-    """多 key 滑动窗口限流器，按 key 独立计数"""
+class RedisSlidingWindowLimiter:
+    """基于 Redis 有序集合的滑动窗口限流器
+
+    每个 key 一个 Sorted Set，score = 时间戳。
+    自动过期清理，不占内存；多 Worker 共享同一 Redis，分布式一致。
+    """
 
     def __init__(self):
-        self._buckets = {}
-        self.lock = Lock()
+        self._redis_client = None
+
+    def _get_redis(self):
+        if self._redis_client is None:
+            import redis as redis_lib
+            from config import Config
+            self._redis_client = redis_lib.from_url(Config.REDIS_URL)
+        return self._redis_client
 
     def is_allowed(self, key, max_requests, window):
-        with self.lock:
-            now = time.time()
-            if key not in self._buckets:
-                self._buckets[key] = []
-            timestamps = self._buckets[key]
-            timestamps[:] = [t for t in timestamps if now - t < window]
-            if len(timestamps) >= max_requests:
-                return False
-            timestamps.append(now)
-            return True
+        r = self._get_redis()
+        now = time.time()
 
-    def get_remaining(self, key, max_requests, window):
-        with self.lock:
-            if key not in self._buckets:
-                return max_requests
-            timestamps = self._buckets[key]
-            now = time.time()
-            timestamps[:] = [t for t in timestamps if now - t < window]
-            return max(0, max_requests - len(timestamps))
+        pipe = r.pipeline()
+        pipe.zremrangebyscore(key, "-inf", now - window)
+        pipe.zcard(key)
+        results = pipe.execute()
+        count = results[1]
+
+        if count >= max_requests:
+            if count == 0:
+                r.delete(key)
+            return False
+
+        member = f"{now}:{uuid.uuid4().hex}"
+        r.zadd(key, {member: now})
+        r.expire(key, window + 60)
+        return True
 
 
 class CircuitBreaker:
@@ -95,11 +105,11 @@ class CircuitBreaker:
                 self.last_failure_time = time.time()
 
 
-# 全局限流器实例（10 req/sec 兜底，不为具体用户设限）
+# 全局限流器实例（10 req/sec 兜底）
 global_limiter = RateLimiter(max_requests=600, window=60)
 
-# 多层限流器实例（按 IP/用户/接口 独立计数）
-tiered_limiter = KeyedRateLimiter()
+# Redis 滑动窗口限流器（多 Worker 共享、自动过期）
+tiered_limiter = RedisSlidingWindowLimiter()
 
 # 全局熔断器实例（连续5次失败后熔断60秒）
 global_circuit = CircuitBreaker(failure_threshold=5, recovery_time=60)

@@ -7,6 +7,9 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 from extensions import db
 from models import PerformanceReport, PerformanceDetail
+from config import Config
+
+TIMEOUT = Config.REQUEST_TIMEOUT
 
 
 def is_local_url(url):
@@ -54,7 +57,7 @@ def run_performance(case):
                         url=case.url,
                         headers=headers,
                         json=body_json,
-                        timeout=10
+                        timeout=TIMEOUT
                     )
                 except json.JSONDecodeError:
                     # body 不是合法 JSON，回退到 data=
@@ -63,7 +66,7 @@ def run_performance(case):
                         url=case.url,
                         headers=headers,
                         data=case.body,
-                        timeout=10
+                        timeout=TIMEOUT
                     )
             else:
                 resp = requests.request(

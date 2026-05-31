@@ -403,9 +403,10 @@ def dashboard_data():
         if last_perf_report:
             from models import PerformanceDetail
             from sqlalchemy import func
-            # 按 URL 聚合，取每个 URL 最慢的一次请求，按耗时降序取前 5 个
-            top5_details = db.session.query(
+            # 按 URL 聚合：取每个 URL 的请求次数和最慢耗时，按耗时降序取 Top 5
+            per_url_stats = db.session.query(
                 PerformanceDetail.url,
+                func.count(PerformanceDetail.id).label('request_count'),
                 func.max(PerformanceDetail.request_time).label('max_time')
             ).filter(
                 PerformanceDetail.report_id == last_perf_report.id
@@ -414,12 +415,17 @@ def dashboard_data():
             ).order_by(
                 func.max(PerformanceDetail.request_time).desc()
             ).limit(5).all()
-            
-            for idx, d in enumerate(top5_details):
-                url = d.url or "未知URL"
+
+            # 计算总耗时 = 总请求数 / 整体 QPS
+            total_duration = last_perf_report.total / last_perf_report.qps if last_perf_report.qps else 1
+
+            for stat in per_url_stats:
+                url = stat.url or "未知URL"
                 perf_names.append(url[:30] + "..." if len(url) > 30 else url)
-                perf_qps.append(round(last_perf_report.qps or 0, 1))
-                perf_rt.append(round(d.max_time or 0, 1))
+                # 各 URL 独立 QPS = 该 URL 请求数 / 总耗时
+                url_qps = round(stat.request_count / total_duration, 1)
+                perf_qps.append(url_qps)
+                perf_rt.append(round(stat.max_time or 0, 1))
         else:
             perf_names.append("暂无压测")
             perf_qps.append(0)

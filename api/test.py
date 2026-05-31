@@ -69,7 +69,7 @@ def add_case():
         db.session.add(case)
         db.session.flush()
     add_operation_log(user.id, username, "add_case", f"新增接口用例: {data['name']}")
-    return success(msg="成功")
+    return success(data={"id": case.id}, msg="成功")
 
 
 @test_bp.route("/case/<int:cid>/run", methods=["POST"])

@@ -53,7 +53,7 @@ def add_ui_case():
         db.session.flush()
     cur = User.query.get(int(get_jwt_identity()))
     add_operation_log(cur.id, cur.username if cur else "未知", "add_ui_case", f"新增 UI 用例：{data['name']}")
-    return success(msg="成功")
+    return success(data={"id": case.id}, msg="成功")
 
 
 @ui_bp.route("/cases", methods=["GET"])
@@ -170,7 +170,7 @@ def add_struct_ui():
     from models import User
     cur = User.query.get(int(get_jwt_identity()))
     add_operation_log(cur.id, cur.username if cur else "未知", "add_ui_case", f"新增 UI 用例：{data['name']}")
-    return success(msg="创建成功")
+    return success(data={"id": case.id}, msg="创建成功")
 
 
 # 编辑UI用例

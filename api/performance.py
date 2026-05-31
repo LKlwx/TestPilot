@@ -23,9 +23,15 @@ def page():
 
 
 # 性能报告页面
-@performance_bp.route("/reports/page")
+@performance_bp.route("/page/reports")
 def reports_page():
     return render_template("performance_report.html")
+
+
+@performance_bp.route("/reports/page")
+def old_reports_page():
+    from flask import redirect
+    return redirect("/api/performance/page/reports")
 
 
 # 新增性能用例
@@ -51,7 +57,7 @@ def add_case():
         with db_write_guard("性能用例添加失败"):
             db.session.flush()
         add_operation_log(user.id, username, "add_perf_case", f"新增性能用例: {data['name']}")
-        return success(msg="保存成功")
+        return success(data={"id": case.id}, msg="保存成功")
     except Exception as e:
         return error("保存失败")
 

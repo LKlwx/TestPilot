@@ -5,6 +5,9 @@ from extensions import db
 import time
 from core.logger import get_logger
 from core.execution_context import ExecutionContext
+from config import Config
+
+TIMEOUT = Config.REQUEST_TIMEOUT
 
 logger = get_logger(__name__)
 
@@ -32,7 +35,7 @@ def execute_test_case(case, context=None):
             url=final_url,
             headers=headers,
             json=body,
-            timeout=10
+            timeout=TIMEOUT
         )
         resp.encoding = 'utf-8'
 

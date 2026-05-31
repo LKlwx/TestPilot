@@ -62,9 +62,9 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", _DEFAULT_SECRET_KEY)
     DEBUG = False
     # 请求超时时间（秒）
-    REQUEST_TIMEOUT = 10
-    # CORS：生产环境只允许配置的域名
-    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost:5000").split(",")
+    REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", 10))
+    # CORS：生产环境只允许配置的域名（支持逗号分隔多域名，自动去空格）
+    CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localhost:5000").split(",") if o.strip()]
     # Redis 连接地址（Celery 异步任务用）
     REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     # 数据库配置（使用绝对路径，避免不同工作目录下数据丢失）
@@ -82,9 +82,9 @@ class Config:
         _validate_secret_key("SECRET_KEY", cls.SECRET_KEY, is_production)
         _validate_secret_key("JWT_SECRET_KEY", cls.JWT_SECRET_KEY, is_production)
 
-    # AI 模型配置（LM Studio 本地大模型服务）
-    AI_API_BASE = "http://127.0.0.1:1234"
-    AI_MODEL = "qwen3.5-9b"
+    # AI 模型配置（LM Studio 本地大模型服务，支持通过 .env 覆盖）
+    AI_API_BASE = os.environ.get("AI_API_BASE", "http://127.0.0.1:1234")
+    AI_MODEL = os.environ.get("AI_MODEL", "qwen3.5-9b")
     # AI 生成提示词配置
     AI_API_PROMPT = """你是资深测试开发，请根据业务场景生成一个 JSON 对象。要求：必须包含 name, method, url, headers, body, expect 这 6 个英文键。示例：{"name": "登录测试", "method": "POST", "url": "/api/login", "headers": {}, "body": {}, "expect": "成功"}场景：{}"""
     AI_UI_PROMPT = """你是 UI 自动化专家，请根据业务场景生成一个 JSON 对象。要求：必须包含 name, url, steps 这 3 个英文键。示例：{"name": "登录流程", "url": "http://localhost/login", "steps": "步骤 1；步骤 2"}场景：{}"""
