@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
-from models import UICase
+from models import UICase, User, UIReport
 from service.ui_service import run_ui_case, parse_steps
 from core.response import success, error
 from core.pagination import paginate
@@ -28,7 +28,6 @@ def ui_reports_page():
 @ui_bp.route("/case", methods=["POST"])
 @jwt_required()
 def add_ui_case():
-    from models import User
     identity = get_jwt_identity()
     user = User.query.get(int(identity))
     username = user.username if user else "未知"
@@ -95,7 +94,6 @@ def run_ui(cid):
 @ui_bp.route("/case/<int:cid>", methods=["DELETE"])
 @jwt_required()
 def delete_ui_case(cid):
-    from models import User
     identity = get_jwt_identity()
     user = User.query.get(int(identity))
     username = user.username if user else "未知"
@@ -111,7 +109,6 @@ def delete_ui_case(cid):
 @ui_bp.route("/reports/data", methods=["GET"])
 @jwt_required()
 def get_ui_reports():
-    from models import UIReport
     reports = UIReport.query.order_by(UIReport.id.desc()).limit(20).all()
     data = [{
         "id": r.id,
@@ -128,7 +125,6 @@ def get_ui_reports():
 @ui_bp.route("/report/<int:rid>", methods=["GET"])
 @jwt_required()
 def get_ui_report_detail(rid):
-    from models import UIReport
     report = UIReport.query.get(rid)
     if not report:
         return error("报告不存在")
@@ -167,7 +163,6 @@ def add_struct_ui():
     with db_write_guard("UI用例添加失败"):
         db.session.add(case)
         db.session.flush()
-    from models import User
     cur = User.query.get(int(get_jwt_identity()))
     add_operation_log(cur.id, cur.username if cur else "未知", "add_ui_case", f"新增 UI 用例：{data['name']}")
     return success(data={"id": case.id}, msg="创建成功")
@@ -177,7 +172,6 @@ def add_struct_ui():
 @ui_bp.route("/case/<int:cid>", methods=["PUT"])
 @jwt_required()
 def update_ui_case(cid):
-    from models import User
     identity = get_jwt_identity()
     user = User.query.get(int(identity))
     username = user.username if user else "未知"

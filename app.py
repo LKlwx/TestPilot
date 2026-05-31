@@ -56,6 +56,9 @@ def create_app(config_name="default"):
     # 其他全局异常兜底处理
     @app.errorhandler(Exception)
     def handle_all_exception(e):
+        # 不拦截 SystemExit 和 KeyboardInterrupt，保证 Ctrl+C 能正常退出
+        if isinstance(e, (SystemExit, KeyboardInterrupt)):
+            raise e
         import traceback
         # 记录完整错误堆栈到日志
         from core.logger import log_error

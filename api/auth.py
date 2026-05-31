@@ -1,17 +1,21 @@
-from flask import Blueprint, request, render_template, session, redirect
+from flask import Blueprint, request, render_template, session, redirect, current_app
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 
 from core.exception import AuthException, NotFoundException, APIException
 from core.response import success, error
-from models import TestCase, UICase, TestReport, UIReport, User, PerformanceReport, SysOperationLog
+from models import TestCase, UICase, TestReport, UIReport, User, PerformanceReport, SysOperationLog, PerformanceCase, PerformanceDetail
 from service.user_service import check_user_password
 from extensions import db
 from core.logger import get_logger
 from core.schema import validate_request
 from core.require_role import require_role
 from core.pagination import paginate
+from core.blocklist import add_to_blocklist, reset_login_attempts, is_login_locked, record_login_failure
 from api.schemas import LoginSchema, RegisterSchema, ChangePasswordSchema, ChangeRoleSchema
 from service.operation_log_service import add_operation_log
+import re
+from datetime import datetime, timedelta
+from sqlalchemy import func
 
 logger = get_logger(__name__)
 
@@ -69,11 +73,9 @@ def login():
     username = data["username"]
     password = data["password"]
 
-    from core.blocklist import is_login_locked, record_login_failure, reset_login_attempts
-    from core.logger import get_logger
     username_key = username.strip().lower()
     if is_login_locked(username_key):
-        get_logger(__name__).warning("登录失败（账号锁定）: %s", username_key)
+        logger.warning("登录失败（账号锁定）: %s", username_key)
         return error("用户名或密码错误")
 
     user = check_user_password(username, password)
@@ -119,8 +121,6 @@ def refresh():
 @auth_bp.route("/logout", methods=["POST"])
 @jwt_required(verify_type=False)
 def logout():
-    from flask_jwt_extended import get_jwt
-    from core.blocklist import add_to_blocklist
     jti = get_jwt()["jti"]
     add_to_blocklist(jti)
     return success(msg="已登出")
@@ -129,7 +129,6 @@ def logout():
 @auth_bp.route("/user/<int:uid>/reset-password", methods=["POST"])
 @require_role(["admin"])
 def admin_reset_password(uid):
-    from core.blocklist import reset_login_attempts
     target = User.query.get(uid)
     if not target:
         raise NotFoundException("用户不存在")
@@ -147,7 +146,6 @@ def admin_reset_password(uid):
 @auth_bp.route("/register", methods=["POST"])
 def register():
     data = validate_request(RegisterSchema, request.get_json())
-    import re
     username_clean = data["username"].strip().lower()
     
     if username_clean == "admin":
@@ -239,9 +237,7 @@ def operation_logs():
             (SysOperationLog.operation.like(f"%{keyword}%"))
         )
     if date:
-        from datetime import datetime
         search_date = datetime.strptime(date, "%Y-%m-%d")
-        from datetime import timedelta
         next_day = search_date + timedelta(days=1)
         query = query.filter(
             SysOperationLog.operate_time >= search_date,
@@ -270,7 +266,6 @@ def operation_logs():
 @auth_bp.route("/operation/logs/cleanup", methods=["POST"])
 @require_role(["admin"])
 def cleanup_logs():
-    from datetime import datetime, timedelta
     cutoff_date = datetime.now() - timedelta(days=30)
 
     deleted = SysOperationLog.query.filter(SysOperationLog.operate_time < cutoff_date).delete()
@@ -349,11 +344,6 @@ def delete_user(uid):
 @auth_bp.route("/dashboard/data", methods=["GET"])
 @jwt_required()
 def dashboard_data():
-    import traceback
-    from datetime import datetime, timedelta
-    from models import PerformanceCase
-    from sqlalchemy import func
-
     try:
         # 1. 用例统计（增加性能用例）
         api_count = TestCase.query.count()
@@ -401,8 +391,6 @@ def dashboard_data():
         perf_rt = []
 
         if last_perf_report:
-            from models import PerformanceDetail
-            from sqlalchemy import func
             # 按 URL 聚合：取每个 URL 的请求次数和最慢耗时，按耗时降序取 Top 5
             per_url_stats = db.session.query(
                 PerformanceDetail.url,
@@ -452,8 +440,6 @@ def dashboard_data():
 # 测试接口（仅开发环境可用）
 @auth_bp.route("/test/fast")
 def test_fast():
-    from flask import current_app
     if not current_app.config.get("DEBUG", False):
-        from core.exception import NotFoundException
         raise NotFoundException("接口不存在")
     return success({"msg": "fast"})

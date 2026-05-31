@@ -1,4 +1,6 @@
-from models import db, AIAgentTask, TestCase, UICase
+import json
+from extensions import db
+from models import AIAgentTask, TestCase, UICase
 from agent.ai_agent_core import ai_agent
 
 
@@ -37,7 +39,6 @@ class AIService:
     @staticmethod
     def save_api(data, user_id):
         """保存生成的接口用例到数据库（自动序列化字典字段）"""
-        import json
         headers = data.get("headers", {})
         body = data.get("body", {})
         if isinstance(headers, dict):

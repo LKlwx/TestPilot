@@ -1,5 +1,3 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
 from flask import Blueprint, request, render_template
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -9,11 +7,13 @@ from core.pagination import paginate
 from core.db_guard import db_write_guard
 from core.schema import validate_request
 from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema, BatchRunSchema
-from models import TestCase, TestReport, AsyncTask, BatchTask, BatchResult
+from models import TestCase, TestReport, AsyncTask, BatchTask, BatchResult, User
 from extensions import db
 from service.test_service import execute_test_case
 from service.operation_log_service import add_operation_log
 from celery_app import celery_app
+import uuid
+from datetime import datetime
 
 test_bp = Blueprint("test", __name__)
 
@@ -50,7 +50,6 @@ def get_cases():
 @test_bp.route("/case", methods=["POST"])
 @jwt_required()
 def add_case():
-    from models import User
     identity = get_jwt_identity()
     user = User.query.get(int(identity))
     username = user.username if user else "未知"
@@ -85,7 +84,6 @@ def run_case(cid):
 @test_bp.route("/case/<int:cid>", methods=["DELETE"])
 @jwt_required()
 def delete_case(cid):
-    from models import User
     identity = get_jwt_identity()
     user = User.query.get(int(identity))
     username = user.username if user else "未知"
@@ -102,7 +100,6 @@ def delete_case(cid):
 @test_bp.route("/case/<int:cid>", methods=["PUT"])
 @jwt_required()
 def update_case(cid):
-    from models import User
     identity = get_jwt_identity()
     user = User.query.get(int(identity))
     username = user.username if user else "未知"
@@ -201,11 +198,6 @@ def get_report_detail(rid):
         "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S")
     }
     return success(data)
-
-
-# 批量执行
-import uuid
-from datetime import datetime
 
 
 @test_bp.route("/batch/run", methods=["POST"])

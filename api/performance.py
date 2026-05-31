@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, request
+from flask import Blueprint, render_template, request, redirect
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
-from models import PerformanceCase, PerformanceReport
+from models import PerformanceCase, PerformanceReport, User
 from core.response import success, error
 from core.pagination import paginate
 from core.db_guard import db_write_guard
@@ -30,7 +30,6 @@ def reports_page():
 
 @performance_bp.route("/reports/page")
 def old_reports_page():
-    from flask import redirect
     return redirect("/api/performance/page/reports")
 
 
@@ -38,7 +37,6 @@ def old_reports_page():
 @performance_bp.route("/case", methods=["POST"])
 @jwt_required()
 def add_case():
-    from models import User
     try:
         identity = get_jwt_identity()
         user = User.query.get(int(identity))
@@ -174,7 +172,6 @@ def report_detail(rid):
 @jwt_required()
 def delete_case(cid):
     try:
-        from models import User
         identity = get_jwt_identity()
         user = User.query.get(int(identity))
         username = user.username if user else "未知"
@@ -194,7 +191,6 @@ def delete_case(cid):
 @performance_bp.route("/case/<int:cid>", methods=["PUT"])
 @jwt_required()
 def update_case(cid):
-    from models import User
     try:
         identity = get_jwt_identity()
         user = User.query.get(int(identity))

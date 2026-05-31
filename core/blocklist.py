@@ -6,10 +6,10 @@ from config import Config
 _redis_client = None
 
 BLOCKLIST_KEY = "jwt:blocklist"
-BLOCKLIST_TTL = 7200   # 2 小时
+BLOCKLIST_TTL = 7200  # 2 小时
 
 LOGIN_ATTEMPTS_PREFIX = "login:attempts:"
-LOGIN_LOCK_TTL = 900   # 15 分钟
+LOGIN_LOCK_TTL = 900  # 15 分钟
 
 
 def _get_redis():

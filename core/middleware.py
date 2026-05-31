@@ -44,6 +44,11 @@ def register_middleware(app):
     def after_request(response):
         status_code = response.status_code
 
+        # 请求耗时日志
+        if hasattr(g, "start_time"):
+            elapsed_ms = round((datetime.now() - g.start_time).total_seconds() * 1000, 1)
+            app.logger.info("[%s] %s %s → %s (%.1fms)", g.ip, request.method, request.path, status_code, elapsed_ms)
+
         if status_code >= 500:
             global_circuit.record_failure()
         elif status_code < 400:

@@ -66,15 +66,6 @@ def get_logger(name):
     return logging.getLogger(name)
 
 
-def log_request(request, response=None):
-    """记录请求日志"""
-    logger = logging.getLogger("request")
-    msg = f"{request.method} {request.path} - {request.remote_addr}"
-    if response:
-        msg += f" - {response.status_code}"
-    logger.info(msg)
-
-
 def log_error(error, context=""):
     """记录错误日志"""
     logger = logging.getLogger("error")
