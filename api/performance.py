@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, render_template, request, redirect
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
@@ -49,7 +50,9 @@ def add_case():
             headers=data.get("headers", "{}"),
             body=data.get("body"),
             concurrency=data.get("concurrency", 10),
-            total=data.get("total", 50)
+            total=data.get("total", 50),
+            ramp_steps=data.get("ramp_steps", 1),
+            steady_duration=data.get("steady_duration", 0),
         )
         db.session.add(case)
         with db_write_guard("性能用例添加失败"):
@@ -57,6 +60,7 @@ def add_case():
         add_operation_log(user.id, username, "add_perf_case", f"新增性能用例: {data['name']}")
         return success(data={"id": case.id}, msg="保存成功")
     except Exception as e:
+        logger.error("新增性能用例失败: %s", str(e), exc_info=True)
         return error("保存失败")
 
 
@@ -81,7 +85,9 @@ def cases():
                 "url": item.url,
                 "method": item.method,
                 "concurrency": item.concurrency,
-                "total": item.total
+                "total": item.total,
+                "ramp_steps": item.ramp_steps,
+                "steady_duration": item.steady_duration,
             })
 
         return success({
@@ -160,7 +166,8 @@ def report_detail(rid):
             "p99": report.p99,
             "success_rate": report.success_rate,
             "is_local": report.is_local,
-            "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S")
+            "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "extra": json.loads(report.extra) if report.extra else None,
         }
         return success(data=data)
     except Exception as e:
@@ -230,6 +237,9 @@ def update_case(cid):
         case.headers = d.get("headers", "{}")
         case.body = d.get("body")
         case.concurrency = new_concurrency
+        case.total = new_total
+        case.ramp_steps = d.get("ramp_steps", case.ramp_steps)
+        case.steady_duration = d.get("steady_duration", case.steady_duration)
         case.total = new_total
 
         with db_write_guard("修改压测用例"):

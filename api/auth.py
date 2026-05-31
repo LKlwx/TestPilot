@@ -434,7 +434,7 @@ def dashboard_data():
         })
     except Exception as e:
         logger.error("Dashboard Error: %s", str(e), exc_info=True)
-        return error(str(e), 500)
+        return error("服务器内部错误", 500)
 
 
 # 测试接口（仅开发环境可用）

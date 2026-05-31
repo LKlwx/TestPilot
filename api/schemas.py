@@ -58,6 +58,8 @@ class AddPerformanceCaseSchema(Schema):
     body = fields.String()
     concurrency = fields.Integer(validate=validate.Range(min=1, max=10000))
     total = fields.Integer(validate=validate.Range(min=1, max=100000))
+    ramp_steps = fields.Integer(validate=validate.Range(min=1, max=50), load_default=1)
+    steady_duration = fields.Integer(validate=validate.Range(min=0, max=3600), load_default=0)
 
 
 class UpdatePerformanceCaseSchema(Schema):
@@ -68,6 +70,8 @@ class UpdatePerformanceCaseSchema(Schema):
     body = fields.String()
     concurrency = fields.Integer(validate=validate.Range(min=1, max=10000))
     total = fields.Integer(validate=validate.Range(min=1, max=100000))
+    ramp_steps = fields.Integer(validate=validate.Range(min=1, max=50))
+    steady_duration = fields.Integer(validate=validate.Range(min=0, max=3600))
 
 
 # ========== Auth 模块 ==========

@@ -130,8 +130,10 @@ class PerformanceCase(BaseCaseMixin, db.Model):
     method = db.Column(db.String(10), default="GET")  # 请求方法
     headers = db.Column(db.Text, default="{}")  # 请求头
     body = db.Column(db.Text)  # 请求体
-    concurrency = db.Column(db.Integer, default=10)  # 并发线程数
+    concurrency = db.Column(db.Integer, default=10)  # 目标并发数
     total = db.Column(db.Integer, default=50)  # 总请求次数
+    ramp_steps = db.Column(db.Integer, default=1, comment="阶梯加压步数（1=直接加压，5=分5步到达目标并发）")
+    steady_duration = db.Column(db.Integer, default=0, comment="稳态持续时间（秒，0=不持久化）")
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -158,6 +160,7 @@ class PerformanceReport(db.Model):
     p99 = db.Column(db.Float, default=0)
     success_rate = db.Column(db.Float, default=0)
     is_local = db.Column(db.Boolean, default=False, comment="是否本机压测（可能导致数据失真）")
+    extra = db.Column(db.Text, nullable=True, comment="扩展数据（JSON，如每秒QPS序列）")
 
     # 关系回引
     details = db.relationship("PerformanceDetail", backref="report", lazy="dynamic")

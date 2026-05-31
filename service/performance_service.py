@@ -1,10 +1,9 @@
 import time
-import requests
 import json
+import asyncio
+import aiohttp
 import numpy as np
 from urllib.parse import urlparse
-from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
 from extensions import db
 from models import PerformanceReport, PerformanceDetail
 from config import Config
@@ -17,144 +16,157 @@ def is_local_url(url):
     try:
         parsed = urlparse(url)
         host = parsed.hostname.lower() if parsed.hostname else ""
-        port = parsed.port
         if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
-            return True
-        if host == "localhost":
             return True
         return False
     except:
         return False
 
 
-# 执行性能压测的核心方法
-def run_performance(case):
-    cost_list = []  # 存储每次请求耗时(ms)
-    detail_list = []  # 存储明细数据 (耗时，状态码)
-    success_num = 0  # 成功请求数
-    fail_num = 0  # 失败请求数
-    lock = Lock()  # 线程锁
+# 异步压测引擎：asyncio + aiohttp，单线程管理高并发
+async def _async_run(case):
+    cost_list = []
+    success = 0
+    fail = 0
+    qps_series = []  # 每秒请求计数
 
-    # 单个请求的执行逻辑
-    def single_request():
-        nonlocal success_num, fail_num
-        try:
-            start_time = time.time()
-            headers = {}
-            try:
-                if case.headers and case.headers.strip() != "":
-                    headers = json.loads(case.headers)
-            except:
-                headers = {}
-            
-            # 根据 Content-Type 判断使用 json= 还是 data=
-            content_type = headers.get("Content-Type", "")
-            if "application/json" in content_type and case.body:
-                try:
-                    body_json = json.loads(case.body)
-                    resp = requests.request(
-                        method=case.method,
-                        url=case.url,
-                        headers=headers,
-                        json=body_json,
-                        timeout=TIMEOUT
-                    )
-                except json.JSONDecodeError:
-                    # body 不是合法 JSON，回退到 data=
-                    resp = requests.request(
-                        method=case.method,
-                        url=case.url,
-                        headers=headers,
-                        data=case.body,
-                        timeout=TIMEOUT
-                    )
-            else:
-                resp = requests.request(
-                    method=case.method,
-                    url=case.url,
-                    headers=headers,
-                    data=case.body,
-                    timeout=10
-                )
-            # 记录耗时（毫秒）
-            cost_time = round((time.time() - start_time) * 1000, 2)
-            
-            # HTTP 状态码 >= 400 算失败
-            if resp.status_code >= 400:
-                with lock:
-                    fail_num += 1
-                    detail_list.append((cost_time, resp.status_code, case.url))
-            else:
-                with lock:
-                    cost_list.append(cost_time)
-                    detail_list.append((cost_time, resp.status_code, case.url))
-                    success_num += 1
-        except Exception:
-            with lock:
-                fail_num += 1
-                detail_list.append((0, 0, case.url))
+    is_local = is_local_url(case.url)
+    report = PerformanceReport(
+        case_id=case.id, case_name=case.name,
+        concurrency=case.concurrency, total=case.total,
+        success=0, fail=0, qps=0, avg_time=0,
+        min_time=0, max_time=0, p90=0, p99=0, success_rate=0,
+        is_local=is_local,
+    )
+    db.session.add(report)
+    db.session.flush()
 
-    # 使用线程池实现并发压测
+    detail_buffer = []
+
+    def _flush_details():
+        if not detail_buffer:
+            return
+        dicts = [
+            {"report_id": report.id, "url": url, "request_time": rt, "status_code": sc}
+            for rt, sc, url in detail_buffer
+        ]
+        db.session.bulk_insert_mappings(PerformanceDetail, dicts)
+        db.session.commit()
+        detail_buffer.clear()
+
+    headers = {}
+    try:
+        if case.headers and case.headers.strip():
+            headers = json.loads(case.headers)
+    except:
+        headers = {}
+
+    ramp_steps = getattr(case, "ramp_steps", 1) or 1
+    steady_duration = getattr(case, "steady_duration", 0) or 0
+    step_concurrency = max(1, case.concurrency // ramp_steps)
+    step_total = case.total // ramp_steps
+    remainder = case.total % ramp_steps
+
     total_start_time = time.time()
-    with ThreadPoolExecutor(max_workers=case.concurrency) as executor:
-        for _ in range(case.total):
-            executor.submit(single_request)
+
+    async with aiohttp.ClientSession() as session:
+        for step in range(ramp_steps):
+            current_concurrency = min(step_concurrency * (step + 1), case.concurrency)
+            sem = asyncio.Semaphore(current_concurrency)
+            count = step_total + (1 if step < remainder else 0)
+
+            async def single_request(sn=step, sc=sem):
+                nonlocal success, fail, qps_series
+                async with sc:
+                    req_start = time.time()
+                    try:
+                        content_type = headers.get("Content-Type", "")
+                        if "application/json" in content_type and case.body:
+                            try:
+                                body_json = json.loads(case.body)
+                                resp = await session.request(
+                                    method=case.method, url=case.url, headers=headers,
+                                    json=body_json, timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+                                )
+                            except json.JSONDecodeError:
+                                resp = await session.request(
+                                    method=case.method, url=case.url, headers=headers,
+                                    data=case.body, timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+                                )
+                        else:
+                            resp = await session.request(
+                                method=case.method, url=case.url, headers=headers,
+                                data=case.body, timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+                            )
+
+                        cost_time = round((time.time() - req_start) * 1000, 2)
+                        if resp.status >= 400:
+                            fail += 1
+                        else:
+                            cost_list.append(cost_time)
+                            success += 1
+                        detail_buffer.append((cost_time, resp.status, case.url))
+
+                        # 每秒 QPS 计数
+                        elapsed = int(time.time() - total_start_time)
+                        while len(qps_series) <= elapsed:
+                            qps_series.append(0)
+                        qps_series[elapsed] += 1
+
+                        if len(detail_buffer) >= 1000:
+                            _flush_details()
+                    except Exception:
+                        fail += 1
+                        detail_buffer.append((0, 0, case.url))
+
+            tasks = [single_request() for _ in range(count)]
+            await asyncio.gather(*tasks)
+
+            # 阶梯间短暂停顿，让 QPS 曲线可见
+            if step < ramp_steps - 1:
+                await asyncio.sleep(0.5)
+
+        # 稳态保持（达到目标并发后持续指定时长）
+        if steady_duration > 0:
+            await asyncio.sleep(steady_duration)
+
     total_end_time = time.time()
 
-    # 计算统计指标
-    completed = success_num + fail_num
+    _flush_details()
+
+    completed = success + fail
     if cost_list and completed > 0:
         avg_time = round(sum(cost_list) / len(cost_list), 2)
         min_time = min(cost_list)
         max_time = max(cost_list)
         total_time = total_end_time - total_start_time
-        # 用实际完成的请求数计算 QPS
         qps = round(completed / total_time, 2) if total_time > 0 else 0
-
         p90 = round(np.percentile(cost_list, 90), 2)
         p99 = round(np.percentile(cost_list, 99), 2)
-        # 加除零保护
-        success_rate = round((success_num / completed) * 100, 2) if completed > 0 else 0
+        success_rate = round((success / completed) * 100, 2) if completed > 0 else 0
     else:
         avg_time = min_time = max_time = qps = 0
         p90 = p99 = success_rate = 0
 
-    # 保存测试报告到数据库
-    is_local = is_local_url(case.url)
-    report = PerformanceReport(
-        case_id=case.id,
-        case_name=case.name,
-        concurrency=case.concurrency,
-        total=case.total,
-        success=success_num,
-        fail=fail_num,
-        qps=qps,
-        avg_time=avg_time,
-        min_time=min_time,
-        max_time=max_time,
-        p90=p90,
-        p99=p99,
-        success_rate=success_rate,
-        is_local=is_local,
-    )
-    db.session.add(report)
-    db.session.add(report)
-    db.session.flush()  # 先 flush 获取 report.id，但不提交
-
-    # 批量保存明细数据（bulk_insert_mappings 跳过 ORM 追踪，万级写入 < 1 秒）
-    detail_dicts = [
-        {"report_id": report.id, "url": url, "request_time": rt, "status_code": sc}
-        for rt, sc, url in detail_list
-    ]
-    db.session.bulk_insert_mappings(PerformanceDetail, detail_dicts)
-    db.session.commit()  # 报告 + 明细 同一个事务提交，原子性
+    report.success = success
+    report.fail = fail
+    report.qps = qps
+    report.avg_time = avg_time
+    report.min_time = min_time
+    report.max_time = max_time
+    report.p90 = p90
+    report.p99 = p99
+    report.success_rate = success_rate
+    report.extra = json.dumps({"qps_series": qps_series}, ensure_ascii=False)
+    db.session.commit()
 
     return {
-        "success": success_num,
-        "fail": fail_num,
-        "qps": qps,
-        "avg_time": avg_time,
-        "p90": p90,
-        "p99": p99,
-        "success_rate": success_rate
+        "success": success, "fail": fail, "qps": qps,
+        "avg_time": avg_time, "p90": p90, "p99": p99,
+        "success_rate": success_rate,
     }
+
+
+def run_performance(case):
+    """同步入口，内部启动 asyncio 事件循环"""
+    return asyncio.run(_async_run(case))

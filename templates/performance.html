@@ -65,6 +65,11 @@
     <input id="method" class="form-input" placeholder="请求方法" value="GET">
     <input id="concurrency" class="form-input" placeholder="并发数" value="10">
     <input id="total" class="form-input" placeholder="总请求数" value="50">
+    <div style="display: flex; gap: 10px; margin-top: 8px;">
+        <input id="ramp_steps" class="form-input" placeholder="阶梯步数（选填，默认1=直接加压）" value="1" style="flex:1;">
+        <input id="steady_duration" class="form-input" placeholder="稳态时长（选填，秒，0=不保持）" value="0" style="flex:1;">
+    </div>
+    <div style="font-size: 12px; color: #888; margin-top: 4px;">阶梯加压示例：并发 50、阶梯 5 → 按 10→20→30→40→50 逐步加压，每步停顿 0.5 秒</div>
 
     <!-- 本机压测警告框 -->
     <div id="localWarning" class="warning-box" style="display: none;">
@@ -107,6 +112,7 @@
             <th>用例名</th>
             <th>并发</th>
             <th>总数</th>
+            <th>阶梯</th>
             <th>操作</th>
         </tr>
         </thead>
@@ -229,7 +235,9 @@
 
         const data = {
             name: name, url: url, method: document.getElementById("method").value,
-            concurrency: concurrency, total: total
+            concurrency: concurrency, total: total,
+            ramp_steps: parseInt(document.getElementById("ramp_steps").value) || 1,
+            steady_duration: parseInt(document.getElementById("steady_duration").value) || 0,
         };
 
         try {
@@ -254,6 +262,8 @@
         document.getElementById("method").value = "GET";
         document.getElementById("concurrency").value = "10";
         document.getElementById("total").value = "50";
+        document.getElementById("ramp_steps").value = "1";
+        document.getElementById("steady_duration").value = "0";
         document.getElementById("saveBtn").innerText = "保存用例";
         document.getElementById("cancelBtn").style.display = "none";
     }
@@ -282,6 +292,8 @@
             document.getElementById("method").value = item.method;
             document.getElementById("concurrency").value = item.concurrency;
             document.getElementById("total").value = item.total;
+            document.getElementById("ramp_steps").value = item.ramp_steps || 1;
+            document.getElementById("steady_duration").value = item.steady_duration || 0;
             editId = id;
             document.getElementById("saveBtn").innerText = "更新用例";
             document.getElementById("cancelBtn").style.display = "inline-block";

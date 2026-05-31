@@ -27,17 +27,29 @@
 
 <!-- 详情弹窗 -->
 <div class="modal-overlay" id="detailModal">
-    <div class="modal-content" style="width:70%;">
+    <div class="modal-content" style="width:75%;">
         <h3 class="modal-header">详情</h3>
         <div id="detailContent" style="max-height:400px; overflow-y:auto; line-height:1.8;"></div>
         <br>
+        <button class="btn btn-info" id="showQpsBtn" style="display:none;" onclick="showQpsChart()">查看 QPS 曲线</button>
         <button class="btn btn-info" onclick="copyPerfReportDetail()">复制压测摘要</button>
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+    </div>
+</div>
+
+<!-- QPS 曲线弹窗 -->
+<div class="modal-overlay" id="qpsModal">
+    <div class="modal-content" style="width:85%; height:80%;">
+        <h3 class="modal-header">逐秒 QPS 曲线</h3>
+        <div id="qpsChart" style="width:100%; height:calc(100% - 80px);"></div>
+        <br>
+        <button class="btn btn-secondary" onclick="document.getElementById('qpsModal').classList.remove('active')">关闭</button>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="/static/js/echarts.min.js"></script>
 <script>
     window.onload = function () {
         checkLogin();
@@ -82,7 +94,7 @@
     async function showDetail(id) {
         try {
             const res = await httpGet(`/api/performance/report/${id}`);
-            window.currentPerfReportData = res.data; // 暂存数据用于复制
+            window.currentPerfReportData = res.data;
             const info = res.data;
 
             const localLabel = info.is_local ? '<span style="background:#ffc107; color:#856404; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:8px;">⚠️ 本机压测（数据可能失真）</span>' : '';
@@ -101,11 +113,27 @@
                 <p><strong>生成时间：</strong>${info.create_time}</p>
                 ${info.is_local ? '<p style="color:#856404; background:#fff7e6; padding:10px; border-radius:6px; margin-top:10px;"><strong>⚠️ 提醒：</strong>本测试针对本地服务发起，测得数据包含压测工具自身开销，仅供参考。</p>' : ''}
             `;
+
             document.getElementById("detailModal").classList.add("active");
+
+            // 判断是否有 QPS 曲线数据，有则显示按钮
+            const qpsBtn = document.getElementById("showQpsBtn");
+            const extra = info.extra;
+            if (extra && extra.qps_series && extra.qps_series.length >= 2) {
+                window._qpsSeries = extra.qps_series;
+                qpsBtn.style.display = "inline-block";
+            } else {
+                qpsBtn.style.display = "none";
+            }
         } catch (err) {
             showAlert("加载详情失败", "error");
             console.error(err);
         }
+    }
+
+    function closeModal() {
+        document.getElementById("detailModal").classList.remove("active");
+        document.getElementById("qpsModal").classList.remove("active");
     }
 
     function copyPerfReportDetail() {
@@ -116,8 +144,7 @@
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(() => {
                 showAlert("压测摘要已复制", "success");
-            }).catch(err => {
-                console.error('复制失败:', err);
+            }).catch(() => {
                 fallbackCopyTextToClipboard(text);
             });
         } else {
@@ -125,8 +152,45 @@
         }
     }
 
-    function closeModal() {
-        document.getElementById("detailModal").classList.remove("active");
+    function showQpsChart() {
+        const series = window._qpsSeries;
+        if (!series) return;
+
+        document.getElementById("qpsModal").classList.add("active");
+
+        setTimeout(() => {
+            const chartDom = document.getElementById("qpsChart");
+            const myChart = echarts.init(chartDom);
+            myChart.setOption({
+                title: { text: "", left: "center" },
+                tooltip: { trigger: "axis" },
+                toolbox: {
+                    feature: {
+                        dataZoom: { show: true },
+                        restore: { show: true },
+                        saveAsImage: { show: true },
+                    },
+                },
+                dataZoom: [{ type: "inside", start: 0, end: 100 }],
+                xAxis: { type: "category", name: "秒", data: series.map((_, i) => i) },
+                yAxis: { type: "value", name: "请求/秒" },
+                grid: { left: 60, right: 30, bottom: 40, top: 30 },
+                series: [{
+                    type: "line",
+                    data: series,
+                    smooth: true,
+                    areaStyle: { opacity: 0.15 },
+                    lineStyle: { width: 2 },
+                    itemStyle: { color: "#5470c6" },
+                    markLine: {
+                        data: [{ type: "average", name: "平均" }],
+                        label: { formatter: "平均 QPS: {c}" },
+                    },
+                }],
+            });
+            myChart.resize();
+            window._qpsChart = myChart;
+        }, 100);
     }
 
     function fallbackCopyTextToClipboard(text) {

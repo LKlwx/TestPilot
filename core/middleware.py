@@ -11,10 +11,11 @@ def register_middleware(app):
         if not global_limiter.is_allowed():
             return jsonify({"code": 429, "msg": "全局限流触发：请求过于频繁，请稍后再试"}), 429
 
-        # IP 级限流：200 req/min
-        ip_key = f"ip:{request.remote_addr}"
-        if not tiered_limiter.is_allowed(ip_key, 200, 60):
-            return jsonify({"code": 429, "msg": "IP 级限流触发：请求过于频繁，请稍后再试"}), 429
+        # IP 级限流：200 req/min（本地 IP 不限，自压测不影响）
+        if request.remote_addr not in ("127.0.0.1", "::1", "localhost"):
+            ip_key = f"ip:{request.remote_addr}"
+            if not tiered_limiter.is_allowed(ip_key, 200, 60):
+                return jsonify({"code": 429, "msg": "IP 级限流触发：请求过于频繁，请稍后再试"}), 429
 
         # 用户级限流：100 req/min（已登录用户）
         try:

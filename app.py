@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_cors import CORS
+from werkzeug.exceptions import NotFound
 from config import config
 from core.exception import APIException
 from core.middleware import register_middleware
@@ -56,11 +57,12 @@ def create_app(config_name="default"):
     # 其他全局异常兜底处理
     @app.errorhandler(Exception)
     def handle_all_exception(e):
-        # 不拦截 SystemExit 和 KeyboardInterrupt，保证 Ctrl+C 能正常退出
         if isinstance(e, (SystemExit, KeyboardInterrupt)):
             raise e
+        # 404 是正常业务状态码，不记 ERROR 日志
+        if isinstance(e, NotFound):
+            return error(e.description, 404)
         import traceback
-        # 记录完整错误堆栈到日志
         from core.logger import log_error
         log_error(e, context="全局异常")
         if app.config["DEBUG"]:
