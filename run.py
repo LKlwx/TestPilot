@@ -27,7 +27,8 @@ def init_admin():
             admin.set_password("123456")
             db.session.add(admin)
             db.session.commit()
-            print("Success: Default admin created.")
+            import logging
+            logging.info("Success: Default admin created.")
 
 if __name__ == "__main__":
     init_admin()

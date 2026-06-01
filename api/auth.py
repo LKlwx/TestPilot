@@ -1,4 +1,4 @@
-from flask import Blueprint, request, render_template, session, redirect, current_app
+from flask import Blueprint, request, render_template, current_app
 from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
 
 from core.exception import AuthException, NotFoundException, APIException
@@ -415,23 +415,37 @@ def dashboard_data():
                 url_qps = round(stat.request_count / total_duration, 1)
                 perf_qps.append(url_qps)
                 perf_rt.append(round(stat.max_time or 0, 1))
-        else:
-            perf_names.append("暂无压测")
-            perf_qps.append(0)
-            perf_rt.append(0)
+
+        # 5. 最近报告与成功率
+        recent_reports = TestReport.query.order_by(TestReport.id.desc()).limit(5).all()
+        total_tests = TestReport.query.count()
+        passed_tests = TestReport.query.filter_by(status="PASS").count()
+        success_rate = round(passed_tests / total_tests * 100, 1) if total_tests > 0 else 0
+
+        # 6. 标签分布统计
+        all_cases = TestCase.query.with_entities(TestCase.tags).all()
+        tag_count = {}
+        for (tags_str,) in all_cases:
+            if tags_str:
+                for t in tags_str.split(","):
+                    t = t.strip()
+                    if t:
+                        tag_count[t] = tag_count.get(t, 0) + 1
+        tag_stats = [{"name": k, "value": v} for k, v in sorted(tag_count.items(), key=lambda x: -x[1])]
 
         return success({
-            "total_case": total_case,
-            "api_case": api_count,
-            "ui_case": ui_count,
-            "perf_count": perf_count,
-            "today_api_run": today_api_run,
-            "today_ui_run": today_ui_run,
+            "api_cases": api_count,
+            "ui_cases": ui_count,
+            "perf_cases": perf_count,
+            "total_cases": total_case,
+            "recent_reports": recent_reports,
+            "success_rate": success_rate,
             "days": days,
             "fail_trend": fail_trend,
             "perf_names": perf_names,
             "perf_qps": perf_qps,
-            "perf_rt": perf_rt
+            "perf_rt": perf_rt,
+            "tag_stats": tag_stats,
         })
     except Exception as e:
         logger.error("Dashboard Error: %s", str(e), exc_info=True)

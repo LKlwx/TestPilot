@@ -47,6 +47,8 @@ class TestCase(BaseCaseMixin, db.Model):
     extract_var = db.Column(db.String(200), comment="后置提取：格式如 token=$.args.token")
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    timeout = db.Column(db.Integer, default=10, comment="请求超时时间（秒）")
+    retry = db.Column(db.Integer, default=0, comment="失败重试次数")
 
     # 关系回引
     reports = db.relationship("TestReport", backref="case", lazy="dynamic")
@@ -257,3 +259,16 @@ class SysOperationLog(db.Model):
     ip = db.Column(db.String(50), comment="操作IP地址")
     operate_time = db.Column(db.DateTime, default=datetime.now, index=True, comment="操作时间")
     detail = db.Column(db.Text, comment="操作详情（如：删除用户ID=1，修改角色为admin等）")
+
+
+# 接口覆盖率统计表
+class ApiCoverage(db.Model):
+    __tablename__ = "api_coverage"
+    id = db.Column(db.Integer, primary_key=True)
+    method = db.Column(db.String(10), nullable=False, comment="HTTP 方法")
+    path = db.Column(db.String(500), nullable=False, index=True, comment="URL 路径")
+    summary = db.Column(db.String(200), nullable=True, comment="接口描述（从 Swagger 导入）")
+    is_covered = db.Column(db.Boolean, default=False, index=True, comment="是否有测试覆盖")
+    covered_by = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="最后覆盖人")
+    covered_time = db.Column(db.DateTime, nullable=True, comment="最后覆盖时间")
+    create_time = db.Column(db.DateTime, default=datetime.now, comment="导入时间")

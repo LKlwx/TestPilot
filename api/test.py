@@ -12,8 +12,9 @@ from extensions import db
 from service.test_service import execute_test_case
 from service.operation_log_service import add_operation_log
 from celery_app import celery_app
+from datetime import datetime, timedelta
+from sqlalchemy import or_
 import uuid
-from datetime import datetime
 
 test_bp = Blueprint("test", __name__)
 
@@ -22,10 +23,13 @@ test_bp = Blueprint("test", __name__)
 @jwt_required()
 def get_cases():
     keyword = request.args.get("keyword", "", type=str)
+    tag = request.args.get("tag", "", type=str)
 
     query = TestCase.query
     if keyword:
         query = query.filter(TestCase.name.like(f"%{keyword}%"))
+    if tag:
+        query = query.filter(TestCase.tags.like(f"%{tag.strip()}%"))
 
     result = paginate(query, order_by=TestCase.id.desc())
 
@@ -35,7 +39,10 @@ def get_cases():
         "module": c.module,
         "method": c.method,
         "url": c.url,
-        "expect": c.expect
+        "expect": c.expect,
+        "timeout": c.timeout,
+        "retry": c.retry,
+        "tags": c.tags,
     } for c in result.items]
 
     return success({
@@ -62,7 +69,10 @@ def add_case():
         headers=data.get("headers", "{}"),
         body=data.get("body", "{}"),
         expect=data.get("expect"),
-        extract_var=data.get("extract_var")
+        extract_var=data.get("extract_var"),
+        timeout=data.get("timeout", 10),
+        retry=data.get("retry", 0),
+        tags=data.get("tags", ""),
     )
     with db_write_guard("接口用例添加失败"):
         db.session.add(case)
@@ -144,6 +154,9 @@ def update_case(cid):
     case.body = data.get("body", case.body)
     case.expect = new_expect
     case.extract_var = new_extract_var
+    case.timeout = data.get("timeout", case.timeout)
+    case.retry = data.get("retry", case.retry)
+    case.tags = data.get("tags", case.tags)
 
     db.session.commit()
     detail = f"修改接口用例: {old_name} → {case.name}"
@@ -157,17 +170,36 @@ def update_case(cid):
 @test_bp.route("/reports/data", methods=["GET"])
 @jwt_required()
 def reports():
-    reports = TestReport.query.order_by(TestReport.id.desc()).limit(20).all()
-    data = [{
-        "id": r.id,
-        "case_name": r.case_name,
-        "status": r.status,
-        "time": r.cost_time,
-        "code": r.response_code,
-        "msg": r.error_msg,
-        "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
-    } for r in reports]
-    return success(data)
+    keyword = request.args.get("keyword", "", type=str)
+    status = request.args.get("status", "", type=str)
+    module = request.args.get("module", "", type=str)
+    start_date = request.args.get("start_date", "", type=str)
+    end_date = request.args.get("end_date", "", type=str)
+
+    query = TestReport.query.join(TestCase, TestReport.case_id == TestCase.id)
+    if keyword:
+        query = query.filter(TestReport.case_name.like(f"%{keyword}%"))
+    if status:
+        query = query.filter(TestReport.status == status.upper())
+    if module:
+        query = query.filter(TestCase.module.like(f"%{module.strip()}%"))
+    if start_date:
+        query = query.filter(TestReport.create_time >= datetime.strptime(start_date, "%Y-%m-%d"))
+    if end_date:
+        query = query.filter(TestReport.create_time < datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1))
+
+    result = paginate(query, order_by=TestReport.id.desc(), page_size=20)
+    return success({
+        "list": [{
+            "id": r.id, "case_name": r.case_name, "status": r.status,
+            "time": r.cost_time, "code": r.response_code,
+            "msg": r.error_msg,
+            "module": r.case.module if r.case else None,
+            "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        } for r in result.items],
+        "total": result.total, "page": result.page,
+        "page_size": result.page_size, "total_pages": result.total_pages,
+    })
 
 
 @test_bp.route("/page")
@@ -206,6 +238,16 @@ def batch_run():
     uid = int(get_jwt_identity())
     req = validate_request(BatchRunSchema, request.json)
     ids = req["ids"]
+    tags_param = req.get("tags", "")
+
+    # 如果传了 tags 参数，按标签筛选用例
+    if tags_param:
+        tag_list = [t.strip() for t in tags_param.split(",") if t.strip()]
+        if tag_list:
+            conditions = [TestCase.tags.like(f"%{t}%") for t in tag_list]
+            tagged_cases = TestCase.query.filter(or_(*conditions)).all()
+            tagged_ids = {c.id for c in tagged_cases}
+            ids = [cid for cid in ids if cid in tagged_ids]
 
     task_id = str(uuid.uuid4())
     task = AsyncTask(

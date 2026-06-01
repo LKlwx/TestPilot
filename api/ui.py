@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from flask import Blueprint, render_template, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
@@ -46,6 +47,7 @@ def add_ui_case():
         steps=steps,
         loc_type=data.get("loc_type", "xpath"),
         loc_value=data.get("loc_value", ""),
+        tags=data.get("tags", ""),
     )
     with db_write_guard("UI用例添加失败"):
         db.session.add(case)
@@ -59,10 +61,13 @@ def add_ui_case():
 @jwt_required()
 def get_ui_cases():
     keyword = request.args.get("keyword", "", type=str)
+    tag = request.args.get("tag", "", type=str)
 
     query = UICase.query
     if keyword:
         query = query.filter(UICase.name.like(f"%{keyword}%"))
+    if tag:
+        query = query.filter(UICase.tags.like(f"%{tag.strip()}%"))
 
     result = paginate(query, order_by=UICase.id.desc())
 
@@ -72,7 +77,8 @@ def get_ui_cases():
             "name": c.name,
             "url": c.url,
             "loc_type": c.loc_type,
-            "steps": c.steps
+            "steps": c.steps,
+            "tags": c.tags,
         } for c in result.items],
         "total": result.total,
         "page": result.page,
@@ -109,16 +115,31 @@ def delete_ui_case(cid):
 @ui_bp.route("/reports/data", methods=["GET"])
 @jwt_required()
 def get_ui_reports():
-    reports = UIReport.query.order_by(UIReport.id.desc()).limit(20).all()
-    data = [{
-        "id": r.id,
-        "case_name": r.case_name,
-        "status": r.status,
-        "time": r.cost_time,
-        "msg": r.error_msg,
-        "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
-    } for r in reports]
-    return success(data)
+    keyword = request.args.get("keyword", "", type=str)
+    status = request.args.get("status", "", type=str)
+    start_date = request.args.get("start_date", "", type=str)
+    end_date = request.args.get("end_date", "", type=str)
+
+    query = UIReport.query
+    if keyword:
+        query = query.filter(UIReport.case_name.like(f"%{keyword}%"))
+    if status:
+        query = query.filter(UIReport.status == status.upper())
+    if start_date:
+        query = query.filter(UIReport.create_time >= datetime.strptime(start_date, "%Y-%m-%d"))
+    if end_date:
+        query = query.filter(UIReport.create_time < datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1))
+
+    result = paginate(query, order_by=UIReport.id.desc(), page_size=20)
+    return success({
+        "list": [{
+            "id": r.id, "case_name": r.case_name, "status": r.status,
+            "time": r.cost_time, "msg": r.error_msg,
+            "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        } for r in result.items],
+        "total": result.total, "page": result.page,
+        "page_size": result.page_size, "total_pages": result.total_pages,
+    })
 
 
 # 报告详情
@@ -159,6 +180,7 @@ def add_struct_ui():
         loc_type=data["loc_type"],
         loc_value=data["loc_value"],
         screenshot_path=data["screenshot_path"],
+        tags=data["tags"],
     )
     with db_write_guard("UI用例添加失败"):
         db.session.add(case)
@@ -217,6 +239,7 @@ def update_ui_case(cid):
     case.steps = new_steps
     case.loc_type = new_loc_type
     case.loc_value = new_loc_value
+    case.tags = data.get("tags", case.tags)
 
     with db_write_guard("UI用例更新失败"):
         db.session.flush()

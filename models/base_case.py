@@ -11,3 +11,4 @@ class BaseCaseMixin:
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, index=True)
     create_time = db.Column(db.DateTime, default=datetime.now, index=True)
+    tags = db.Column(db.String(500), default="", index=True, comment="用例标签，逗号分隔，如 smoke,regression,critical")

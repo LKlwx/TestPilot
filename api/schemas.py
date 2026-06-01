@@ -21,6 +21,9 @@ class AddTestCaseSchema(Schema):
     body = fields.String()
     expect = fields.String()
     extract_var = fields.String()
+    timeout = fields.Integer(validate=validate.Range(min=1, max=120), load_default=10)
+    retry = fields.Integer(validate=validate.Range(min=0, max=10), load_default=0)
+    tags = fields.String(validate=validate.Length(max=200), load_default="")
 
 
 class UpdateTestCaseSchema(Schema):
@@ -32,6 +35,9 @@ class UpdateTestCaseSchema(Schema):
     body = fields.String()
     expect = fields.String()
     extract_var = fields.String()
+    timeout = fields.Integer(validate=validate.Range(min=1, max=120))
+    retry = fields.Integer(validate=validate.Range(min=0, max=10))
+    tags = fields.String(validate=validate.Length(max=200))
 
 
 class AddUICaseSchema(Schema):
@@ -40,6 +46,7 @@ class AddUICaseSchema(Schema):
     steps = fields.String()
     loc_type = fields.String(validate=validate.OneOf(["xpath", "id", "css"]))
     loc_value = fields.String()
+    tags = fields.String(validate=validate.Length(max=200), load_default="")
 
 
 class UpdateUICaseSchema(Schema):
@@ -48,6 +55,7 @@ class UpdateUICaseSchema(Schema):
     steps = fields.String()
     loc_type = fields.String(validate=validate.OneOf(["xpath", "id", "css"]))
     loc_value = fields.String()
+    tags = fields.String(validate=validate.Length(max=200))
 
 
 class AddPerformanceCaseSchema(Schema):
@@ -60,6 +68,7 @@ class AddPerformanceCaseSchema(Schema):
     total = fields.Integer(validate=validate.Range(min=1, max=100000))
     ramp_steps = fields.Integer(validate=validate.Range(min=1, max=50), load_default=1)
     steady_duration = fields.Integer(validate=validate.Range(min=0, max=3600), load_default=0)
+    tags = fields.String(validate=validate.Length(max=200), load_default="")
 
 
 class UpdatePerformanceCaseSchema(Schema):
@@ -72,6 +81,7 @@ class UpdatePerformanceCaseSchema(Schema):
     total = fields.Integer(validate=validate.Range(min=1, max=100000))
     ramp_steps = fields.Integer(validate=validate.Range(min=1, max=50))
     steady_duration = fields.Integer(validate=validate.Range(min=0, max=3600))
+    tags = fields.String(validate=validate.Length(max=200))
 
 
 # ========== Auth 模块 ==========
@@ -132,6 +142,7 @@ class AISaveUiSchema(Schema):
 
 class BatchRunSchema(Schema):
     ids = fields.List(fields.Integer(strict=True), required=True, validate=validate.Length(min=1))
+    tags = fields.String(validate=validate.Length(max=200), load_default="")
 
 
 # ========== UI 结构化创建 ==========

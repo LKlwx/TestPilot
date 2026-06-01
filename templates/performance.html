@@ -59,7 +59,7 @@
 {% block content %}
 <!-- 新建用例 -->
 <div class="card">
-    <h3>新建性能测试用例</h3>
+    <h3>性能测试用例</h3>
     <input id="name" class="form-input" placeholder="用例名称（如：百度首页压测）">
     <input id="url" class="form-input" placeholder="压测URL（https://www.baidu.com）" oninput="checkLocalUrl()">
     <input id="method" class="form-input" placeholder="请求方法" value="GET">
@@ -69,6 +69,7 @@
         <input id="ramp_steps" class="form-input" placeholder="阶梯步数（选填，默认1=直接加压）" value="1" style="flex:1;">
         <input id="steady_duration" class="form-input" placeholder="稳态时长（选填，秒，0=不保持）" value="0" style="flex:1;">
     </div>
+    <input id="tags" class="form-input" placeholder="标签：例如 smoke,regression (选填)" style="margin-top:8px;">
     <div style="font-size: 12px; color: #888; margin-top: 4px;">阶梯加压示例：并发 50、阶梯 5 → 按 10→20→30→40→50 逐步加压，每步停顿 0.5 秒</div>
 
     <!-- 本机压测警告框 -->
@@ -101,7 +102,8 @@
 <div class="card">
     <h3>用例列表</h3>
     <div class="search-bar">
-        <input id="searchKeyword" class="form-input" placeholder="搜索用例名称...">
+        <input id="searchKeyword" class="form-input" placeholder="搜索用例名称..." style="width:200px;">
+        <input id="searchTag" class="form-input" placeholder="标签筛选如 smoke" style="width:160px;">
         <button class="btn btn-primary" onclick="searchCases()">搜索</button>
         <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
     </div>
@@ -113,6 +115,7 @@
             <th>并发</th>
             <th>总数</th>
             <th>阶梯</th>
+            <th>标签</th>
             <th>操作</th>
         </tr>
         </thead>
@@ -168,8 +171,11 @@
 
     async function loadList(page = 1) {
         const keyword = document.getElementById("searchKeyword").value;
+        const tag = document.getElementById("searchTag").value;
         try {
-            const res = await httpGet(`/api/performance/cases?page=${page}&page_size=${pageSize}&keyword=${encodeURIComponent(keyword)}`);
+            let url = `/api/performance/cases?page=${page}&page_size=${pageSize}&keyword=${encodeURIComponent(keyword)}`;
+            if (tag) url += `&tag=${encodeURIComponent(tag)}`;
+            const res = await httpGet(url);
             const data = res.data || {};
             const list = data.list || [];
             currentPage = data.page || 1;
@@ -185,6 +191,8 @@
                     <td>${item.name}</td>
                     <td>${item.concurrency}</td>
                     <td>${item.total}</td>
+                    <td>${item.ramp_steps || 1}</td>
+                    <td><span style="font-size:12px; color:#666;">${item.tags || '-'}</span></td>
                     <td>
                         <button class="btn btn-primary" onclick="editCase(${item.id})">编辑</button>
                         <button class="btn btn-success" onclick="runTest(${item.id})">执行</button>
@@ -210,6 +218,7 @@
 
     function resetSearch() {
         document.getElementById("searchKeyword").value = "";
+        document.getElementById("searchTag").value = "";
         currentPage = 1;
         loadList(1);
     }
@@ -238,6 +247,7 @@
             concurrency: concurrency, total: total,
             ramp_steps: parseInt(document.getElementById("ramp_steps").value) || 1,
             steady_duration: parseInt(document.getElementById("steady_duration").value) || 0,
+            tags: document.getElementById("tags").value || "",
         };
 
         try {
@@ -264,6 +274,7 @@
         document.getElementById("total").value = "50";
         document.getElementById("ramp_steps").value = "1";
         document.getElementById("steady_duration").value = "0";
+        document.getElementById("tags").value = "";
         document.getElementById("saveBtn").innerText = "保存用例";
         document.getElementById("cancelBtn").style.display = "none";
     }
@@ -294,6 +305,7 @@
             document.getElementById("total").value = item.total;
             document.getElementById("ramp_steps").value = item.ramp_steps || 1;
             document.getElementById("steady_duration").value = item.steady_duration || 0;
+            document.getElementById("tags").value = item.tags || "";
             editId = id;
             document.getElementById("saveBtn").innerText = "更新用例";
             document.getElementById("cancelBtn").style.display = "inline-block";

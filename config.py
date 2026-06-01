@@ -42,14 +42,8 @@ def _validate_secret_key(key_name: str, key_value: str, is_production: bool) -> 
         )
     
     if is_default:
-        # 开发环境允许，但强烈警告
-        print(f"\n{'!'*60}")
-        print(f"WARNING: {key_name} 使用了默认弱密钥！")
-        print(f"{'!'*60}")
-        print(f"这会导致 JWT Token 可被伪造，存在严重安全隐患。")
-        print(f"请在生产环境前设置强密钥：")
-        print(f"  export {key_name}=$(openssl rand -base64 32)")
-        print(f"{'!'*60}\n")
+        import logging
+        logging.warning("WARNING: %s 使用了默认弱密钥！这会导致 JWT Token 可被伪造，存在严重安全隐患。请在生产环境前设置强密钥：export %s=$(openssl rand -base64 32)", key_name, key_name)
 
 
 class Config:

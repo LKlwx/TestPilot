@@ -7,6 +7,12 @@
 {% endblock %}
 
 {% block content %}
+<!-- 覆盖率概要 -->
+<div id="coverageBanner" style="cursor:pointer; margin-bottom:12px; padding:10px 16px; border-radius:6px; background:#f0f7ff; border:1px solid #cce5ff;" onclick="location.href='/api/test/coverage/api/page'">
+    <strong>📊 接口覆盖率：</strong> 加载中...
+    <span style="float:right; color:#667eea;">查看详情 →</span>
+</div>
+
 <!-- 1. 用例表单 -->
 <div class="card">
     <h3>接口测试用例</h3>
@@ -24,21 +30,23 @@
     <textarea id="body" class="form-textarea" rows="3" placeholder="请求体（选填）"></textarea>
     <input id="expect" class="form-input" placeholder="预期包含关键字（选填）">
     <input id="extract_var" class="form-input" placeholder="后置提取：例如 token=$.args.token (选填)">
+    <input id="tags" class="form-input" placeholder="标签：例如 smoke,regression,critical (选填)">
+    <div style="display: flex; gap: 10px; margin-top: 8px;">
+        <input id="timeout" class="form-input" placeholder="超时秒数（选填，默认10）" value="10" style="flex:1;">
+        <input id="retry" class="form-input" placeholder="失败重试次数（选填，默认0）" value="0" style="flex:1;">
+    </div>
     <br><br>
     <button id="saveBtn" class="btn btn-primary" onclick="saveCase()">保存用例</button>
     <button id="cancelEditBtn" class="btn btn-secondary" onclick="cancelEdit()" style="display:none;">取消</button>
     <button class="btn btn-success" onclick="batchRun()">批量执行</button>
-    <div class="warning-tip"
-         style="margin-top: 10px; padding: 10px 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; color: #856404; font-size: 13px;">
-        <strong>提示：</strong>批量并行执行仅适用于<strong>无依赖的独立用例</strong>。如需测试接口依赖链路（如先登录再获取用户信息），请逐条执行用例。
-    </div>
 </div>
 
 <!-- 2. 用例列表 -->
 <div class="card">
     <h3>我的用例列表</h3>
     <div class="search-bar">
-        <input id="searchKeyword" class="form-input" placeholder="搜索用例名称...">
+        <input id="searchKeyword" class="form-input" placeholder="搜索用例名称..." style="width:200px;">
+        <input id="searchTag" class="form-input" placeholder="标签筛选如 smoke" style="width:160px;">
         <button class="btn btn-primary" onclick="searchCases()">搜索</button>
         <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
     </div>
@@ -51,6 +59,7 @@
             <th>模块</th>
             <th>方法</th>
             <th>URL</th>
+            <th>标签</th>
             <th>操作</th>
         </tr>
         </thead>
@@ -81,12 +90,39 @@
     window.onload = function () {
         checkLogin();
         loadCases();
+    };
+
+    async function loadCoverageStats() {
+        try {
+            const token = localStorage.getItem("access_token");
+            const resp = await fetch("/api/test/coverage/api/stats", {
+                headers: token ? {"Authorization": "Bearer " + token} : {}
+            });
+            const json = await resp.json();
+            if (json.code !== 200 || !json.data) {
+                const b = document.getElementById("coverageBanner");
+                if (b) b.style.display = "none";
+                return;
+            }
+            const d = json.data;
+            const banner = document.getElementById("coverageBanner");
+            if (!banner) return;
+            const pct = d.total > 0 ? d.rate : 100;
+            const color = pct >= 80 ? "#27ae60" : pct >= 50 ? "#f39c12" : "#e74c3c";
+            banner.innerHTML = `<strong>📊 接口覆盖率：</strong><span style="font-size:18px; font-weight:600; color:${color};">${d.total > 0 ? d.rate + '%' : '-'}</span>（${d.covered}/${d.total}）<span style="float:right; color:#667eea;">查看详情 →</span>`;
+        } catch (e) {
+            const banner = document.getElementById("coverageBanner");
+            if (banner) banner.style.display = "none";
+        }
     }
 
     async function loadCases(page = 1) {
         const keyword = document.getElementById("searchKeyword").value;
+        const tag = document.getElementById("searchTag").value;
         try {
-            const res = await httpGet(`/api/test/cases?page=${page}&page_size=${pageSize}&keyword=${encodeURIComponent(keyword)}`);
+            let url = `/api/test/cases?page=${page}&page_size=${pageSize}&keyword=${encodeURIComponent(keyword)}`;
+            if (tag) url += `&tag=${encodeURIComponent(tag)}`;
+            const res = await httpGet(url);
             const data = res.data || {};
             const cases = data.list || [];
             currentPage = data.page || 1;
@@ -104,6 +140,7 @@
                     <td><span class="badge badge-info">${c.module || '默认'}</span></td>
                     <td>${c.method}</td>
                     <td>${c.url}</td>
+                    <td><span style="font-size:12px; color:#666;">${c.tags || '-'}</span></td>
                     <td>
                         <button class="btn btn-primary" onclick="editCase(${c.id})">编辑</button>
                         <button class="btn btn-success" onclick="runSingle(${c.id})">执行</button>
@@ -115,6 +152,7 @@
             document.getElementById("pageInfo").innerText = `第 ${currentPage} 页 / 共 ${totalPages} 页 (共 ${total} 条)`;
             document.getElementById("prevBtn").disabled = currentPage <= 1;
             document.getElementById("nextBtn").disabled = currentPage >= totalPages;
+            loadCoverageStats();
         } catch (err) {
             showAlert("加载用例失败", "error");
         }
@@ -127,6 +165,7 @@
 
     function resetSearch() {
         document.getElementById("searchKeyword").value = "";
+        document.getElementById("searchTag").value = "";
         currentPage = 1;
         loadCases(1);
     }
@@ -158,7 +197,10 @@
             headers: document.getElementById("headers").value || "{}",
             body: document.getElementById("body").value || "{}",
             expect: document.getElementById("expect").value,
-            extract_var: document.getElementById("extract_var").value
+            extract_var: document.getElementById("extract_var").value,
+            timeout: parseInt(document.getElementById("timeout").value) || 10,
+            retry: parseInt(document.getElementById("retry").value) || 0,
+            tags: document.getElementById("tags").value || "",
         };
         try {
             if (editId) {
@@ -177,8 +219,10 @@
 
     function resetForm() {
         editId = null;
-        ["name", "url", "module", "headers", "body", "expect", "extract_var"].forEach(id => document.getElementById(id).value = "");
+        ["name", "url", "module", "headers", "body", "expect", "extract_var", "tags"].forEach(id => document.getElementById(id).value = "");
         document.getElementById("method").value = "GET";
+        document.getElementById("timeout").value = "10";
+        document.getElementById("retry").value = "0";
         document.getElementById("saveBtn").innerText = "保存用例";
         document.getElementById("cancelEditBtn").style.display = "none";
     }
@@ -206,6 +250,9 @@
             document.getElementById("body").value = caseData.body || "{}";
             document.getElementById("expect").value = caseData.expect || "";
             document.getElementById("extract_var").value = caseData.extract_var || "";
+            document.getElementById("timeout").value = caseData.timeout || 10;
+            document.getElementById("retry").value = caseData.retry || 0;
+            document.getElementById("tags").value = caseData.tags || "";
 
             document.getElementById("saveBtn").innerText = "更新用例";
             document.getElementById("cancelEditBtn").style.display = "inline-block";
@@ -234,7 +281,7 @@
         try {
             await fetch(`/api/test/case/${id}`, {
                 method: "DELETE",
-                headers: {"Authorization": "Bearer " + localStorage.getItem("token")}
+                headers: {"Authorization": "Bearer " + localStorage.getItem("access_token")}
             });
             showAlert("删除成功", "success");
             loadCases();
@@ -252,25 +299,19 @@
             return;
         }
 
-        showAlert(`正在并行执行 ${ids.length} 个用例...`, "info");
-        document.getElementById("result").innerHTML = '<span class="loading-spinner"></span><span class="loading-text">执行中，请稍候...</span>';
+        showAlert(`已提交 ${ids.length} 个用例到 Celery 执行`, "info");
+        document.getElementById("result").innerHTML = `<span class="loading-text">任务已提交，task_id 获取中...</span>`;
 
         try {
             const res = await httpPost("/api/test/batch/run", { ids: ids });
-
-            let output = `执行完成！共 ${res.data.length} 条结果：\n\n`;
-            res.data.forEach(item => {
-                const statusText = item.status === 'PASS' ? '[通过]' : (item.status === 'FAIL' ? '[失败]' : '[异常]');
-                output += `${statusText} [${item.name || item.case_id}] 状态: ${item.status} | 耗时: ${item.time || item.cost_time}s\n`;
-                if (item.msg) output += `   信息: ${item.msg}\n`;
-                if (item.error) output += `   错误: ${item.error}\n`;
-                output += "-----------------------------------\n";
-            });
-
-            document.getElementById("result").innerText = output;
-            showAlert("批量执行完毕", "success");
+            const task_id = res.data && res.data.task_id;
+            if (task_id) {
+                document.getElementById("result").innerHTML = `<span class="loading-text">批量任务已提交 (${task_id.slice(0, 8)}...)，<a href="/api/ai/task/${task_id}" target="_blank">查看进度</a></span>`;
+            } else {
+                document.getElementById("result").innerHTML = `<span class="loading-text">提交成功</span>`;
+            }
         } catch (err) {
-            showAlert("批量执行请求失败", "error");
+            document.getElementById("result").innerHTML = `<span style="color:red;">提交失败: ${err.message}</span>`;
         }
     }
 </script>

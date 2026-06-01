@@ -5,6 +5,13 @@
 {% block content %}
 <div class="card">
     <h3>性能压测报告</h3>
+    <div style="margin-bottom:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <input id="keyword" class="form-input" placeholder="搜索用例名称..." style="width:200px;">
+        <input id="startDate" class="form-input" type="text" placeholder="开始日期如 2026-04-22" style="width:180px;">
+        <input id="endDate" class="form-input" type="text" placeholder="结束日期如 2026-04-22" style="width:180px;">
+        <button class="btn btn-primary" onclick="search()">搜索</button>
+        <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
+    </div>
     <table class="table">
         <thead>
         <tr>
@@ -23,6 +30,11 @@
         </thead>
         <tbody id="reportList"></tbody>
     </table>
+    <div class="pagination" style="margin-top:12px;">
+        <button id="prevBtn" class="btn btn-secondary" onclick="prevPage()">上一页</button>
+        <span id="pageInfo" style="margin:0 12px;"></span>
+        <button id="nextBtn" class="btn btn-secondary" onclick="nextPage()">下一页</button>
+    </div>
 </div>
 
 <!-- 详情弹窗 -->
@@ -52,6 +64,9 @@
 {% block extra_js %}
 <script src="/static/js/echarts.min.js"></script>
 <script>
+    let currentPage = 1;
+    let totalPages = 1;
+
     window.onload = function () {
         checkLogin();
         loadReports();
@@ -59,18 +74,27 @@
 
     async function loadReports() {
         try {
-            const res = await httpGet("/api/performance/reports");
-            const list = res.data || [];
+            const kw = document.getElementById("keyword").value;
+            const sd = document.getElementById("startDate").value;
+            const ed = document.getElementById("endDate").value;
+            const params = new URLSearchParams({page: currentPage, page_size: 20});
+            if (kw) params.set("keyword", kw);
+            if (sd) params.set("start_date", sd);
+            if (ed) params.set("end_date", ed);
+            const res = await httpGet("/api/performance/reports?" + params.toString());
+            const data = res.data || {};
+            const list = data.list || data || [];
+            totalPages = data.total_pages || 1;
             let html = "";
 
             if (list.length === 0) {
-                html = '<tr><td colspan="10" style="text-align:center; padding:40px; color:#999;">暂无性能压测报告数据</td></tr>';
+                html = '<tr><td colspan="11" style="text-align:center; padding:40px; color:#999;">暂无性能压测报告数据</td></tr>';
             } else {
                 list.forEach((item, index) => {
                     const localTag = item.is_local ? '<span style="background:#ffc107; color:#856404; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600;">本机压测</span>' : '-';
                     html += `
                     <tr>
-                        <td>${index + 1}</td>
+                        <td>${(currentPage - 1) * 20 + index + 1}</td>
                         <td>${item.case_name}</td>
                         <td>${item.concurrency}</td>
                         <td>${item.total}</td>
@@ -86,11 +110,27 @@
             }
 
             document.getElementById("reportList").innerHTML = html;
+            const pageInfo = document.getElementById("pageInfo");
+            if (pageInfo) pageInfo.innerText = `第 ${currentPage} 页 / 共 ${totalPages} 页 (共 ${data.total} 条)`;
+            const prevBtn = document.getElementById("prevBtn");
+            const nextBtn = document.getElementById("nextBtn");
+            if (prevBtn) prevBtn.disabled = currentPage <= 1;
+            if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
         } catch (err) {
-            showAlert("加载性能报告失败", "error");
             console.error(err);
         }
     }
+
+    function search() { currentPage = 1; loadReports(); }
+    function resetSearch() {
+        document.getElementById("keyword").value = "";
+        document.getElementById("startDate").value = "";
+        document.getElementById("endDate").value = "";
+        currentPage = 1;
+        loadReports();
+    }
+    function prevPage() { if (currentPage > 1) { currentPage--; loadReports(); } }
+    function nextPage() { if (currentPage < totalPages) { currentPage++; loadReports(); } }
 
     async function showDetail(id) {
         try {

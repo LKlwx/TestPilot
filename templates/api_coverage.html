@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}接口覆盖率{% endblock %}
+{% block content %}
+<div class="container">
+    <h2>接口覆盖率</h2>
+
+    <div id="statsBar" style="display:flex; gap:20px; margin:16px 0; padding:16px; background:#f8f9fa; border-radius:8px;">
+        <div><strong>总计：</strong><span id="statTotal">0</span> 个接口</div>
+        <div><strong>已覆盖：</strong><span id="statCovered" style="color:#27ae60;">0</span></div>
+        <div><strong>未覆盖：</strong><span id="statUncovered" style="color:#e74c3c;">0</span></div>
+        <div><strong>覆盖率：</strong><span id="statRate" style="font-size:18px; font-weight:600;">0%</span></div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+        <button class="btn btn-info" onclick="showImportForm()">导入 Swagger</button>
+        <input id="keyword" class="form-input" placeholder="搜索接口路径..." style="width:300px; margin-left:12px;" oninput="loadList()">
+    </div>
+
+    <div id="importForm" style="display:none; margin-bottom:12px;">
+        <textarea id="swaggerInput" class="form-textarea" rows="8" placeholder="粘贴 Swagger/OpenAPI JSON 内容..."></textarea>
+        <br>
+        <button class="btn btn-primary" onclick="importSwagger()">导入</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importForm').style.display='none'">取消</button>
+    </div>
+
+    <table class="table">
+        <thead><tr><th>方法</th><th>路径</th><th>描述</th><th>状态</th><th>覆盖时间</th><th>操作</th></tr></thead>
+        <tbody id="coverageList"></tbody>
+    </table>
+    <div id="pagination"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPage = 1;
+
+    async function loadList() {
+        const kw = document.getElementById("keyword").value;
+        const res = await httpGet(`/api/test/coverage/api/list?page=${currentPage}&page_size=30&keyword=${encodeURIComponent(kw)}`);
+        const data = res.data;
+
+        document.getElementById("statTotal").textContent = data.total;
+        const statsRes = await httpGet("/api/test/coverage/api/stats");
+        const st = statsRes.data;
+        document.getElementById("statCovered").textContent = st.covered;
+        document.getElementById("statUncovered").textContent = st.total - st.covered;
+        document.getElementById("statRate").textContent = st.rate + "%";
+
+        const tbody = document.getElementById("coverageList");
+        tbody.innerHTML = (data.list || []).map(r => `
+            <tr>
+                <td><span class="badge ${r.method === 'GET' ? 'badge-info' : r.method === 'POST' ? 'badge-success' : 'badge-warning'}">${r.method}</span></td>
+                <td>${r.path}</td>
+                <td>${r.summary || '-'}</td>
+                <td>${r.is_covered ? '<span style="color:#27ae60;">已覆盖</span>' : '<span style="color:#e74c3c;">未覆盖</span>'}</td>
+                <td>${r.covered_time || '-'}</td>
+                <td><button class="btn btn-sm btn-danger" onclick="deleteRecord(${r.id})">删除</button></td>
+            </tr>
+        `).join("");
+    }
+
+    function showImportForm() {
+        document.getElementById("importForm").style.display = "block";
+    }
+
+    async function importSwagger() {
+        const text = document.getElementById("swaggerInput").value.trim();
+        if (!text) { showAlert("请粘贴 Swagger JSON", "warning"); return; }
+        try {
+            const json = JSON.parse(text);
+            const res = await httpPost("/api/test/coverage/api/import", json);
+            showAlert(res.msg || "导入成功", "success");
+            document.getElementById("importForm").style.display = "none";
+            document.getElementById("swaggerInput").value = "";
+            loadList();
+        } catch (err) {
+            showAlert("JSON 格式错误", "error");
+        }
+    }
+
+    async function deleteRecord(id) {
+        if (!confirm("确定删除该记录？")) return;
+        await httpDelete(`/api/test/coverage/api/${id}`);
+        loadList();
+    }
+
+    loadList();
+</script>
+{% endblock %}

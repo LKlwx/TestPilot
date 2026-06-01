@@ -6,16 +6,36 @@ import time
 from sqlalchemy.exc import SQLAlchemyError
 from core.logger import get_logger
 from core.execution_context import ExecutionContext
+from core.assert_engine import AssertEngine
 from config import Config
 
 TIMEOUT = Config.REQUEST_TIMEOUT
 
 logger = get_logger(__name__)
 
+# 复用 HTTP Session（Keep-Alive 连接池，减少 TCP 握手）
+_http_session = requests.Session()
+
 
 def execute_test_case(case, context=None):
     if context is None:
         context = ExecutionContext()
+    timeout = getattr(case, "timeout", TIMEOUT) or TIMEOUT
+    max_retries = getattr(case, "retry", 0) or 0
+    last_result = None
+
+    for attempt in range(max_retries + 1):
+        result = _do_execute(case, context, timeout)
+        if attempt < max_retries and result.get("status") in ("ERROR", "FAIL"):
+            logger.info("用例 %d 第 %d 次执行失败，准备重试", case.id, attempt + 1)
+            last_result = result
+            time.sleep(1)
+        else:
+            return result
+    return last_result
+
+
+def _do_execute(case, context, timeout):
     start_time = time.time()
     try:
         final_url = context.replace_placeholders(case.url)
@@ -29,16 +49,23 @@ def execute_test_case(case, context=None):
         try:
             body = json.loads(final_body) if final_body else None
         except (TypeError, json.JSONDecodeError):
-            body = None
+            raise ValueError(f"请求体 JSON 格式错误，请检查用例 Body 配置: {final_body[:200]}")
 
-        resp = requests.request(
+        resp = _http_session.request(
             method=case.method,
             url=final_url,
             headers=headers,
             json=body,
-            timeout=TIMEOUT
+            timeout=timeout
         )
         resp.encoding = 'utf-8'
+
+        # 标记接口覆盖
+        try:
+            from api.coverage import _mark_covered
+            _mark_covered(case.method, final_url, getattr(case, "creator_id", 0))
+        except Exception:
+            pass
 
         # 从响应中提取变量存入变量池
         if case.extract_var and "=" in case.extract_var:
@@ -59,11 +86,13 @@ def execute_test_case(case, context=None):
                 logger.error(f"变量提取失败: {str(e)}", exc_info=True)
 
         cost_time = round(time.time() - start_time, 3)
+
+        # 断言检查（使用 AssertEngine 支持多种断言类型）
         passed = True
         msg = ""
-        if case.expect and case.expect not in resp.text:
-            passed = False
-            msg = f"预期内容不存在：{case.expect}"
+        engine = AssertEngine(response=resp, cost_time=cost_time)
+        if case.expect:
+            passed, msg = engine.execute(case.expect)
 
         report = TestReport(
             case_id=case.id,
@@ -80,6 +109,12 @@ def execute_test_case(case, context=None):
         except SQLAlchemyError:
             db.session.rollback()
             raise
+
+        logger.info(json.dumps({
+            "event": "test_executed", "case_id": case.id,
+            "status": report.status, "duration_ms": round(cost_time * 1000),
+            "response_code": resp.status_code,
+        }, ensure_ascii=False))
 
         return {
             "status": report.status,
@@ -105,4 +140,9 @@ def execute_test_case(case, context=None):
             db.session.commit()
         except SQLAlchemyError:
             db.session.rollback()
+        logger.info(json.dumps({
+            "event": "test_executed", "case_id": case.id,
+            "status": "ERROR", "duration_ms": round(cost_time * 1000),
+            "error": str(e)[:200],
+        }, ensure_ascii=False))
         return {"status": "ERROR", "time": cost_time, "error": str(e)}

@@ -6,7 +6,7 @@ import numpy as np
 from urllib.parse import urlparse
 from sqlalchemy.exc import SQLAlchemyError
 from extensions import db
-from models import PerformanceReport, PerformanceDetail
+from models import PerformanceReport, PerformanceDetail, PerformanceBaseline
 from config import Config
 from core.logger import get_logger
 
@@ -175,14 +175,18 @@ async def _async_run(case):
         db.session.rollback()
         raise
 
-    logger.info(
-        "压测完成: case=%s, success=%d, fail=%d, qps=%s, p90=%s, p99=%s",
-        case.name, success, fail, qps, p90, p99,
-    )
+    logger.info("压测完成: case=%s, success=%d, fail=%d, qps=%s, p90=%s, p99=%s",
+        case.name, success, fail, qps, p90, p99)
+    logger.info(json.dumps({
+        "event": "perf_test_completed", "case_id": case.id,
+        "case_name": case.name, "status": "done",
+        "success": success, "fail": fail,
+        "qps": qps, "p90": p90, "p99": p99,
+        "ramp_steps": ramp_steps, "steady_duration": steady_duration,
+    }, ensure_ascii=False))
 
     # 对比基线
     degradation = None
-    from models import PerformanceBaseline
     baseline = db.session.query(PerformanceBaseline).filter_by(case_id=case.id).first()
     if baseline and baseline.p90:
         pct = round((p90 - baseline.p90) / baseline.p90 * 100, 1)

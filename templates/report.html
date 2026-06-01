@@ -5,11 +5,26 @@
 {% block content %}
 <div class="card">
     <h3>测试报告列表</h3>
+    <div class="search-area" style="margin:16px 0; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <input id="keyword" class="form-input" placeholder="搜索用例名称..." style="width:200px;">
+        <input id="moduleFilter" class="form-input" placeholder="模块如 登录模块" style="width:150px;">
+        <select id="statusFilter" class="form-select" style="width:120px;">
+            <option value="">全部状态</option>
+            <option value="PASS">通过</option>
+            <option value="FAIL">失败</option>
+            <option value="ERROR">异常</option>
+        </select>
+        <input id="startDate" class="form-input" type="text" placeholder="开始日期如 2026-04-22" style="width:180px;">
+        <input id="endDate" class="form-input" type="text" placeholder="结束日期如 2026-04-22" style="width:180px;">
+        <button class="btn btn-primary" onclick="search()">搜索</button>
+        <button class="btn btn-secondary" onclick="resetSearch()">重置</button>
+    </div>
     <table class="table">
         <thead>
         <tr>
             <th>序号</th>
             <th>用例名称</th>
+            <th>模块</th>
             <th>状态</th>
             <th>状态码</th>
             <th>耗时 (s)</th>
@@ -20,6 +35,11 @@
         </thead>
         <tbody id="reportList"></tbody>
     </table>
+    <div class="pagination" style="margin-top:12px;">
+        <button id="prevBtn" class="btn btn-secondary" onclick="prevPage()">上一页</button>
+        <span id="pageInfo" style="margin:0 12px;"></span>
+        <button id="nextBtn" class="btn btn-secondary" onclick="nextPage()">下一页</button>
+    </div>
 </div>
 
 <!-- 详情弹窗 -->
@@ -36,6 +56,9 @@
 
 {% block extra_js %}
 <script>
+    let currentPage = 1;
+    let totalPages = 1;
+
     window.onload = function () {
         checkLogin();
         loadReports();
@@ -43,19 +66,32 @@
 
     async function loadReports() {
         try {
-            const res = await httpGet("/api/test/reports/data");
-            const list = res.data || [];
+            const kw = document.getElementById("keyword").value;
+            const st = document.getElementById("statusFilter").value;
+            const md = document.getElementById("moduleFilter").value;
+            const sd = document.getElementById("startDate").value;
+            const ed = document.getElementById("endDate").value;
+            const params = new URLSearchParams({page: currentPage, page_size: 20});
+            if (kw) params.set("keyword", kw);
+            if (st) params.set("status", st);
+            if (md) params.set("module", md);
+            if (sd) params.set("start_date", sd);
+            if (ed) params.set("end_date", ed);
+            const res = await httpGet("/api/test/reports/data?" + params.toString());
+            const data = res.data || {};
+            const list = data.list || data || [];
+            totalPages = data.total_pages || 1;
+
             let html = "";
-            
             if (list.length === 0) {
                 html = '<tr><td colspan="8" style="text-align:center; padding:40px; color:#999;">暂无测试报告数据</td></tr>';
             } else {
                 list.forEach((item, index) => {
                     const statusClass = item.status === 'PASS' ? 'status-pass' : (item.status === 'FAIL' ? 'status-fail' : 'status-error');
-                    html += `
-                    <tr>
-                        <td>${index + 1}</td>
+                    html += `<tr>
+                        <td>${(currentPage - 1) * 20 + index + 1}</td>
                         <td>${item.case_name}</td>
+                        <td><span style="font-size:12px; color:#666;">${item.module || '-'}</span></td>
                         <td class="${statusClass}">${item.status}</td>
                         <td>${item.code}</td>
                         <td>${item.time}s</td>
@@ -66,11 +102,26 @@
                 });
             }
             document.getElementById("reportList").innerHTML = html;
+            document.getElementById("pageInfo").innerText = `第 ${currentPage} 页 / 共 ${totalPages} 页 (共 ${data.total} 条)`;
+            document.getElementById("prevBtn").disabled = currentPage <= 1;
+            document.getElementById("nextBtn").disabled = currentPage >= totalPages;
         } catch (err) {
             showAlert("加载报告失败", "error");
-            console.error(err);
         }
     }
+
+    function search() { currentPage = 1; loadReports(); }
+    function resetSearch() {
+        document.getElementById("keyword").value = "";
+        document.getElementById("statusFilter").value = "";
+        document.getElementById("moduleFilter").value = "";
+        document.getElementById("startDate").value = "";
+        document.getElementById("endDate").value = "";
+        currentPage = 1;
+        loadReports();
+    }
+    function prevPage() { if (currentPage > 1) { currentPage--; loadReports(); } }
+    function nextPage() { if (currentPage < totalPages) { currentPage++; loadReports(); } }
 
     async function showDetail(id) {
         try {
