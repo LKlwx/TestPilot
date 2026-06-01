@@ -1,6 +1,10 @@
 from flask import request
+from sqlalchemy.exc import SQLAlchemyError
 from models import SysOperationLog
 from extensions import db
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def add_operation_log(user_id, username, operation, detail, ip=None):
@@ -14,4 +18,8 @@ def add_operation_log(user_id, username, operation, detail, ip=None):
         detail=detail
     )
     db.session.add(log)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        logger.error("操作日志写入失败: operation=%s, user=%s", operation, username)

@@ -33,6 +33,7 @@
         <br>
         <button class="btn btn-info" id="showQpsBtn" style="display:none;" onclick="showQpsChart()">查看 QPS 曲线</button>
         <button class="btn btn-info" onclick="copyPerfReportDetail()">复制压测摘要</button>
+        <button class="btn btn-warning" onclick="setAsBaseline(window._currentReportId)">设为此用例基线</button>
         <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
     </div>
 </div>
@@ -95,11 +96,21 @@
         try {
             const res = await httpGet(`/api/performance/report/${id}`);
             window.currentPerfReportData = res.data;
+            window._currentReportId = id;
             const info = res.data;
 
             const localLabel = info.is_local ? '<span style="background:#ffc107; color:#856404; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; margin-left:8px;">⚠️ 本机压测（数据可能失真）</span>' : '';
+
+            // 退化标记
+            let degTag = "";
+            const deg = info.degradation;
+            if (deg) {
+                const colors = {severe:"#e74c3c",minor:"#f39c12",improved:"#27ae60",stable:"#95a5a6"};
+                degTag = `<span style="background:${colors[deg.level]}20; color:${colors[deg.level]}; padding:2px 10px; border-radius:4px; font-size:13px; font-weight:600; margin-left:8px;">${deg.label} (${deg.pct > 0 ? '+' : ''}${deg.pct}%)</span>`;
+            }
+
             document.getElementById("detailContent").innerHTML = `
-                <p><strong>用例名称：</strong>${info.case_name}${localLabel}</p>
+                <p><strong>用例名称：</strong>${info.case_name}${localLabel}${degTag}</p>
                 <p><strong>并发数：</strong>${info.concurrency}</p>
                 <p><strong>总请求：</strong>${info.total}</p>
                 <p><strong>成功：</strong>${info.success} ｜ <strong>失败：</strong>${info.fail}</p>
@@ -111,6 +122,7 @@
                 <p><strong>最小响应：</strong>${info.min_time ? info.min_time + 'ms' : '-'}</p>
                 <p><strong>最大响应：</strong>${info.max_time ? info.max_time + 'ms' : '-'}</p>
                 <p><strong>生成时间：</strong>${info.create_time}</p>
+                ${deg ? `<p style="margin-top:8px;"><strong>基线对比：</strong></p><table style="font-size:13px; border-collapse:collapse; margin-top:4px;"><tr style="background:#f5f5f5;"><th style="padding:4px 12px; border:1px solid #ddd;">指标</th><th style="padding:4px 12px; border:1px solid #ddd;">当前</th><th style="padding:4px 12px; border:1px solid #ddd;">基线</th></tr><tr><td style="padding:4px 12px; border:1px solid #ddd;">P90</td><td style="padding:4px 12px; border:1px solid #ddd;">${info.p90}ms</td><td style="padding:4px 12px; border:1px solid #ddd;">${deg.baseline_p90}ms</td></tr><tr><td style="padding:4px 12px; border:1px solid #ddd;">P99</td><td style="padding:4px 12px; border:1px solid #ddd;">${info.p99 || '-'}ms</td><td style="padding:4px 12px; border:1px solid #ddd;">${deg.baseline_p99 || '-'}ms</td></tr><tr><td style="padding:4px 12px; border:1px solid #ddd;">平均耗时</td><td style="padding:4px 12px; border:1px solid #ddd;">${info.avg_time}ms</td><td style="padding:4px 12px; border:1px solid #ddd;">${deg.baseline_avg || '-'}ms</td></tr></table>` : ''}
                 ${info.is_local ? '<p style="color:#856404; background:#fff7e6; padding:10px; border-radius:6px; margin-top:10px;"><strong>⚠️ 提醒：</strong>本测试针对本地服务发起，测得数据包含压测工具自身开销，仅供参考。</p>' : ''}
             `;
 
@@ -191,6 +203,16 @@
             myChart.resize();
             window._qpsChart = myChart;
         }, 100);
+    }
+
+    async function setAsBaseline(reportId) {
+        if (!confirm("确定将本次测试结果设为该用例的性能基线？")) return;
+        try {
+            const res = await httpPost(`/api/performance/report/${reportId}/baseline`, {});
+            showAlert(res.msg || "基线设置成功", "success");
+        } catch (err) {
+            showAlert("设置基线失败", "error");
+        }
     }
 
     function fallbackCopyTextToClipboard(text) {

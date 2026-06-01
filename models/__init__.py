@@ -177,6 +177,20 @@ class PerformanceDetail(db.Model):
     create_time = db.Column(db.DateTime, default=datetime.now)
 
 
+# 性能基线表：存储每次压测的基准值，用于对比判定性能退化
+class PerformanceBaseline(db.Model):
+    __tablename__ = "performance_baseline"
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.Integer, db.ForeignKey("performance_case.id", ondelete="CASCADE"), index=True, comment="关联用例ID")
+    report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id", ondelete="SET NULL"), comment="基线来源报告ID")
+    p90 = db.Column(db.Float, comment="基线 P90（主判据）")
+    p99 = db.Column(db.Float, comment="基线 P99")
+    avg_time = db.Column(db.Float, comment="基线平均耗时")
+    qps = db.Column(db.Float, comment="基线 QPS")
+    create_time = db.Column(db.DateTime, default=datetime.now, comment="基线创建时间")
+    update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now, comment="基线更新时间")
+
+
 # AI 智能测试任务记录表
 class AIAgentTask(db.Model):
     __tablename__ = "ai_agent_task"

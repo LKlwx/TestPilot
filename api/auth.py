@@ -5,7 +5,7 @@ from core.exception import AuthException, NotFoundException, APIException
 from core.response import success, error
 from models import TestCase, UICase, TestReport, UIReport, User, PerformanceReport, SysOperationLog, PerformanceCase, PerformanceDetail
 from service.user_service import check_user_password
-from extensions import db
+from extensions import db, cache
 from core.logger import get_logger
 from core.schema import validate_request
 from core.require_role import require_role
@@ -343,6 +343,7 @@ def delete_user(uid):
 # 数据统计大屏
 @auth_bp.route("/dashboard/data", methods=["GET"])
 @jwt_required()
+@cache.cached(timeout=60, key_prefix="dashboard_data")
 def dashboard_data():
     try:
         # 1. 用例统计（增加性能用例）

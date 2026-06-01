@@ -4,11 +4,14 @@ import asyncio
 import aiohttp
 import numpy as np
 from urllib.parse import urlparse
+from sqlalchemy.exc import SQLAlchemyError
 from extensions import db
 from models import PerformanceReport, PerformanceDetail
 from config import Config
+from core.logger import get_logger
 
 TIMEOUT = Config.REQUEST_TIMEOUT
+logger = get_logger(__name__)
 
 
 def is_local_url(url):
@@ -19,12 +22,18 @@ def is_local_url(url):
         if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
             return True
         return False
-    except:
+    except ValueError:
         return False
 
 
 # 异步压测引擎：asyncio + aiohttp，单线程管理高并发
 async def _async_run(case):
+    ramp_steps = getattr(case, "ramp_steps", 1) or 1
+    steady_duration = getattr(case, "steady_duration", 0) or 0
+    logger.info(
+        "压测开始: case=%s, url=%s, concurrency=%d, total=%d, ramp=%d, steady=%ds",
+        case.name, case.url, case.concurrency, case.total, ramp_steps, steady_duration,
+    )
     cost_list = []
     success = 0
     fail = 0
@@ -51,18 +60,20 @@ async def _async_run(case):
             for rt, sc, url in detail_buffer
         ]
         db.session.bulk_insert_mappings(PerformanceDetail, dicts)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
         detail_buffer.clear()
 
     headers = {}
     try:
         if case.headers and case.headers.strip():
             headers = json.loads(case.headers)
-    except:
+    except (TypeError, json.JSONDecodeError):
         headers = {}
 
-    ramp_steps = getattr(case, "ramp_steps", 1) or 1
-    steady_duration = getattr(case, "steady_duration", 0) or 0
     step_concurrency = max(1, case.concurrency // ramp_steps)
     step_total = case.total // ramp_steps
     remainder = case.total % ramp_steps
@@ -158,12 +169,45 @@ async def _async_run(case):
     report.p99 = p99
     report.success_rate = success_rate
     report.extra = json.dumps({"qps_series": qps_series}, ensure_ascii=False)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        raise
+
+    logger.info(
+        "压测完成: case=%s, success=%d, fail=%d, qps=%s, p90=%s, p99=%s",
+        case.name, success, fail, qps, p90, p99,
+    )
+
+    # 对比基线
+    degradation = None
+    from models import PerformanceBaseline
+    baseline = db.session.query(PerformanceBaseline).filter_by(case_id=case.id).first()
+    if baseline and baseline.p90:
+        pct = round((p90 - baseline.p90) / baseline.p90 * 100, 1)
+        if pct >= 20:
+            level = "severe"
+        elif pct >= 10:
+            level = "minor"
+        elif pct <= -20:
+            level = "improved"
+        else:
+            level = "stable"
+        degradation = {
+            "level": level,
+            "pct": pct,
+            "baseline_p90": round(baseline.p90, 2),
+            "baseline_p99": round(baseline.p99, 2) if baseline.p99 else None,
+            "baseline_avg": round(baseline.avg_time, 2) if baseline.avg_time else None,
+            "baseline_qps": round(baseline.qps, 2) if baseline.qps else None,
+        }
 
     return {
         "success": success, "fail": fail, "qps": qps,
         "avg_time": avg_time, "p90": p90, "p99": p99,
         "success_rate": success_rate,
+        "degradation": degradation,
     }
 
 

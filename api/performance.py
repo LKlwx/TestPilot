@@ -169,10 +169,74 @@ def report_detail(rid):
             "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S"),
             "extra": json.loads(report.extra) if report.extra else None,
         }
+
+        # 对比基线
+        from models import PerformanceBaseline
+        baseline = PerformanceBaseline.query.filter_by(case_id=report.case_id).first()
+        if baseline and baseline.p90:
+            pct = round((report.p90 - baseline.p90) / baseline.p90 * 100, 1) if baseline.p90 else 0
+            if pct >= 20:
+                level = "severe"
+                label = "严重退化"
+            elif pct >= 10:
+                level = "minor"
+                label = "轻微退化"
+            elif pct <= -20:
+                level = "improved"
+                label = "性能提升"
+            else:
+                level = "stable"
+                label = "无明显变化"
+            data["degradation"] = {
+                "level": level,
+                "label": label,
+                "pct": pct,
+                "baseline_p90": round(baseline.p90, 2),
+                "baseline_p99": round(baseline.p99, 2) if baseline.p99 else None,
+                "baseline_avg": round(baseline.avg_time, 2) if baseline.avg_time else None,
+                "baseline_qps": round(baseline.qps, 2) if baseline.qps else None,
+            }
+        else:
+            data["degradation"] = None
+
         return success(data=data)
     except Exception as e:
         logger.error("获取压测报告详情失败: %s", str(e), exc_info=True)
         return error("服务器内部错误，请查看日志")
+
+
+@performance_bp.route("/report/<int:rid>/baseline", methods=["POST"])
+@jwt_required()
+def set_baseline(rid):
+    try:
+        report = PerformanceReport.query.get(rid)
+        if not report:
+            return error("报告不存在")
+
+        from models import PerformanceBaseline
+        baseline = PerformanceBaseline.query.filter_by(case_id=report.case_id).first()
+        if baseline:
+            baseline.report_id = report.id
+            baseline.p90 = report.p90
+            baseline.p99 = report.p99
+            baseline.avg_time = report.avg_time
+            baseline.qps = report.qps
+        else:
+            baseline = PerformanceBaseline(
+                case_id=report.case_id,
+                report_id=report.id,
+                p90=report.p90,
+                p99=report.p99,
+                avg_time=report.avg_time,
+                qps=report.qps,
+            )
+            db.session.add(baseline)
+        db.session.commit()
+        return success(msg="基线设置成功")
+    except Exception as e:
+        logger.error("设置基线失败: %s", str(e), exc_info=True)
+        return error("服务器内部错误，请查看日志")
+
 
 # 删除用例
 @performance_bp.route("/case/<int:cid>", methods=["DELETE"])

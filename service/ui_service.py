@@ -1,5 +1,6 @@
 import os
 import time
+from sqlalchemy.exc import SQLAlchemyError
 from extensions import db
 from models import UIReport
 from selenium import webdriver
@@ -7,6 +8,20 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
+from core.logger import get_logger
+
+logger = get_logger(__name__)
+
+# 元素定位方式映射表（模块级常量）
+BY_MAP = {
+    "id": By.ID,
+    "name": By.NAME,
+    "xpath": By.XPATH,
+    "css": By.CSS_SELECTOR,
+    "linkText": By.LINK_TEXT,
+    "className": By.CLASS_NAME,
+}
 
 
 def parse_steps(steps_text):
@@ -68,32 +83,16 @@ def parse_steps(steps_text):
 
 def find_element(driver, locator_type, value):
     """统一查找元素"""
-    by_map = {
-        "id": By.ID,
-        "name": By.NAME,
-        "xpath": By.XPATH,
-        "css": By.CSS_SELECTOR,
-        "linkText": By.LINK_TEXT,
-        "className": By.CLASS_NAME
-    }
-    by = by_map.get(locator_type, By.XPATH)
+    by = BY_MAP.get(locator_type, By.XPATH)
     return driver.find_element(by, value)
 
 
 def run_ui_case(case):
+    logger.info("UI 测试开始: case_id=%d, name=%s", case.id, case.name)
     start_time = time.time()
     step_log = []
     title = ""
 
-    # 定义定位方式映射
-    by_map = {
-        "id": By.ID,
-        "name": By.NAME,
-        "xpath": By.XPATH,
-        "css": By.CSS_SELECTOR,
-        "linkText": By.LINK_TEXT,
-        "className": By.CLASS_NAME
-    }
     try:
         chrome_options = Options()
         chrome_options.add_argument("--headless=new")
@@ -129,7 +128,7 @@ def run_ui_case(case):
                 try:
                     if action == "click":
                         elem = WebDriverWait(driver, 10).until(
-                            EC.element_to_be_clickable((by_map.get(locator_type, By.XPATH), params))
+                            EC.element_to_be_clickable((BY_MAP.get(locator_type, By.XPATH), params))
                         )
                         elem.click()
                         step_log.append(f"步骤{i}：点击 [{locator_type}] {params}")
@@ -147,7 +146,7 @@ def run_ui_case(case):
                             input_content = parts[1]
                         
                         elem = WebDriverWait(driver, 10).until(
-                            EC.visibility_of_element_located((by_map.get(locator_type, By.XPATH), locator_val.strip()))
+                            EC.visibility_of_element_located((BY_MAP.get(locator_type, By.XPATH), locator_val.strip()))
                         )
                         elem.clear()
                         elem.send_keys(input_content)
@@ -167,7 +166,7 @@ def run_ui_case(case):
                         selector = parts[0]
                         timeout = int(parts[1]) if len(parts) > 1 else 5
                         WebDriverWait(driver, timeout).until(
-                            EC.presence_of_element_located((by_map.get(locator_type, By.CSS_SELECTOR), selector))
+                            EC.presence_of_element_located((BY_MAP.get(locator_type, By.CSS_SELECTOR), selector))
                         )
                         step_log.append(f"步骤{i}：等待元素 {selector}")
 
@@ -186,8 +185,8 @@ def run_ui_case(case):
                                     EC.text_to_be_present_in_element((By.TAG_NAME, "body"), params)
                                 )
                                 step_log.append(f"步骤{i}：断言页面包含文本 '{params}'")
-                            except:
-                                raise Exception(f"文本断言失败：页面未找到 '{params}'")
+                            except TimeoutException as e:
+                                raise Exception(f"文本断言失败：页面未找到 '{params}'") from e
                     time.sleep(0.3)
 
                 except Exception as e:
@@ -199,6 +198,7 @@ def run_ui_case(case):
         error_msg = "\n".join(step_log)
 
     except Exception as e:
+        logger.error("UI 测试失败: case_id=%d, error=%s", case.id, str(e), exc_info=True)
         status = "FAIL"
         error_msg = f"异常：{str(e)}\n\n详细步骤：\n" + "\n".join(step_log)
         # 保存失败截图
@@ -211,12 +211,13 @@ def run_ui_case(case):
             driver.save_screenshot(filepath)
             step_log.append(f"已保存失败截图: {filepath}")
         except Exception as se:
+            logger.warning("UI 截图失败: %s", str(se))
             step_log.append(f"截图失败: {str(se)}")
 
         try:
             driver.quit()
-        except:
-            pass
+        except Exception:
+            logger.warning("关闭浏览器失败", exc_info=True)
 
     cost_time = round(time.time() - start_time, 3)
 
@@ -228,7 +229,13 @@ def run_ui_case(case):
         error_msg=error_msg
     )
     db.session.add(report)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        raise
+
+    logger.info("UI 测试完成: case_id=%d, status=%s, cost=%.2fs", case.id, status, cost_time)
 
     return {
         "status": status,

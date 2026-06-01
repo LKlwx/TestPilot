@@ -3,6 +3,7 @@ import json
 from models import TestReport
 from extensions import db
 import time
+from sqlalchemy.exc import SQLAlchemyError
 from core.logger import get_logger
 from core.execution_context import ExecutionContext
 from config import Config
@@ -22,12 +23,12 @@ def execute_test_case(case, context=None):
 
         try:
             headers = json.loads(case.headers) if case.headers else {}
-        except:
+        except (TypeError, json.JSONDecodeError):
             headers = {}
 
         try:
             body = json.loads(final_body) if final_body else None
-        except:
+        except (TypeError, json.JSONDecodeError):
             body = None
 
         resp = requests.request(
@@ -74,7 +75,11 @@ def execute_test_case(case, context=None):
             error_msg=msg
         )
         db.session.add(report)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
 
         return {
             "status": report.status,
@@ -96,5 +101,8 @@ def execute_test_case(case, context=None):
             error_msg=str(e)
         )
         db.session.add(report)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
         return {"status": "ERROR", "time": cost_time, "error": str(e)}

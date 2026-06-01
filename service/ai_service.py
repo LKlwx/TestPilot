@@ -1,29 +1,80 @@
 import json
+from sqlalchemy.exc import SQLAlchemyError
 from extensions import db
 from models import AIAgentTask, TestCase, UICase
 from agent.ai_agent_core import ai_agent
+from core.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class AIService:
     """AI 业务层：封装 AI 能力调用与持久化逻辑"""
     @staticmethod
     def generate_api(scene, user_id):
-        """生成接口用例并记录任务"""
-        res = ai_agent.generate_api_case(scene)
+        logger.info("AI 生成接口用例: scene=%s, user_id=%d", scene[:50], user_id)
+        try:
+            res = ai_agent.generate_api_case(scene)
+        except Exception as e:
+            logger.error("AI 生成接口用例失败: %s", str(e), exc_info=True)
+            raise
         task = AIAgentTask(task_type="generate_api", input_content=scene,
                            output_result=str(res), creator_id=user_id)
         db.session.add(task)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
         return res
 
     @staticmethod
     def generate_ui(scene, user_id):
-        """生成 UI 用例并记录任务"""
+        logger.info("AI 生成 UI 用例: scene=%s, user_id=%d", scene[:50], user_id)
+        try:
+            res = ai_agent.generate_ui_case(scene)
+        except Exception as e:
+            logger.error("AI 生成 UI 用例失败: %s", str(e), exc_info=True)
+            raise
+        task = AIAgentTask(task_type="generate_ui", input_content=scene,
+                           output_result=str(res), creator_id=user_id)
+        db.session.add(task)
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
+        return res
+
+    @staticmethod
+    def analyze_log(log, user_id):
+        logger.info("AI 分析日志: user_id=%d, log_len=%d", user_id, len(log))
+        try:
+            res = ai_agent.analyze_failure_log(log)
+        except Exception as e:
+            logger.error("AI 分析日志失败: %s", str(e), exc_info=True)
+            raise
+        task = AIAgentTask(task_type="analyze_failure", input_content=log,
+                           output_result=res, creator_id=user_id)
+        db.session.add(task)
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
+        return res
+
+    @staticmethod
+    def generate_ui(scene, user_id):
         res = ai_agent.generate_ui_case(scene)
         task = AIAgentTask(task_type="generate_ui", input_content=scene,
                            output_result=str(res), creator_id=user_id)
         db.session.add(task)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
         return res
 
     @staticmethod
@@ -33,12 +84,16 @@ class AIService:
         task = AIAgentTask(task_type="analyze_failure", input_content=log,
                            output_result=res, creator_id=user_id)
         db.session.add(task)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
         return res
 
     @staticmethod
     def save_api(data, user_id):
-        """保存生成的接口用例到数据库（自动序列化字典字段）"""
+        logger.info("AI 保存接口用例: name=%s, user_id=%d", data.get("name", ""), user_id)
         headers = data.get("headers", {})
         body = data.get("body", {})
         if isinstance(headers, dict):
@@ -49,15 +104,23 @@ class AIService:
                         headers=headers, body=body,
                         expect=data.get("expect"), creator_id=user_id)
         db.session.add(case)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
 
     @staticmethod
     def save_ui(data, user_id):
-        """保存生成的 UI 用例到数据库"""
+        logger.info("AI 保存 UI 用例: name=%s, user_id=%d", data.get("name", ""), user_id)
         ui = UICase(name=data["name"], url=data["url"], steps=data.get("steps", ""),
                     creator_id=user_id)
         db.session.add(ui)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            raise
 
     @staticmethod
     def get_history(task_type, user_id, limit=20):

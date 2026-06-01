@@ -5,7 +5,7 @@ from config import config
 from core.exception import APIException
 from core.middleware import register_middleware
 from core.response import error
-from extensions import db, login_manager, jwt, migrate
+from extensions import db, login_manager, jwt, migrate, cache
 from core.blocklist import is_blocklisted
 from api.auth import auth_bp
 from api.test import test_bp
@@ -36,6 +36,13 @@ def create_app(config_name="default"):
         CORS(app, origins="*", supports_credentials=True)
     else:
         CORS(app, origins=config_class.CORS_ORIGINS, supports_credentials=True)
+
+    # 初始化缓存（使用 Redis，Dashboard 数据 60s 过期）
+    cache.init_app(app, config={
+        "CACHE_TYPE": "RedisCache",
+        "CACHE_REDIS_URL": config_class.REDIS_URL,
+        "CACHE_DEFAULT_TIMEOUT": 60,
+    })
 
     @login_manager.user_loader
     def user_loader(user_id):
