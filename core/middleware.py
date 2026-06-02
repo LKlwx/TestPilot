@@ -7,9 +7,10 @@ from flask_jwt_extended import get_jwt_identity
 def register_middleware(app):
     @app.before_request
     def before_request():
-        # 全局限流检查（兜底）
-        if not global_limiter.is_allowed():
-            return jsonify({"code": 429, "msg": "全局限流触发：请求过于频繁，请稍后再试"}), 429
+        # 全局限流（本地请求不计入，避免本机压测数据失真）
+        if request.remote_addr not in ("127.0.0.1", "::1", "localhost"):
+            if not global_limiter.is_allowed():
+                return jsonify({"code": 429, "msg": "全局限流触发：请求过于频繁，请稍后再试"}), 429
 
         # IP 级限流：200 req/min（本地 IP 不限，自压测不影响）
         if request.remote_addr not in ("127.0.0.1", "::1", "localhost"):

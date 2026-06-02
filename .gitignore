@@ -29,6 +29,10 @@ core/logs/
 .coverage
 htmlcov/
 
+# Allure 报告
+allure-results/
+allure-report/
+
 # 系统文件
 .DS_Store
 Thumbs.db

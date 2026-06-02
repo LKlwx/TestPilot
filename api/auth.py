@@ -430,15 +430,15 @@ def dashboard_data():
         all_pass_rate = round(passed_total / total_with_pass * 100, 1) if total_with_pass > 0 else 0
         api_rate = round(passed_api / total_api * 100, 1) if total_api > 0 else 0
 
-        # 6. 标签分布统计
-        all_cases = TestCase.query.with_entities(TestCase.tags).all()
+        # 6. 标签分布统计（接口 + UI + 性能）
         tag_count = {}
-        for (tags_str,) in all_cases:
-            if tags_str:
-                for t in tags_str.split(","):
-                    t = t.strip()
-                    if t:
-                        tag_count[t] = tag_count.get(t, 0) + 1
+        for model in [TestCase, UICase, PerformanceCase]:
+            for (tags_str,) in model.query.with_entities(model.tags).all():
+                if tags_str:
+                    for t in tags_str.split(","):
+                        t = t.strip()
+                        if t:
+                            tag_count[t] = tag_count.get(t, 0) + 1
         tag_stats = [{"name": k, "value": v} for k, v in sorted(tag_count.items(), key=lambda x: -x[1])]
 
         return success({

@@ -37,7 +37,7 @@ graph TD
 - 后端：Python 3.14 + Flask
 - 数据库：SQLite
 - ORM：Flask-SQLAlchemy + Flask-Migrate（数据库迁移）
-- 身份认证：Flask-JWT-Extended（双Token无感刷新）、Flask-Login
+- 身份认证：Flask-JWT-Extended（双Token无感刷新）
 - 异步任务：Celery + Redis（异步任务队列）
 - 参数校验：marshmallow 4.x（Schema 声明式校验）
 - 前端：HTML + CSS + JavaScript + ECharts
@@ -45,6 +45,7 @@ graph TD
 - UI 自动化：Selenium（无头模式）
 - 性能测试：asyncio + aiohttp 协程引擎
 - AI 模块：本地大模型集成（LM Studio + Qwen3.5 9B）
+- 测试报告：allure-pytest（Allure 可视化测试报告，含步骤追踪、截图附件、历史趋势）
 - 其他：系统操作日志、统一响应封装、全局异常捕获、分级日志体系（DEBUG/INFO/ERROR）、Redis 缓存加速（Dashboard 60s 缓存）
 
 ## 项目结构
@@ -76,6 +77,9 @@ TestPilot/
 ├── tests/             # 单元测试目录
 │   ├── __init__.py
 │   └── test_core.py
+├── scripts/           # 辅助脚本
+│   └── generate_allure_report.py  # Allure 报告生成（含历史趋势）
+├── pytest.ini         # pytest + Allure 配置
 ├── api/              # 接口路由层
 │   ├── schemas.py    # API 请求参数校验 Schema（marshmallow）
 │   ├── auth.py       # 用户、权限、控制台接口
@@ -117,7 +121,7 @@ TestPilot/
 ```
 
 ## 数据模型说明
-项目共设计 15 张核心数据表，全部持久化存储：
+项目共设计 16 张核心数据表，全部持久化存储：
 1. **User**：用户信息、角色、密码
 2. **TestCase**：接口测试用例
 3. **TestReport**：接口测试报告
@@ -133,6 +137,7 @@ TestPilot/
 13. **BatchTask**：批量执行批次记录（汇总数据：总用例数、通过/失败数）
 14. **BatchResult**：批量执行明细记录（每个用例的执行结果与耗时）
 15. **PerformanceBaseline**：性能基线数据（按用例存储 P90/P99/Avg/QPS，用于退化对比判定）
+16. **ApiCoverage**：接口覆盖率数据（从 Swagger/OpenAPI 导入接口列表，执行时自动标记覆盖状态）
 
 ## 本地运行方式
 1. 进入项目根目录
@@ -181,9 +186,18 @@ TestPilot/
    ```
     > **注意**：密钥配置通过 `.env` 文件后，启动命令无需再传入 `SECRET_KEY=xxx`。`FLASK_ENV` 也可以通过 `.env` 文件设置，或通过命令动态覆盖。
 8. 访问地址
-   ```
-   http://127.0.0.1:5000
-   ```
+    ```
+    http://127.0.0.1:5000
+    ```
+9. 运行单元测试并生成 Allure 报告
+    ```bash
+    # 执行测试并生成 Allure 结果文件
+    pytest tests/ --alluredir=allure-results --clean-alluredir
+
+    # 生成带历史趋势的可视化报告
+    python scripts/generate_allure_report.py
+    ```
+    > Allure 报告入口：打开 `allure-report/index.html` 即可在浏览器中查看。每次生成会自动保留上一轮的 history 数据，报告中能看到通过率与耗时的历史趋势图。
 
 ## Docker 容器化部署
 1. 确保已安装 Docker Desktop
@@ -314,7 +328,7 @@ TestPilot/
   - **智能传参适配**：根据 Headers 中 `Content-Type` 自动判断使用 `json=` 还是 `data=`，修复 JSON 接口传参错误。
   - **P90/P99 长尾延迟**：引入 numpy 计算长尾延迟与成功率，突破单一 QPS 指标局限。
   - **压测明细追踪与自动清理**：PerformanceDetail 表记录每次请求耗时，支持 Top 5 慢接口动态分析；Celery Beat 每天自动清理过期明细，PERF_DETAIL_RETENTION_DAYS 可配置。
-  - **限流豁免**：压测本地服务时自动跳过 IP 级限流，避免自压测被 429 阻塞。
+  - **限流豁免**：压测本地服务时自动跳过所有限流层，避免自压测被 429 阻塞。
   - **全功能交互完善**：性能模块新增用例在线编辑功能，实现与接口/UI 模块体验统一。
 
 ### 6. 日志与监控体系
@@ -337,3 +351,11 @@ TestPilot/
   - 通过 `requests` 调用 LM Studio OpenAI 兼容接口，实现本地模型推理
   - 健壮的 JSON 解析机制：支持 Markdown 代码块提取、中文键自动映射、容错降级
   - 配置集中管理：模型地址与名称统一在 `config.py` 中维护，支持 `.env` 文件覆盖，切换模型无需改代码
+
+### 8. Allure 测试报告集成
+- 基于 allure-pytest 实现可视化测试报告，`pytest.ini` 中预配置 `--alluredir` 参数，开箱即用
+- **feature / story 分层标注**：核心模块按功能域拆分为 `AssertEngine`、`BaseHTTPClient`、`BasePage`、`ExecutionContext` 等独立 feature，Allure 报告左侧自动展示层级导航树
+- **步骤层级化追踪**：接口测试包裹"变量替换 → 发送请求 → 断言校验"三步，UI 测试包裹点击/输入/回车/等待/标题断言/文本断言六种操作，每个 step 独立计时可精确定位耗时瓶颈
+- **失败自动附件**：接口测试失败时自动附加响应体与断言错误信息，UI 测试失败时自动附加失败截图（`allure.attachment_type.PNG`），问题复现无需二次执行
+- **历史趋势保留**：`scripts/generate_allure_report.py` 在每次生成报告前自动将上一轮的 `history` 目录迁移到结果目录，确保报告中能看到通过率与耗时的历史趋势曲线
+- **无 Allure 环境兼容**：Service 层通过 `_allure_step()` 上下文管理器封装，未安装 Allure 时静默降级为普通执行，不影响核心测试功能

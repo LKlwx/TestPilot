@@ -220,17 +220,29 @@
             })
 
             const tagStats = d.tag_stats || [];
-            if (tagStats.length > 0 && tagChart) {
-                const colors = ["#5470c6","#91cc75","#fac858","#ee6666","#73c0de","#3ba272","#fc8452","#9a60b4"];
-                tagChart.setOption({
-                    title: { text: "用例标签分布", left: "center", textStyle: { fontSize: 14 } },
-                    tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
-                    series: [{
-                        type: "pie", radius: ["40%", "70%"], center: ["50%", "55%"],
-                        data: tagStats.map((t, i) => ({ ...t, itemStyle: { color: colors[i % colors.length] } })),
-                        label: { formatter: "{b}\n{d}%" },
-                    }],
-                });
+            if (tagChart) {
+                if (tagStats.length > 0) {
+                    const colors = ["#5470c6","#91cc75","#fac858","#ee6666","#73c0de","#3ba272","#fc8452","#9a60b4"];
+                    tagChart.setOption({
+                        title: { text: "用例标签分布", left: "center", textStyle: { fontSize: 14 } },
+                        tooltip: { trigger: "item", formatter: "{b}: {c} ({d}%)" },
+                        graphic: [],
+                        series: [{
+                            type: "pie", radius: ["40%", "70%"], center: ["50%", "55%"],
+                            data: tagStats.map((t, i) => ({ ...t, itemStyle: { color: colors[i % colors.length] } })),
+                            label: { formatter: "{b}\n{d}%" },
+                        }],
+                    });
+                } else {
+                    tagChart.setOption({
+                        title: { text: "用例标签分布", left: "center", textStyle: { fontSize: 14 } },
+                        graphic: [{
+                            type: "text", left: "center", top: "center",
+                            style: { text: "暂无标签数据", fontSize: 14, fill: "#94a3b8" },
+                        }],
+                        series: [],
+                    });
+                }
             }
         } catch (err) {
             console.error("Dashboard Error:", err);

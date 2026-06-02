@@ -14,6 +14,16 @@ from selenium.common.exceptions import TimeoutException
 from core.base_page import BasePage
 from core.logger import get_logger
 
+
+@contextmanager
+def _allure_step(name: str):
+    try:
+        import allure
+        with allure.step(name):
+            yield
+    except ImportError:
+        yield
+
 logger = get_logger(__name__)
 
 # 项目根目录（用于截图路径等）
@@ -127,7 +137,8 @@ def run_ui_case(case):
 
                     try:
                         if action == "click":
-                            page.click(locator_type, params)
+                            with _allure_step(f"点击 [{locator_type}] {params}"):
+                                page.click(locator_type, params)
                             step_log.append(f"步骤{i}：点击 [{locator_type}] {params}")
 
                         elif action == "input":
@@ -139,35 +150,40 @@ def run_ui_case(case):
                                 parts = params.split(" ", 1)
                                 locator_val = parts[0]
                                 input_content = parts[1]
-                            page.input_text(locator_type, locator_val.strip(), input_content)
+                            with _allure_step(f"输入 [{locator_type}] {locator_val} = {input_content}"):
+                                page.input_text(locator_type, locator_val.strip(), input_content)
                             step_log.append(f"步骤{i}：输入 [{locator_type}] {locator_val} = {input_content}")
 
                         elif action == "enter":
-                            page.press_enter(locator_type, params)
+                            with _allure_step(f"按回车键 [{locator_type}] {params}"):
+                                page.press_enter(locator_type, params)
                             step_log.append(f"步骤{i}：按回车键")
 
                         elif action == "wait":
-                            parts = params.split()
-                            selector = parts[0]
-                            try:
-                                timeout = int(parts[1]) if len(parts) > 1 else 5
-                            except (ValueError, IndexError):
-                                raise Exception(f"wait 超时格式错误，应为 'selector 秒数'，实际：{params}")
-                            page.wait_for_visible(locator_type, selector, timeout=timeout)
+                            with _allure_step(f"等待 [{locator_type}] {params}"):
+                                parts = params.split()
+                                selector = parts[0]
+                                try:
+                                    timeout = int(parts[1]) if len(parts) > 1 else 5
+                                except (ValueError, IndexError):
+                                    raise Exception(f"wait 超时格式错误，应为 'selector 秒数'，实际：{params}")
+                                page.wait_for_visible(locator_type, selector, timeout=timeout)
                             step_log.append(f"步骤{i}：等待元素 {selector}")
 
                         elif action == "assert_title":
-                            if params not in title:
-                                raise Exception(f"标题断言失败：期望包含 '{params}'")
+                            with _allure_step(f"断言标题包含 '{params}'"):
+                                if params not in title:
+                                    raise Exception(f"标题断言失败：期望包含 '{params}'")
                             step_log.append(f"步骤{i}：断言标题包含 '{params}'")
 
                         elif action == "assert_text":
-                            if params:
-                                try:
-                                    page.wait_for_text(params, timeout=5)
-                                    step_log.append(f"步骤{i}：断言页面包含文本 '{params}'")
-                                except TimeoutException as e:
-                                    raise Exception(f"文本断言失败：页面未找到 '{params}'") from e
+                            with _allure_step(f"断言页面包含文本 '{params}'"):
+                                if params:
+                                    try:
+                                        page.wait_for_text(params, timeout=5)
+                                        step_log.append(f"步骤{i}：断言页面包含文本 '{params}'")
+                                    except TimeoutException as e:
+                                        raise Exception(f"文本断言失败：页面未找到 '{params}'") from e
 
                     except Exception as e:
                         step_log.append(f"步骤{i}失败 [{action}] [{locator_type}] {params} -> {str(e)}")
@@ -190,6 +206,13 @@ def run_ui_case(case):
                 filepath = os.path.join(screenshots_dir, filename)
                 driver.save_screenshot(filepath)
                 step_log.append(f"已保存失败截图: {filepath}")
+                try:
+                    import allure
+                    allure.attach(driver.get_screenshot_as_png(),
+                                  name="ui_failure_screenshot",
+                                  attachment_type=allure.attachment_type.PNG)
+                except Exception:
+                    pass
             except Exception as se:
                 logger.warning("UI 截图失败: %s", str(se))
                 step_log.append(f"截图失败: {str(se)}")

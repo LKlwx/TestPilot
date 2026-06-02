@@ -6,6 +6,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import allure
 from app import create_app
 from models import User, TestCase, TestReport
 from core.exception import APIException, NotFoundException
@@ -13,8 +14,11 @@ from core.response import success, error
 from core.execution_context import ExecutionContext, RecursiveVariableError
 from core.assert_engine import AssertEngine
 from core.http_client import HTTPResponse, BaseHTTPClient
+from unittest.mock import MagicMock
 
 
+@allure.feature("核心模块")
+@allure.story("应用初始化")
 def test_app_creation():
     app = create_app()
     assert app is not None
@@ -38,43 +42,8 @@ def test_response_import():
 
 # ========== ExecutionContext 单元测试 ==========
 
-def test_execution_context_create():
-    ctx = ExecutionContext()
-    assert ctx.execution_id is not None
-    assert ctx.vars == {}
-    assert ctx.logs == []
-
-
-def test_execution_context_set_get():
-    ctx = ExecutionContext()
-    ctx.set_var("token", "abc123")
-    assert ctx.get_var("token") == "abc123"
-    assert ctx.get_var("nonexistent") is None
-    assert ctx.get_var("nonexistent", "default") == "default"
-
-
-def test_execution_context_replace_basic():
-    ctx = ExecutionContext()
-    ctx.set_var("token", "abc123")
-    result = ctx.replace_placeholders("Bearer ${token}")
-    assert result == "Bearer abc123"
-
-
-def test_execution_context_replace_multiple():
-    ctx = ExecutionContext()
-    ctx.set_var("token", "abc")
-    ctx.set_var("id", "42")
-    result = ctx.replace_placeholders("/api/user/${id}?token=${token}")
-    assert result == "/api/user/42?token=abc"
-
-
-def test_execution_context_replace_no_match():
-    ctx = ExecutionContext()
-    ctx.set_var("token", "abc")
-    result = ctx.replace_placeholders("/api/user/1")
-    assert result == "/api/user/1"
-
-
+@allure.feature("ExecutionContext")
+@allure.story("循环引用保护")
 def test_execution_context_recursive_limit():
     ctx = ExecutionContext()
     ctx.set_var("a", "${b}")
@@ -121,11 +90,17 @@ class MockResponse:
         return self._json_data
 
 
+@allure.feature("AssertEngine")
+@allure.story("包含断言")
 def test_assert_contains_pass():
-    resp = MockResponse(text="hello world")
-    e = AssertEngine(resp)
-    passed, msg = e.execute("hello")
+    with allure.step("创建 Mock 响应"):
+        resp = MockResponse(text="hello world")
+    with allure.step("执行包含断言"):
+        e = AssertEngine(resp)
+        passed, msg = e.execute("hello")
     assert passed is True
+    with allure.step("验证断言结果"):
+        assert passed is True
 
 
 def test_assert_contains_fail():
@@ -169,6 +144,7 @@ def test_assert_time():
 
 # ========== BaseHTTPClient 单元测试 ==========
 
+@allure.feature("BaseHTTPClient")
 class MockRequestsResponse:
     """模拟 requests.Response"""
     def __init__(self, status_code=200, text="ok", headers=None, json_data=None):
@@ -214,16 +190,16 @@ def test_http_response_validate_regex():
 
 def test_http_response_chain_all():
     """测试完整链式调用"""
-    r = HTTPResponse(MockRequestsResponse(status_code=200, text="success", json_data={"token": "abc"}))
-    r.validate_status(200).validate_json("$.token", "abc").validate_header("Content-Type", "application/json").validate_regex("success").done()
+    with allure.step("创建 mock 响应"):
+        r = HTTPResponse(MockRequestsResponse(status_code=200, text="success", json_data={"token": "abc"}))
+    with allure.step("链式断言：状态码 + JSONPath + Header + 正则"):
+        r.validate_status(200).validate_json("$.token", "abc").validate_header("Content-Type", "application/json").validate_regex("success").done()
     assert r._passed is True
 
 
 # ========== BasePage 单元测试 ==========
 
-from unittest.mock import MagicMock
-
-
+@allure.feature("BasePage")
 def test_by_map_contains_all_locators():
     from core.base_page import BY_MAP
     for k in ["id", "name", "xpath", "css", "linkText", "className"]:

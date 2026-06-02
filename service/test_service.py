@@ -1,4 +1,5 @@
 import json
+from contextlib import contextmanager
 from models import TestReport
 from extensions import db
 import time
@@ -12,6 +13,18 @@ from config import Config
 TIMEOUT = Config.REQUEST_TIMEOUT
 
 logger = get_logger(__name__)
+
+
+@contextmanager
+def _allure_step(name: str):
+    """条件式 allure.step，无 allure 环境时静默跳过"""
+    try:
+        import allure
+        with allure.step(name):
+            yield
+    except ImportError:
+        yield
+
 
 # HTTP 客户端（BaseHTTPClient 封装了 Session + 拦截器 + 链式断言 + 全链路日志）
 _http_client = BaseHTTPClient(timeout=TIMEOUT)
@@ -38,8 +51,9 @@ def execute_test_case(case, context=None):
 def _do_execute(case, context, timeout):
     start_time = time.time()
     try:
-        final_url = context.replace_placeholders(case.url)
-        final_body = context.replace_placeholders(case.body)
+        with _allure_step("变量替换"):
+            final_url = context.replace_placeholders(case.url)
+            final_body = context.replace_placeholders(case.body)
 
         try:
             headers = json.loads(case.headers) if case.headers else {}
@@ -51,13 +65,14 @@ def _do_execute(case, context, timeout):
         except (TypeError, json.JSONDecodeError):
             raise ValueError(f"请求体 JSON 格式错误，请检查用例 Body 配置: {final_body[:200]}")
 
-        hr = _http_client.request(
-            method=case.method,
-            url=final_url,
-            headers=headers,
-            json=body,
-            timeout=timeout,
-        )
+        with _allure_step("发送 HTTP 请求"):
+            hr = _http_client.request(
+                method=case.method,
+                url=final_url,
+                headers=headers,
+                json=body,
+                timeout=timeout,
+            )
         resp = hr.resp  # 原始 requests.Response
         resp.encoding = 'utf-8'
 
@@ -91,9 +106,21 @@ def _do_execute(case, context, timeout):
         # 断言检查（使用 AssertEngine 支持多种断言类型）
         passed = True
         msg = ""
-        engine = AssertEngine(response=resp, cost_time=cost_time)
-        if case.expect:
-            passed, msg = engine.execute(case.expect)
+        with _allure_step("断言校验"):
+            engine = AssertEngine(response=resp, cost_time=cost_time)
+            if case.expect:
+                passed, msg = engine.execute(case.expect)
+
+        # Allure 上下文检测与附加（仅在 pytest + allure 运行时生效）
+        try:
+            import allure
+            allure.attach(resp.text[:5000], name="response_body",
+                          attachment_type=allure.attachment_type.TEXT)
+            if not passed:
+                allure.attach(f"断言失败: {msg}", name="assertion_error",
+                              attachment_type=allure.attachment_type.TEXT)
+        except Exception:
+            pass
 
         report = TestReport(
             case_id=case.id,
@@ -146,4 +173,12 @@ def _do_execute(case, context, timeout):
             "status": "ERROR", "duration_ms": round(cost_time * 1000),
             "error": str(e)[:200],
         }, ensure_ascii=False))
+
+        try:
+            import allure
+            allure.attach(str(e)[:5000], name="error_info",
+                          attachment_type=allure.attachment_type.TEXT)
+        except Exception:
+            pass
+
         return {"status": "ERROR", "time": cost_time, "error": str(e), "current_vars": dict(context.vars)}

@@ -1,5 +1,6 @@
 aiohttp==3.13.5
 alembic==1.18.4
+allure-pytest==2.15.2
 APScheduler==3.10.1
 attrs==26.1.0
 bcrypt==4.2.0
