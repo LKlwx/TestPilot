@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, render_template, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+
+from core.exception import NotFoundException
 from extensions import db
 from models import UICase, User, UIReport
 from service.ui_service import run_ui_case, parse_steps
 from core.response import success, error
 from core.pagination import paginate
+from core.db_guard import db_write_guard
 from core.db_guard import db_write_guard
 from core.schema import validate_request
 from api.schemas import AddUICaseSchema, UpdateUICaseSchema, AddUIStructSchema
@@ -104,11 +107,13 @@ def delete_ui_case(cid):
     user = User.query.get(int(identity))
     username = user.username if user else "未知"
     case = UICase.query.get(cid)
-    if case:
-        case_name = case.name
-        db.session.delete(case)
-        db.session.commit()
-        add_operation_log(user.id, username, "delete_ui_case", f"删除UI用例: {case_name} (ID={cid})")
+    if not case:
+        raise NotFoundException("用例不存在")
+    case_name = case.name
+    db.session.delete(case)
+    with db_write_guard("删除UI用例"):
+        db.session.flush()
+    add_operation_log(user.id, username, "delete_ui_case", f"删除UI用例: {case_name} (ID={cid})")
     return success(msg="删除成功")
 
 
@@ -249,3 +254,20 @@ def update_ui_case(cid):
     detail += f" (ID={cid})"
     add_operation_log(user.id, username, "update_ui_case", detail)
     return success(msg="更新成功")
+
+
+@ui_bp.route("/case/<int:cid>/generate-page", methods=["POST"])
+@jwt_required()
+def generate_page(cid):
+    case = UICase.query.get(cid)
+    if not case:
+        raise NotFoundException("用例不存在")
+
+    is_valid, steps, errors = parse_steps(case.steps) if case.steps else (True, [], [])
+    if not is_valid:
+        return error("步骤格式错误，无法生成")
+
+    from core.page_generator import generate_page_class
+    code = generate_page_class(case.name, steps)
+
+    return success(data={"code": code})

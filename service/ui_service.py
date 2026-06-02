@@ -11,23 +11,13 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from core.base_page import BasePage
 from core.logger import get_logger
 
 logger = get_logger(__name__)
 
 # 项目根目录（用于截图路径等）
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# 元素定位方式映射表（模块级常量）
-BY_MAP = {
-    "id": By.ID,
-    "name": By.NAME,
-    "xpath": By.XPATH,
-    "css": By.CSS_SELECTOR,
-    "linkText": By.LINK_TEXT,
-    "className": By.CLASS_NAME,
-}
-
 
 def parse_steps(steps_text):
     """
@@ -75,7 +65,7 @@ def parse_steps(steps_text):
         if not params:
             errors.append(f"第{idx}行：参数不能为空")
 
-        if not errors or errors[-1].startswith(f"第{idx}"):
+        if not errors or not errors[-1].startswith(f"第{idx}"):
             parsed.append({
                 "action": action,
                 "locator_type": locator_type,
@@ -84,12 +74,6 @@ def parse_steps(steps_text):
 
     is_valid = len(errors) == 0
     return is_valid, parsed, errors
-
-
-def find_element(driver, locator_type, value):
-    """统一查找元素"""
-    by = BY_MAP.get(locator_type, By.XPATH)
-    return driver.find_element(by, value)
 
 
 @contextmanager
@@ -117,6 +101,7 @@ def run_ui_case(case):
 
     with create_driver(headless=True) as driver:
         try:
+            page = BasePage(driver, timeout=10)
             driver.set_page_load_timeout(10)
             driver.get(case.url)
             step_log.append("打开页面：" + case.url)
@@ -142,10 +127,7 @@ def run_ui_case(case):
 
                     try:
                         if action == "click":
-                            elem = WebDriverWait(driver, 10).until(
-                                EC.element_to_be_clickable((BY_MAP.get(locator_type, By.XPATH), params))
-                            )
-                            elem.click()
+                            page.click(locator_type, params)
                             step_log.append(f"步骤{i}：点击 [{locator_type}] {params}")
 
                         elif action == "input":
@@ -157,28 +139,21 @@ def run_ui_case(case):
                                 parts = params.split(" ", 1)
                                 locator_val = parts[0]
                                 input_content = parts[1]
-                            elem = WebDriverWait(driver, 10).until(
-                                EC.visibility_of_element_located((BY_MAP.get(locator_type, By.XPATH), locator_val.strip()))
-                            )
-                            elem.clear()
-                            elem.send_keys(input_content)
+                            page.input_text(locator_type, locator_val.strip(), input_content)
                             step_log.append(f"步骤{i}：输入 [{locator_type}] {locator_val} = {input_content}")
 
                         elif action == "enter":
-                            from selenium.webdriver.common.keys import Keys
-                            elem = WebDriverWait(driver, 10).until(
-                                EC.element_to_be_clickable((BY_MAP.get(locator_type, By.XPATH), params))
-                            )
-                            elem.send_keys(Keys.ENTER)
+                            page.press_enter(locator_type, params)
                             step_log.append(f"步骤{i}：按回车键")
 
                         elif action == "wait":
                             parts = params.split()
                             selector = parts[0]
-                            timeout = int(parts[1]) if len(parts) > 1 else 5
-                            WebDriverWait(driver, timeout).until(
-                                EC.presence_of_element_located((BY_MAP.get(locator_type, By.CSS_SELECTOR), selector))
-                            )
+                            try:
+                                timeout = int(parts[1]) if len(parts) > 1 else 5
+                            except (ValueError, IndexError):
+                                raise Exception(f"wait 超时格式错误，应为 'selector 秒数'，实际：{params}")
+                            page.wait_for_visible(locator_type, selector, timeout=timeout)
                             step_log.append(f"步骤{i}：等待元素 {selector}")
 
                         elif action == "assert_title":
@@ -189,9 +164,7 @@ def run_ui_case(case):
                         elif action == "assert_text":
                             if params:
                                 try:
-                                    WebDriverWait(driver, 5).until(
-                                        EC.text_to_be_present_in_element((By.TAG_NAME, "body"), params)
-                                    )
+                                    page.wait_for_text(params, timeout=5)
                                     step_log.append(f"步骤{i}：断言页面包含文本 '{params}'")
                                 except TimeoutException as e:
                                     raise Exception(f"文本断言失败：页面未找到 '{params}'") from e

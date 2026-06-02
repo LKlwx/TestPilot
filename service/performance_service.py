@@ -137,9 +137,11 @@ async def _async_run(case):
             if step < ramp_steps - 1:
                 await asyncio.sleep(0.5)
 
-        # 稳态保持（达到目标并发后持续指定时长）
+        # 稳态保持（全并发持续发请求）
         if steady_duration > 0:
-            await asyncio.sleep(steady_duration)
+            steady_count = max(10, case.concurrency * steady_duration // 2)
+            tasks = [single_request() for _ in range(steady_count)]
+            await asyncio.gather(*tasks)
 
     total_end_time = time.time()
 

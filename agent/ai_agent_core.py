@@ -46,14 +46,13 @@ class AITestAgent:
             cleaned = cleaned.split("```")[1].split("```")[0].strip()
         try:
             parsed = json.loads(cleaned)
-        except:
-            # 若直接解析失败，尝试提取 {} 包裹的内容
+        except (json.JSONDecodeError, ValueError):
             start = cleaned.find("{")
             end = cleaned.rfind("}") + 1
             if start != -1 and end != 0:
                 try:
                     parsed = json.loads(cleaned[start:end])
-                except:
+                except (json.JSONDecodeError, ValueError):
                     raise Exception("JSON 解析失败")
             else:
                 raise Exception("JSON 解析失败")
@@ -76,7 +75,7 @@ class AITestAgent:
             "步骤": "steps", "测试步骤": "steps"
         }
         keys_to_delete = []
-        for k in parsed:
+        for k in list(parsed):
             if k in key_map:
                 english_key = key_map[k]
                 if english_key not in parsed:
@@ -92,17 +91,17 @@ class AITestAgent:
 
     def generate_api_case(self, scene: str):
         """生成接口测试用例"""
-        res = self._call_ai(self.api_prompt.format(scene))
+        res = self._call_ai(self.api_prompt.replace("{scene}", scene))
         return self._parse_json_response(res, ["name", "method", "url", "headers", "body", "expect"])
 
     def generate_ui_case(self, scene: str):
         """生成 UI 测试用例"""
-        res = self._call_ai(self.ui_prompt.format(scene))
+        res = self._call_ai(self.ui_prompt.replace("{scene}", scene))
         return self._parse_json_response(res, ["name", "url", "steps"])
 
     def analyze_failure_log(self, log: str):
         """分析失败日志并返回诊断报告"""
-        res = self._call_ai(self.analyze_prompt.format(log))
+        res = self._call_ai(self.analyze_prompt.replace("{log}", log))
         analysis = self._parse_json_response(res, ["cause", "solution"])
         return f"【AI 诊断】原因：{analysis['cause']}\n方案：{analysis['solution']}"
 

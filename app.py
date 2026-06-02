@@ -84,7 +84,7 @@ def create_app(config_name="default"):
     app.register_blueprint(ui_bp, url_prefix="/api/ui")
     app.register_blueprint(performance_bp, url_prefix="/api/performance")
     app.register_blueprint(ai_bp, url_prefix="/api/ai")
-    app.register_blueprint(coverage_bp, url_prefix="/api/test")
+    app.register_blueprint(coverage_bp, url_prefix="/api/coverage")
 
     @app.route("/")
     def root_index():

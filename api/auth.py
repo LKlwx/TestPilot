@@ -375,12 +375,12 @@ def dashboard_data():
             api_fail = db.session.query(func.count(TestReport.id)).filter(
                 TestReport.create_time >= current_day_start,
                 TestReport.create_time <= current_day_end,
-                TestReport.status != 'PASS'
+                (TestReport.status.is_(None)) | (TestReport.status != 'PASS')
             ).scalar() or 0
             ui_fail = db.session.query(func.count(UIReport.id)).filter(
                 UIReport.create_time >= current_day_start,
                 UIReport.create_time <= current_day_end,
-                UIReport.status != 'PASS'
+                (UIReport.status.is_(None)) | (UIReport.status != 'PASS')
             ).scalar() or 0
 
             fail_trend.append(api_fail + ui_fail)
@@ -406,7 +406,7 @@ def dashboard_data():
             ).limit(5).all()
 
             # 计算总耗时 = 总请求数 / 整体 QPS
-            total_duration = last_perf_report.total / last_perf_report.qps if last_perf_report.qps else 1
+            total_duration = max(1, last_perf_report.total / last_perf_report.qps) if last_perf_report.qps and last_perf_report.total else 1
 
             for stat in per_url_stats:
                 url = stat.url or "未知URL"
@@ -417,10 +417,18 @@ def dashboard_data():
                 perf_rt.append(round(stat.max_time or 0, 1))
 
         # 5. 最近报告与成功率
-        recent_reports = TestReport.query.order_by(TestReport.id.desc()).limit(5).all()
-        total_tests = TestReport.query.count()
-        passed_tests = TestReport.query.filter_by(status="PASS").count()
-        success_rate = round(passed_tests / total_tests * 100, 1) if total_tests > 0 else 0
+        reports = TestReport.query.order_by(TestReport.id.desc()).limit(5).all()
+        recent_reports = [{
+            "id": r.id, "case_name": r.case_name, "status": r.status,
+            "cost_time": r.cost_time, "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        } for r in reports]
+        total_api = TestReport.query.count()
+        passed_api = TestReport.query.filter_by(status="PASS").count()
+        total_ui = UIReport.query.count()
+        total_with_pass = total_api + total_ui
+        passed_total = passed_api + UIReport.query.filter_by(status="PASS").count()
+        all_pass_rate = round(passed_total / total_with_pass * 100, 1) if total_with_pass > 0 else 0
+        api_rate = round(passed_api / total_api * 100, 1) if total_api > 0 else 0
 
         # 6. 标签分布统计
         all_cases = TestCase.query.with_entities(TestCase.tags).all()
@@ -434,12 +442,15 @@ def dashboard_data():
         tag_stats = [{"name": k, "value": v} for k, v in sorted(tag_count.items(), key=lambda x: -x[1])]
 
         return success({
-            "api_cases": api_count,
-            "ui_cases": ui_count,
-            "perf_cases": perf_count,
-            "total_cases": total_case,
+            "api_case": api_count,
+            "ui_case": ui_count,
+            "perf_count": perf_count,
+            "total_case": total_case,
+            "today_api_run": today_api_run,
+            "today_ui_run": today_ui_run,
             "recent_reports": recent_reports,
-            "success_rate": success_rate,
+            "success_rate": api_rate,
+            "all_pass_rate": all_pass_rate,
             "days": days,
             "fail_trend": fail_trend,
             "perf_names": perf_names,

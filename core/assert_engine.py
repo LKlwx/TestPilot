@@ -65,7 +65,10 @@ class AssertEngine:
                     actual = actual[int(k)]
                 else:
                     actual = actual[k]
-            actual = str(actual)
+            if isinstance(actual, (bool, int, float, type(None))):
+                actual = json.dumps(actual)
+            else:
+                actual = str(actual)
         except Exception:
             return False, f"JSON 路径断言失败：无法从响应中提取 {path}"
 

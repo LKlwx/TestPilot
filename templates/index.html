@@ -48,14 +48,14 @@
 {% block extra_js %}
 <script src="/static/js/echarts.min.js"></script>
 <script>
-    let pieChart, lineChart, perfChart;
+    let pieChart, lineChart, perfChart, tagChart;
+    let _dashboardLoading = false;
 
     window.onload = function () {
         checkLogin();
         initCharts();
         showLoginInfo();
         setTimeout(loadDashboardData, 50);
-        // 每5秒自动刷新看板数据
         setInterval(loadDashboardData, 5000);
     };
 
@@ -63,14 +63,20 @@
         pieChart = echarts.init(document.getElementById("pieChart"));
         lineChart = echarts.init(document.getElementById("lineChart"));
         perfChart = echarts.init(document.getElementById("perfChart"));
+        const tagDom = document.getElementById("tagChart");
+        if (tagChart) tagChart.dispose();
+        tagChart = tagDom ? echarts.init(tagDom) : null;
         window.addEventListener('resize', () => {
             pieChart.resize();
             lineChart.resize();
             perfChart.resize();
+            if (tagChart) tagChart.resize();
         });
     }
 
     async function loadDashboardData() {
+        if (_dashboardLoading) return;
+        _dashboardLoading = true;
         try {
             let res = await httpGet("/api/auth/dashboard/data");
             if (res.code !== 200) return;
@@ -83,7 +89,6 @@
             document.getElementById("today_ui_run").innerText = d.today_ui_run || 0;
 
             // 1. 用例类型分布（环形图 + 中心文字）
-            const totalCases = d.api_case + d.ui_case + d.perf_count;
             pieChart.setOption({
                 title: {
                     text: '用例分布', 
@@ -197,14 +202,25 @@
                         splitLine: { show: false }
                     }
                     ],
-                    itemStyle: { color: "#5470c6" },
-                }]
-            });
+                series: [
+                    {
+                        name: 'QPS',
+                        type: 'bar',
+                        data: d.perf_qps,
+                        itemStyle: { color: '#667eea' },
+                    },
+                    {
+                        name: '响应时间(ms)',
+                        type: 'line',
+                        data: d.perf_rt,
+                        yAxisIndex: 1,
+                        itemStyle: { color: '#ed64a6' },
+                    }
+                ],
+            })
 
-            // 标签分布环形图
             const tagStats = d.tag_stats || [];
-            if (tagStats.length > 0) {
-                const tagChart = echarts.init(document.getElementById("tagChart"));
+            if (tagStats.length > 0 && tagChart) {
                 const colors = ["#5470c6","#91cc75","#fac858","#ee6666","#73c0de","#3ba272","#fc8452","#9a60b4"];
                 tagChart.setOption({
                     title: { text: "用例标签分布", left: "center", textStyle: { fontSize: 14 } },
@@ -218,7 +234,8 @@
             }
         } catch (err) {
             console.error("Dashboard Error:", err);
-            showAlert("数据加载失败", "error");
+        } finally {
+            _dashboardLoading = false;
         }
     }
 

@@ -65,33 +65,6 @@ class AIService:
         return res
 
     @staticmethod
-    def generate_ui(scene, user_id):
-        res = ai_agent.generate_ui_case(scene)
-        task = AIAgentTask(task_type="generate_ui", input_content=scene,
-                           output_result=str(res), creator_id=user_id)
-        db.session.add(task)
-        try:
-            db.session.commit()
-        except SQLAlchemyError:
-            db.session.rollback()
-            raise
-        return res
-
-    @staticmethod
-    def analyze_log(log, user_id):
-        """分析失败日志并保存记录"""
-        res = ai_agent.analyze_failure_log(log)
-        task = AIAgentTask(task_type="analyze_failure", input_content=log,
-                           output_result=res, creator_id=user_id)
-        db.session.add(task)
-        try:
-            db.session.commit()
-        except SQLAlchemyError:
-            db.session.rollback()
-            raise
-        return res
-
-    @staticmethod
     def save_api(data, user_id):
         logger.info("AI 保存接口用例: name=%s, user_id=%d", data.get("name", ""), user_id)
         headers = data.get("headers", {})

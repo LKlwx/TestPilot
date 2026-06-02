@@ -141,7 +141,7 @@ class AISaveUiSchema(Schema):
 # ========== 批量执行 ==========
 
 class BatchRunSchema(Schema):
-    ids = fields.List(fields.Integer(strict=True), required=True, validate=validate.Length(min=1))
+    ids = fields.List(fields.Integer(strict=True), required=True, validate=validate.Length(min=1, max=500))
     tags = fields.String(validate=validate.Length(max=200), load_default="")
 
 

@@ -1,8 +1,6 @@
 """
 TestPilot 核心功能测试
 """
-import pytest
-import json
 import sys
 import os
 
@@ -14,6 +12,7 @@ from core.exception import APIException, NotFoundException
 from core.response import success, error
 from core.execution_context import ExecutionContext, RecursiveVariableError
 from core.assert_engine import AssertEngine
+from core.http_client import HTTPResponse, BaseHTTPClient
 
 
 def test_app_creation():
@@ -166,3 +165,81 @@ def test_assert_time():
     assert e.execute("time < 1000")[0] is True
     assert e.execute("time > 1000")[0] is False
     assert e.execute("time > 400")[0] is True
+
+
+# ========== BaseHTTPClient 单元测试 ==========
+
+class MockRequestsResponse:
+    """模拟 requests.Response"""
+    def __init__(self, status_code=200, text="ok", headers=None, json_data=None):
+        self.status_code = status_code
+        self.text = text
+        self.headers = headers or {"Content-Type": "application/json"}
+        self._json = json_data
+    def json(self):
+        return self._json or {"data": {"token": "abc"}}
+
+
+def test_http_response_validate_status():
+    r = HTTPResponse(MockRequestsResponse(status_code=200))
+    r.validate_status(200)
+    assert r._passed is True
+
+    r2 = HTTPResponse(MockRequestsResponse(status_code=404))
+    r2.validate_status(200)
+    try:
+        r2.done()
+        assert False, "应抛出 AssertionError"
+    except AssertionError:
+        pass
+
+
+def test_http_response_validate_json():
+    r = HTTPResponse(MockRequestsResponse(json_data={"data": {"id": 42}}))
+    r.validate_json("$.data.id", 42).done()
+    assert r._passed is True
+
+
+def test_http_response_validate_header():
+    r = HTTPResponse(MockRequestsResponse(headers={"Content-Type": "application/json"}))
+    r.validate_header("Content-Type", "application/json").done()
+    assert r._passed is True
+
+
+def test_http_response_validate_regex():
+    r = HTTPResponse(MockRequestsResponse(text="order-2026-05-30-001"))
+    r.validate_regex(r"\d{4}-\d{2}-\d{2}").done()
+    assert r._passed is True
+
+
+def test_http_response_chain_all():
+    """测试完整链式调用"""
+    r = HTTPResponse(MockRequestsResponse(status_code=200, text="success", json_data={"token": "abc"}))
+    r.validate_status(200).validate_json("$.token", "abc").validate_header("Content-Type", "application/json").validate_regex("success").done()
+    assert r._passed is True
+
+
+# ========== BasePage 单元测试 ==========
+
+from unittest.mock import MagicMock
+
+
+def test_by_map_contains_all_locators():
+    from core.base_page import BY_MAP
+    for k in ["id", "name", "xpath", "css", "linkText", "className"]:
+        assert k in BY_MAP, f"缺少定位方式: {k}"
+
+
+def test_by_map_invalid_returns_xpath():
+    from core.base_page import BY_MAP
+    from selenium.webdriver.common.by import By
+    assert BY_MAP.get("invalid", By.XPATH) == By.XPATH
+
+
+def test_base_page_create():
+    from selenium.webdriver.support.ui import WebDriverWait
+    mock_driver = MagicMock()
+    from core.base_page import BasePage
+    bp = BasePage(mock_driver, timeout=5)
+    assert bp.driver is mock_driver
+    assert isinstance(bp.wait, WebDriverWait)

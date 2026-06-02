@@ -87,8 +87,10 @@ async function httpPut(url, data = {}) {
 }
 
 function logout() {
-    localStorage.removeItem("token");
+    localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    localStorage.removeItem("username");
+    localStorage.removeItem("role");
     showAlert("已退出登录", "success");
     setTimeout(() => {
         location.href = "/api/auth/login/page";

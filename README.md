@@ -90,7 +90,8 @@ TestPilot/
 │   ├── test_service.py
 │   ├── ui_service.py
 │   ├── performance_service.py
-│   └── ai_service.py
+│   ├── ai_service.py
+│   └── pages/             # Page Object 模式示例
 ├── agent/            # AI 核心引擎
 │   └── ai_agent_core.py
 ├── core/             # 公共工具层
@@ -106,7 +107,10 @@ TestPilot/
 │   ├── execution_context.py    # 执行上下文（变量替换、日志记录）
 │   ├── pagination.py          # 通用分页查询工具
 │   ├── db_guard.py            # DB 写入保护上下文管理器
-│   └── assert_engine.py       # AssertEngine 断言引擎
+│   ├── assert_engine.py       # AssertEngine 断言引擎
+│   ├── http_client.py         # BaseHTTPClient HTTP 客户端框架
+│   ├── base_page.py           # BasePage Page Object 基类
+│   └── page_generator.py      # Page Class 代码自动生成器
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
 ├── static/           # 静态资源
 └── templates/       # HTML 页面模板
@@ -279,7 +283,7 @@ TestPilot/
   - 四维断言引擎：自研 AssertEngine 支持状态码、JSONPath、正则表达式、响应时间四种断言方式，覆盖绝大多数接口验证场景。
   - 高并发回归：基于 Celery + Redis 异步任务队列实现批量用例异步并发执行，HTTP 请求立即返回 task_id，前端轮询任务进度。
   - 用例可追溯：支持 timeout/retry 配置化 + requests.Session 连接池复用，连续请求吞吐提升 40%+；支持按 smoke/regression/critical 标签筛选执行。
-  - 工程化规范：遵循 RESTful 风格设计 API，实现了统一的全局异常捕获与标准化响应封装，提升了前后端交互的稳定性。
+   - 工程化规范：遵循 RESTful 风格设计 API，自研 BaseHTTPClient 框架封装 Session ＋ 拦截器 ＋ 链式断言 ＋ 全链路日志，实现了统一的全局异常捕获与标准化响应封装，提升了前后端交互的稳定性。
 ### 4. UI 自动化测试模块
 - 支持 UI 用例新增、删除、列表查询
 - 支持配置测试 URL、操作步骤、元素定位信息
@@ -287,7 +291,8 @@ TestPilot/
   - 结构化步骤引擎：自主设计 `[action] [locator] value` 文本协议，支持 ID、XPath、CSS 等多种定位方式，实现了自然语言到 Selenium 指令的自动转换。
   - 稳定性增强：引入显式等待（Explicit Wait）机制替代硬编码休眠，并实现**失败自动截图**功能，显著提升了无头模式下的执行成功率与问题排查效率。
   - 复杂交互模拟：支持键盘模拟（如回车键）、页面文本断言及标题验证，覆盖了搜索、登录等核心业务场景。
-  - 生命周期管理：封装 create_driver() 上下文管理器，保证任何异常路径下浏览器实例正确释放，避免僵尸进程。
+   - 生命周期管理：封装 create_driver() 上下文管理器，保证任何异常路径下浏览器实例正确释放，避免僵尸进程。
+   - Page Object 模式：提供 LoginPage/HomePage 示例，支持从现有 UI 用例一键生成可运行的 Page Class 代码。
 - 基于 Selenium 无头浏览器执行自动化操作，自动生成并保存可视化测试报告
 - 报告查询支持关键词/状态/日期范围多条件筛选与分页
 - 自动解析并执行输入、点击等文本步骤

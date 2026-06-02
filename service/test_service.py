@@ -1,4 +1,3 @@
-import requests
 import json
 from models import TestReport
 from extensions import db
@@ -7,14 +6,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from core.logger import get_logger
 from core.execution_context import ExecutionContext
 from core.assert_engine import AssertEngine
+from core.http_client import BaseHTTPClient
 from config import Config
 
 TIMEOUT = Config.REQUEST_TIMEOUT
 
 logger = get_logger(__name__)
 
-# 复用 HTTP Session（Keep-Alive 连接池，减少 TCP 握手）
-_http_session = requests.Session()
+# HTTP 客户端（BaseHTTPClient 封装了 Session + 拦截器 + 链式断言 + 全链路日志）
+_http_client = BaseHTTPClient(timeout=TIMEOUT)
 
 
 def execute_test_case(case, context=None):
@@ -51,13 +51,14 @@ def _do_execute(case, context, timeout):
         except (TypeError, json.JSONDecodeError):
             raise ValueError(f"请求体 JSON 格式错误，请检查用例 Body 配置: {final_body[:200]}")
 
-        resp = _http_session.request(
+        hr = _http_client.request(
             method=case.method,
             url=final_url,
             headers=headers,
             json=body,
-            timeout=timeout
+            timeout=timeout,
         )
+        resp = hr.resp  # 原始 requests.Response
         resp.encoding = 'utf-8'
 
         # 标记接口覆盖
@@ -145,4 +146,4 @@ def _do_execute(case, context, timeout):
             "status": "ERROR", "duration_ms": round(cost_time * 1000),
             "error": str(e)[:200],
         }, ensure_ascii=False))
-        return {"status": "ERROR", "time": cost_time, "error": str(e)}
+        return {"status": "ERROR", "time": cost_time, "error": str(e), "current_vars": dict(context.vars)}

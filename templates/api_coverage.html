@@ -37,11 +37,11 @@
 
     async function loadList() {
         const kw = document.getElementById("keyword").value;
-        const res = await httpGet(`/api/test/coverage/api/list?page=${currentPage}&page_size=30&keyword=${encodeURIComponent(kw)}`);
+        const res = await httpGet(`/api/coverage/list?page=${currentPage}&page_size=30&keyword=${encodeURIComponent(kw)}`);
         const data = res.data;
 
         document.getElementById("statTotal").textContent = data.total;
-        const statsRes = await httpGet("/api/test/coverage/api/stats");
+        const statsRes = await httpGet("/api/coverage/stats");
         const st = statsRes.data;
         document.getElementById("statCovered").textContent = st.covered;
         document.getElementById("statUncovered").textContent = st.total - st.covered;
@@ -69,7 +69,7 @@
         if (!text) { showAlert("请粘贴 Swagger JSON", "warning"); return; }
         try {
             const json = JSON.parse(text);
-            const res = await httpPost("/api/test/coverage/api/import", json);
+            const res = await httpPost("/api/coverage/import", json);
             showAlert(res.msg || "导入成功", "success");
             document.getElementById("importForm").style.display = "none";
             document.getElementById("swaggerInput").value = "";
@@ -81,7 +81,7 @@
 
     async function deleteRecord(id) {
         if (!confirm("确定删除该记录？")) return;
-        await httpDelete(`/api/test/coverage/api/${id}`);
+        await httpDelete(`/api/coverage/${id}`);
         loadList();
     }
 
