@@ -3,6 +3,8 @@ import re
 from urllib.parse import urlparse
 from flask import Blueprint, request, render_template
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy.exc import SQLAlchemyError
+
 from core.response import success
 from core.exception import APIException, NotFoundException
 from core.pagination import paginate
@@ -124,7 +126,7 @@ def delete_coverage(aid):
     db.session.delete(cov)
     try:
         db.session.commit()
-    except Exception:
+    except SQLAlchemyError:
         db.session.rollback()
         raise
     return success(msg="删除成功")

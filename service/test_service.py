@@ -30,25 +30,107 @@ def _allure_step(name: str):
 _http_client = BaseHTTPClient(timeout=TIMEOUT)
 
 
+def _merge_retry_results(attempts, max_retries):
+    """合并多次执行结果，确定最终状态
+
+    - 全部成功 → PASS
+    - 前 N 次失败、最终通过 → FLAKY（标记重试次数）
+    - 全部失败 → 最后一次的状态（FAIL 或 ERROR）
+    """
+    final = attempts[-1]
+    retried = len(attempts) - 1
+    any_success = any(a.get("status") == "PASS" for a in attempts)
+
+    if any_success and retried > 0:
+        status = "FLAKY"
+    else:
+        status = final.get("status", "ERROR")
+
+    return {
+        "status": status,
+        "retried": retried,
+        "code": final.get("code", 0),
+        "time": final.get("time", 0),
+        "body": final.get("body", ""),
+        "msg": final.get("msg", ""),
+        "error": final.get("error", ""),
+        "current_vars": final.get("current_vars", {}),
+    }
+
+
+def check_flaky(case):
+    """检查用例近 5 次执行中 FLAKY 占比，自动标记为稳定/不稳定"""
+    recent = TestReport.query.filter_by(case_id=case.id)\
+        .order_by(TestReport.create_time.desc())\
+        .limit(5).all()
+    flaky_count = sum(1 for r in recent if r.status == "FLAKY")
+    case.unstable = flaky_count >= 3
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+
+
 def execute_test_case(case, context=None):
+    """执行接口测试用例，支持配置化重试 + FLAKY 判定
+
+    重试逻辑：
+    - case.retry = 0（默认）：不重试，一次出结果
+    - case.retry = N ：失败后最多重试 N 次
+    - 重试后通过 → FLAKY（黄色警告）
+    - 重试仍失败 → 最后一次结果（FAIL 或 ERROR）
+    - 所有执行只产生一条 TestReport
+    """
     if context is None:
         context = ExecutionContext()
     timeout = getattr(case, "timeout", TIMEOUT) or TIMEOUT
-    max_retries = getattr(case, "retry", 0) or 0
-    last_result = None
+    max_retries = max(0, getattr(case, "retry", 0) or 0)
 
+    attempts = []
     for attempt in range(max_retries + 1):
-        result = _do_execute(case, context, timeout)
-        if attempt < max_retries and result.get("status") in ("ERROR", "FAIL"):
-            logger.info("用例 %d 第 %d 次执行失败，准备重试", case.id, attempt + 1)
-            last_result = result
-            time.sleep(1)
-        else:
-            return result
-    return last_result
+        result = _execute_raw(case, context, timeout)
+        attempts.append(result)
+        if result.get("status") == "PASS":
+            break
+        if attempt < max_retries:
+            logger.info(f"用例 {case.id} 第 {attempt + 1} 次失败，准备重试")
+            time.sleep(2)
+
+    merged = _merge_retry_results(attempts, max_retries)
+    _create_report(case, merged)
+    check_flaky(case)
+    return merged
 
 
-def _do_execute(case, context, timeout):
+def _create_report(case, merged):
+    """根据合并结果创建单条测试报告"""
+    report = TestReport(
+        case_id=case.id,
+        case_name=case.name,
+        status=merged["status"],
+        retried=merged["retried"],
+        cost_time=merged["time"],
+        response_code=merged["code"],
+        response_body=merged.get("body", ""),
+        error_msg=merged.get("error") or merged.get("msg", ""),
+    )
+    db.session.add(report)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        raise
+
+    logger.info(json.dumps({
+        "event": "test_executed", "case_id": case.id,
+        "status": report.status, "retried": report.retried,
+        "duration_ms": round(merged["time"] * 1000),
+        "response_code": merged["code"],
+    }, ensure_ascii=False))
+
+
+def _execute_raw(case, context, timeout):
+    """单次执行引擎：纯执行 + 断言，不创建报告"""
     start_time = time.time()
     try:
         with _allure_step("变量替换"):
@@ -73,15 +155,19 @@ def _do_execute(case, context, timeout):
                 json=body,
                 timeout=timeout,
             )
-        resp = hr.resp  # 原始 requests.Response
+        resp = hr.resp
         resp.encoding = 'utf-8'
 
-        # 标记接口覆盖
+        # 标记接口覆盖（可选功能，失败不影响测试主流程）
         try:
             from api.coverage import _mark_covered
-            _mark_covered(case.method, final_url, getattr(case, "creator_id", 0))
-        except Exception:
+        except ImportError:
             pass
+        else:
+            try:
+                _mark_covered(case.method, final_url, getattr(case, "creator_id", 0))
+            except Exception:
+                pass
 
         # 从响应中提取变量存入变量池
         if case.extract_var and "=" in case.extract_var:
@@ -90,7 +176,6 @@ def _do_execute(case, context, timeout):
                 var_name = var_name.strip()
                 resp_json = resp.json()
 
-                # 简单的 JSON 路径解析 (支持 $.key.subkey)
                 keys = path.strip().replace("$.", "").split(".")
                 val = resp_json
                 for k in keys:
@@ -98,12 +183,12 @@ def _do_execute(case, context, timeout):
 
                 context.set_var(var_name, val)
                 logger.info(f"变量提取成功: {var_name} = {val}")
-            except Exception as e:
+            except (KeyError, TypeError, IndexError) as e:
                 logger.error(f"变量提取失败: {str(e)}", exc_info=True)
 
         cost_time = round(time.time() - start_time, 3)
 
-        # 断言检查（使用 AssertEngine 支持多种断言类型）
+        # 断言检查
         passed = True
         msg = ""
         with _allure_step("断言校验"):
@@ -111,7 +196,7 @@ def _do_execute(case, context, timeout):
             if case.expect:
                 passed, msg = engine.execute(case.expect)
 
-        # Allure 上下文检测与附加（仅在 pytest + allure 运行时生效）
+        # Allure 上下文检测与附加
         try:
             import allure
             allure.attach(resp.text[:5000], name="response_body",
@@ -119,66 +204,39 @@ def _do_execute(case, context, timeout):
             if not passed:
                 allure.attach(f"断言失败: {msg}", name="assertion_error",
                               attachment_type=allure.attachment_type.TEXT)
-        except Exception:
+        except ImportError:
             pass
 
-        report = TestReport(
-            case_id=case.id,
-            case_name=case.name,
-            status="PASS" if passed else "FAIL",
-            cost_time=cost_time,
-            response_code=resp.status_code,
-            response_body=resp.text[:1000],
-            error_msg=msg
-        )
-        db.session.add(report)
-        try:
-            db.session.commit()
-        except SQLAlchemyError:
-            db.session.rollback()
-            raise
-
         logger.info(json.dumps({
-            "event": "test_executed", "case_id": case.id,
-            "status": report.status, "duration_ms": round(cost_time * 1000),
+            "event": "test_raw_executed", "case_id": case.id,
+            "status": "PASS" if passed else "FAIL",
+            "duration_ms": round(cost_time * 1000),
             "response_code": resp.status_code,
         }, ensure_ascii=False))
 
         return {
-            "status": report.status,
+            "status": "PASS" if passed else "FAIL",
             "code": resp.status_code,
             "time": cost_time,
+            "body": resp.text[:1000],
             "msg": msg,
-            "current_vars": dict(context.vars)
+            "current_vars": dict(context.vars),
         }
 
     except Exception as e:
         cost_time = round(time.time() - start_time, 3)
-        report = TestReport(
-            case_id=case.id,
-            case_name=case.name,
-            status="ERROR",
-            cost_time=cost_time,
-            response_code=0,
-            response_body="",
-            error_msg=str(e)
-        )
-        db.session.add(report)
-        try:
-            db.session.commit()
-        except SQLAlchemyError:
-            db.session.rollback()
-        logger.info(json.dumps({
-            "event": "test_executed", "case_id": case.id,
-            "status": "ERROR", "duration_ms": round(cost_time * 1000),
-            "error": str(e)[:200],
-        }, ensure_ascii=False))
 
         try:
             import allure
             allure.attach(str(e)[:5000], name="error_info",
                           attachment_type=allure.attachment_type.TEXT)
-        except Exception:
+        except ImportError:
             pass
+
+        logger.info(json.dumps({
+            "event": "test_raw_executed", "case_id": case.id,
+            "status": "ERROR", "duration_ms": round(cost_time * 1000),
+            "error": str(e)[:200],
+        }, ensure_ascii=False))
 
         return {"status": "ERROR", "time": cost_time, "error": str(e), "current_vars": dict(context.vars)}

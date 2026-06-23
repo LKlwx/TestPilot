@@ -219,3 +219,110 @@ def test_base_page_create():
     bp = BasePage(mock_driver, timeout=5)
     assert bp.driver is mock_driver
     assert isinstance(bp.wait, WebDriverWait)
+
+
+# ========== DataFactory 单元测试 ==========
+
+@allure.feature("DataFactory")
+def test_data_factory_username():
+    from core.data_factory import DataFactory
+    u1 = DataFactory.username()
+    u2 = DataFactory.username()
+    assert u1 and u2
+    assert u1 != u2
+
+
+def test_data_factory_email():
+    from core.data_factory import DataFactory
+    e = DataFactory.email()
+    assert "@" in e
+
+
+def test_data_factory_phone():
+    from core.data_factory import DataFactory
+    p = DataFactory.phone()
+    digits = p.replace("-", "").replace(" ", "")
+    assert digits.isdigit()
+
+
+def test_data_factory_password_meets_requirements():
+    from core.data_factory import DataFactory
+    pw = DataFactory.password()
+    assert len(pw) >= 8
+    assert any(c.isalpha() for c in pw)
+    assert any(c.isdigit() for c in pw)
+
+
+# ========== DataPool 单元测试 ==========
+
+@allure.feature("DataPool")
+def test_data_pool_get_or_create():
+    from core.data_pool import DataPool
+    pool = DataPool()
+    called = 0
+
+    def factory():
+        nonlocal called
+        called += 1
+        return "value"
+
+    assert pool.get_or_create("key", factory) == "value"
+    assert called == 1
+    # 第二次调用不再走 factory
+    assert pool.get_or_create("key", factory) == "value"
+    assert called == 1
+
+
+def test_data_pool_clear():
+    from core.data_pool import DataPool
+    pool = DataPool()
+    pool.set("a", 1)
+    pool.set("b", 2)
+    pool.clear()
+    assert pool.get("a") is None
+    assert pool.get("b") is None
+
+
+def test_data_pool_set_override():
+    from core.data_pool import DataPool
+    pool = DataPool()
+    pool.set("k", "old")
+    pool.set("k", "new")
+    assert pool.get("k") == "new"
+
+
+# ========== 数据驱动测试 单元测试 ==========
+
+@allure.feature("DataDrive")
+def test_replace_placeholders():
+    from service.data_drive import _replace_placeholders
+    row = {"username": "test1", "pwd": "abc123"}
+    assert _replace_placeholders("{{username}}", row) == "test1"
+    assert _replace_placeholders("/api/user/{{username}}", row) == "/api/user/test1"
+    assert _replace_placeholders("{{unknown}}", row) == "{{unknown}}"
+
+
+def test_replace_in_dict():
+    from service.data_drive import _replace_in_dict
+    row = {"name": "alice", "age": "25"}
+    d = {"url": "/api/{{name}}", "body": {"user": "{{name}}", "info": "age_{{age}}"}}
+    result = _replace_in_dict(d, row)
+    assert result["url"] == "/api/alice"
+    assert result["body"]["user"] == "alice"
+    assert result["body"]["info"] == "age_25"
+
+
+def test_parse_upload_json():
+    from service.data_drive import parse_upload
+    content = '[{"username": "a", "pwd": "1"}, {"username": "b", "pwd": "2"}]'
+    rows = parse_upload(content, "data.json")
+    assert len(rows) == 2
+    assert rows[0]["username"] == "a"
+
+
+def test_parse_upload_csv():
+    from service.data_drive import parse_upload
+    content = "username,pwd\na,1\nb,2\n"
+    rows = parse_upload(content, "data.csv")
+    assert len(rows) == 2
+    assert rows[0]["username"] == "a"

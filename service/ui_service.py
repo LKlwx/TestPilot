@@ -211,7 +211,7 @@ def run_ui_case(case):
                     allure.attach(driver.get_screenshot_as_png(),
                                   name="ui_failure_screenshot",
                                   attachment_type=allure.attachment_type.PNG)
-                except Exception:
+                except ImportError:
                     pass
             except Exception as se:
                 logger.warning("UI 截图失败: %s", str(se))

@@ -32,6 +32,8 @@ graph TD
 - **生产环境安全加固**：启动时密钥强校验，拒绝弱密钥上线；JWT 鉴权全覆盖 + 登出黑名单机制；全局异常信息脱敏（生产环境不暴露堆栈）；用户注册多层防护（防admin绕过、防特殊字符注入）；密码强度强制（8位+字母+数字）；登录防暴力破解（5次失败锁定15分钟）
 - 多环境隔离：开发/测试/演示/生产四环境独立数据库，通过环境变量一键切换
 - 全部功能基于本地环境运行，无第三方云服务依赖，轻量易部署
+- **失败自动重试与 Flaky 处理**：按用例级配置重试次数，重试后通过标记为 FLAKY（黄色警告），始终失败标记为 FAIL（红色失败），近 5 次执行 ≥ 3 次 FLAKY 自动标记为不稳定用例
+- **数据驱动测试**：TestDataSet 模型绑定多组数据行，引擎自动将 {{变量}} 注入用例模板循环执行，支持 CSV/JSON 文件导入
 
 ## 技术栈
 - 后端：Python 3.14 + Flask
@@ -46,6 +48,7 @@ graph TD
 - 性能测试：asyncio + aiohttp 协程引擎
 - AI 模块：本地大模型集成（LM Studio + Qwen3.5 9B）
 - 测试报告：allure-pytest（Allure 可视化测试报告，含步骤追踪、截图附件、历史趋势）
+- 数据工厂：Faker + 随机数据生成 + Setup/Teardown 上下文管理器
 - 其他：系统操作日志、统一响应封装、全局异常捕获、分级日志体系（DEBUG/INFO/ERROR）、Redis 缓存加速（Dashboard 60s 缓存）
 
 ## 项目结构
@@ -95,6 +98,8 @@ TestPilot/
 │   ├── ui_service.py
 │   ├── performance_service.py
 │   ├── ai_service.py
+│   ├── data_drive.py           # 数据驱动测试引擎
+│   ├── fixtures.py             # 测试数据预置与清理
 │   └── pages/             # Page Object 模式示例
 ├── agent/            # AI 核心引擎
 │   └── ai_agent_core.py
@@ -114,14 +119,16 @@ TestPilot/
 │   ├── assert_engine.py       # AssertEngine 断言引擎
 │   ├── http_client.py         # BaseHTTPClient HTTP 客户端框架
 │   ├── base_page.py           # BasePage Page Object 基类
-│   └── page_generator.py      # Page Class 代码自动生成器
+│   ├── page_generator.py      # Page Class 代码自动生成器
+│   ├── data_factory.py        # DataFactory 随机测试数据生成
+│   └── data_pool.py           # DataPool 跨用例数据共享池
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
 ├── static/           # 静态资源
 └── templates/       # HTML 页面模板
 ```
 
 ## 数据模型说明
-项目共设计 16 张核心数据表，全部持久化存储：
+项目共设计 17 张核心数据表，全部持久化存储：
 1. **User**：用户信息、角色、密码
 2. **TestCase**：接口测试用例
 3. **TestReport**：接口测试报告
@@ -138,6 +145,7 @@ TestPilot/
 14. **BatchResult**：批量执行明细记录（每个用例的执行结果与耗时）
 15. **PerformanceBaseline**：性能基线数据（按用例存储 P90/P99/Avg/QPS，用于退化对比判定）
 16. **ApiCoverage**：接口覆盖率数据（从 Swagger/OpenAPI 导入接口列表，执行时自动标记覆盖状态）
+17. **TestDataSet**：测试数据集（绑定用例模板，存储多组参数化数据行，支持 CSV/JSON 批量导入）
 
 ## 本地运行方式
 1. 进入项目根目录
@@ -359,3 +367,28 @@ TestPilot/
 - **失败自动附件**：接口测试失败时自动附加响应体与断言错误信息，UI 测试失败时自动附加失败截图（`allure.attachment_type.PNG`），问题复现无需二次执行
 - **历史趋势保留**：`scripts/generate_allure_report.py` 在每次生成报告前自动将上一轮的 `history` 目录迁移到结果目录，确保报告中能看到通过率与耗时的历史趋势曲线
 - **无 Allure 环境兼容**：Service 层通过 `_allure_step()` 上下文管理器封装，未安装 Allure 时静默降级为普通执行，不影响核心测试功能
+
+### 9. 失败自动重试与 Flaky 处理
+- 用例级 `retry` 字段配置失败重试次数（0~10），控制粒度细到单条用例
+- 执行引擎自动合并多次重试结果：**所有执行只产生一条 TestReport**，中间失败过程不出现在报告列表中
+- 状态判定逻辑：
+  - 一次通过 → `PASS`
+  - 前 N 次失败、最终通过 → `FLAKY`（黄色警告，`retried` 字段记录重试次数）
+  - 全部失败 → `FAIL`（红色失败）或 `ERROR`（异常中断）
+- `check_flaky()` 函数在每次执行后自动扫描该用例近 5 次报告，若 FLAKY ≥ 3 次自动标记 `unstable = True`，辅助识别不稳定用例
+- 重试间隔 2 秒，重试过程中自动记录结构化日志
+
+### 10. 测试数据工厂
+- `DataFactory` 类提供 6 种随机测试数据生成：`username()`/`phone()`/`email()`/`password()`/`url()`/`name()`
+- 以 Faker 为优先后端（`Faker("zh_CN")`），未安装时自动降级为 uuid + random
+- `DataPool` 线程安全数据池：`get_or_create()` 双检索锁模式保证工厂函数只执行一次
+- `test_user()` 上下文管理器：自动创建临时用户 → 测试 → finally 清理，异常安全不残留
+- 支撑场景：注册接口测试（每次不同用户名）、链式登录测试（多用例共享 token）
+
+### 11. 数据驱动测试
+- `TestDataSet` 模型绑定用例模板，`data_rows` 存储 JSON 数组格式的多组参数
+- URL / headers / body 中的 `{{变量}}` 占位符会自动替换为每行数据，递归支持嵌套 dict/list
+- 与 ExecutionContext 的 `${变量}` 占位符互不干扰，两层替换各司其职
+- 每行数据独立执行，行间错误隔离（某行异常不影响其他行），每行产生独立 TestReport
+- 支持 CSV / JSON 文件上传导入，自动处理 UTF-8 BOM
+- 数据行解析失败时返回友好错误信息而非 500

@@ -146,9 +146,9 @@ def async_batch_run(self, case_ids: list, user_id: int):
                     case_id=cid,
                     case_name=case.name,
                     status=status,
-                    cost_time=res.get("cost_time"),
-                    response_code=res.get("response_code"),
-                    error_msg=res.get("error_msg"),
+                    cost_time=res.get("time"),
+                    response_code=res.get("code"),
+                    error_msg=res.get("error") or res.get("msg", ""),
                 )
                 db.session.add(result)
 

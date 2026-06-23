@@ -49,6 +49,7 @@ class TestCase(BaseCaseMixin, db.Model):
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
     timeout = db.Column(db.Integer, default=10, comment="请求超时时间（秒）")
     retry = db.Column(db.Integer, default=0, comment="失败重试次数")
+    unstable = db.Column(db.Boolean, default=False, comment="不稳定用例标记：近5次执行中FLAKY>=3次")
 
     # 关系回引
     reports = db.relationship("TestReport", backref="case", lazy="dynamic")
@@ -62,7 +63,8 @@ class TestReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     case_id = db.Column(db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"), index=True)
     case_name = db.Column(db.String(100))
-    status = db.Column(db.String(20), index=True)  # pass/fail/error
+    status = db.Column(db.String(20), index=True)  # pass/fail/error/flaky
+    retried = db.Column(db.Integer, default=0, comment="重试次数，0 表示第一次通过")
     cost_time = db.Column(db.Float)  # 耗时（秒）
     response_code = db.Column(db.Integer)
     response_body = db.Column(db.Text)
@@ -272,3 +274,15 @@ class ApiCoverage(db.Model):
     covered_by = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="最后覆盖人")
     covered_time = db.Column(db.DateTime, nullable=True, comment="最后覆盖时间")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="导入时间")
+
+
+# 测试数据集（数据驱动）
+class TestDataSet(db.Model):
+    __tablename__ = "test_data_set"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, comment="数据集名称，如'注册-边界值'")
+    case_id = db.Column(db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"), index=True, comment="绑定的用例模板")
+    data_rows = db.Column(db.Text, comment="数据行，JSON 数组，如 [{\"username\":\"a\",\"pwd\":\"1\"}]")
+    create_time = db.Column(db.DateTime, default=datetime.now)
+
+    case = db.relationship("TestCase", backref=db.backref("data_sets", lazy="dynamic"))

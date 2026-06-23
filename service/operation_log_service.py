@@ -23,3 +23,4 @@ def add_operation_log(user_id, username, operation, detail, ip=None):
     except SQLAlchemyError:
         db.session.rollback()
         logger.error("操作日志写入失败: operation=%s, user=%s", operation, username)
+        raise

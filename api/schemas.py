@@ -154,3 +154,11 @@ class AddUIStructSchema(Schema):
     loc_type = fields.String(validate=validate.OneOf(["xpath", "id", "css"]), load_default="xpath")
     loc_value = fields.String(load_default="")
     screenshot_path = fields.String(load_default="")
+
+
+# ========== 数据驱动测试 ==========
+
+class AddDataSetSchema(Schema):
+    name = fields.String(required=True, validate=validate.Length(min=1, max=100))
+    case_id = fields.Integer(required=True, strict=True, validate=validate.Range(min=1))
+    rows = fields.List(fields.Dict(), required=True, validate=validate.Length(min=1))

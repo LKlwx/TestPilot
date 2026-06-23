@@ -1,15 +1,17 @@
 from flask import Blueprint, request, render_template
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from werkzeug.utils import secure_filename
 
 from core.exception import NotFoundException
 from core.response import success, error
 from core.pagination import paginate
 from core.db_guard import db_write_guard
 from core.schema import validate_request
-from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema, BatchRunSchema
-from models import TestCase, TestReport, AsyncTask, BatchTask, BatchResult, User
+from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema, BatchRunSchema, AddDataSetSchema
+from models import TestCase, TestReport, TestDataSet, AsyncTask, BatchTask, BatchResult, User
 from extensions import db
 from service.test_service import execute_test_case
+from service.data_drive import data_drive_execute, parse_upload
 from service.operation_log_service import add_operation_log
 from celery_app import celery_app
 from datetime import datetime, timedelta
@@ -289,3 +291,118 @@ def get_batch_results(bid):
             for r in results
         ],
     })
+
+
+# ========== 数据驱动测试 ==========
+
+
+def _safe_parse_rows(data_rows_str):
+    try:
+        return len(json.loads(data_rows_str)) if data_rows_str else 0
+    except (json.JSONDecodeError, TypeError):
+        return 0
+
+
+def _safe_load_rows(data_rows_str):
+    try:
+        return json.loads(data_rows_str) if data_rows_str else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+@test_bp.route("/dataset/list", methods=["GET"])
+@jwt_required()
+def get_datasets():
+    case_id = request.args.get("case_id", type=int)
+    query = TestDataSet.query
+    if case_id:
+        query = query.filter_by(case_id=case_id)
+    datasets = query.order_by(TestDataSet.id.desc()).all()
+    return success({
+        "list": [{
+            "id": d.id, "name": d.name, "case_id": d.case_id,
+            "row_count": _safe_parse_rows(d.data_rows),
+            "create_time": d.create_time.strftime("%Y-%m-%d %H:%M") if d.create_time else None,
+        } for d in datasets],
+    })
+
+
+@test_bp.route("/dataset/<int:did>", methods=["GET"])
+@jwt_required()
+def get_dataset_detail(did):
+    ds = TestDataSet.query.get(did)
+    if not ds:
+        raise NotFoundException("数据集不存在")
+    return success({
+        "id": ds.id, "name": ds.name, "case_id": ds.case_id,
+        "rows": _safe_load_rows(ds.data_rows),
+        "create_time": ds.create_time.strftime("%Y-%m-%d %H:%M") if ds.create_time else None,
+    })
+
+
+@test_bp.route("/dataset/add", methods=["POST"])
+@jwt_required()
+def add_dataset():
+    data = validate_request(AddDataSetSchema, request.get_json())
+    ds = TestDataSet(
+        name=data["name"],
+        case_id=data["case_id"],
+        data_rows=json.dumps(data["rows"], ensure_ascii=False),
+    )
+    with db_write_guard("测试数据集添加失败"):
+        db.session.add(ds)
+        db.session.flush()
+    return success(data={"id": ds.id}, msg="数据集添加成功")
+
+
+@test_bp.route("/dataset/<int:did>", methods=["DELETE"])
+@jwt_required()
+def delete_dataset(did):
+    ds = TestDataSet.query.get(did)
+    if not ds:
+        raise NotFoundException("数据集不存在")
+    db.session.delete(ds)
+    with db_write_guard("测试数据集删除失败"):
+        db.session.flush()
+    return success(msg="数据集删除成功")
+
+
+@test_bp.route("/dataset/<int:did>/run", methods=["POST"])
+@jwt_required()
+def run_dataset(did):
+    ds = TestDataSet.query.get(did)
+    if not ds:
+        raise NotFoundException("数据集不存在")
+    case = TestCase.query.get(ds.case_id)
+    if not case:
+        raise NotFoundException("绑定的用例不存在")
+    results = data_drive_execute(case, ds)
+    return success({
+        "dataset_id": ds.id, "dataset_name": ds.name,
+        "total": len(results),
+        "results": results,
+    })
+
+
+@test_bp.route("/dataset/import", methods=["POST"])
+@jwt_required()
+def import_dataset():
+    """上传文件导入数据集（支持 JSON / CSV）"""
+    file = request.files.get("file")
+    if not file:
+        return error("请上传文件")
+    filename = secure_filename(file.filename or "data.csv")
+    content = file.read().decode("utf-8", errors="strict")
+
+    try:
+        rows = parse_upload(content, filename)
+    except json.JSONDecodeError:
+        return error("JSON 格式错误，请检查文件内容")
+    except UnicodeDecodeError:
+        return error("文件编码不支持，请使用 UTF-8（可另存为 CSV UTF-8）")
+    if rows is None:
+        return error(f"不支持的文件格式: {filename}（支持 .json / .csv）")
+
+    return success({
+        "filename": filename, "row_count": len(rows), "rows": rows,
+    }, msg=f"解析成功，共 {len(rows)} 行数据")
