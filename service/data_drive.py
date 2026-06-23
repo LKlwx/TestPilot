@@ -125,15 +125,14 @@ def parse_upload(file_content, filename):
     支持格式：
     - .json: JSON 数组 [{"k": "v"}, ...]
     - .csv:  首行为列名的 CSV，后续每行为一行
-    - .xlsx: 首行为列名的 Excel
     """
     name_lower = filename.lower()
 
     if name_lower.endswith(".json"):
-        return json.loads(content)
+        return json.loads(file_content)
 
     if name_lower.endswith(".csv"):
-        content = _strip_bom(content)
+        content = _strip_bom(file_content)
         reader = csv.DictReader(io.StringIO(content))
         return list(reader)
 
