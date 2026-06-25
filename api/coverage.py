@@ -1,4 +1,6 @@
 from datetime import datetime
+import hashlib
+import json
 import re
 from urllib.parse import urlparse
 from flask import Blueprint, request, render_template
@@ -8,7 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from core.response import success
 from core.exception import APIException, NotFoundException
 from core.pagination import paginate
-from models import ApiCoverage
+from models import ApiCoverage, ApiContract
 from extensions import db
 
 coverage_bp = Blueprint("coverage", __name__)
@@ -85,10 +87,81 @@ def coverage_list():
     })
 
 
+def _resolve_schema_refs(obj, schemas, visited=None):
+    """递归解析 $ref，返回完整 Schema 定义
+
+    Args:
+        obj: 当前解析的 Schema 片段（dict 或 list）
+        schemas: 整个 components.schemas 字典
+        visited: 已访问的 $ref 路径，防循环引用
+
+    Returns:
+        解析后的完整 Schema
+    """
+    if visited is None:
+        visited = set()
+    if isinstance(obj, dict):
+        if "$ref" in obj:
+            ref_path = obj["$ref"]
+            if ref_path in visited:
+                return {"type": "object"}
+            visited.add(ref_path)
+            # 支持 #/components/schemas/Xxx
+            parts = ref_path.lstrip("#/").split("/")
+            ref_obj = schemas
+            for p in parts:
+                ref_obj = ref_obj.get(p, {})
+            result = _resolve_schema_refs(ref_obj, schemas, visited)
+            visited.discard(ref_path)
+            return result
+        return {k: _resolve_schema_refs(v, schemas, visited) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_resolve_schema_refs(v, schemas, visited) for v in obj]
+    return obj
+
+
+def _compute_schema_hash(schema):
+    """计算 Schema 的 SHA256 摘要"""
+    raw = json.dumps(schema, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _extract_contract(method, path, summary, swagger_data):
+    """从 Swagger 数据中提取该接口的响应 Schema
+
+    查找 path[method].responses[200|201].content['application/json'].schema
+    或 path[method].responses[200|201].schema
+    """
+    schemas = swagger_data.get("components", {}).get("schemas", {})
+    methods_data = swagger_data.get("paths", {}).get(path, {})
+    method_data = methods_data.get(method.lower(), methods_data.get(method.upper(), {}))
+
+    # 找 response schema
+    responses = method_data.get("responses", {})
+    response_schema = None
+    for status in ("200", "201", "default"):
+        resp = responses.get(status, {})
+        # OpenAPI 3.x: content['application/json'].schema
+        content = resp.get("content", {})
+        if content:
+            json_content = content.get("application/json", {})
+            schema = json_content.get("schema")
+            if schema:
+                response_schema = _resolve_schema_refs(schema, schemas)
+                break
+        # OpenAPI 2.x (Swagger): schema 直接挂在 response 下
+        schema = resp.get("schema")
+        if schema:
+            response_schema = _resolve_schema_refs(schema, schemas)
+            break
+
+    return response_schema
+
+
 @coverage_bp.route("/import", methods=["POST"])
 @jwt_required()
 def import_swagger():
-    """从 Swagger/OpenAPI JSON 导入接口列表"""
+    """从 Swagger/OpenAPI JSON 导入接口列表 + 契约"""
     data = request.json
     if not data:
         raise APIException("请上传 Swagger JSON")
@@ -97,24 +170,88 @@ def import_swagger():
     if not paths:
         raise APIException("Swagger JSON 中未找到 paths 字段")
 
-    count = 0
+    # 批量导入
+    imported = 0
+    contracted = 0
     for path, methods in paths.items():
         for method, detail in methods.items():
             if method.upper() not in ("GET", "POST", "PUT", "DELETE", "PATCH"):
                 continue
             summary = detail.get("summary", "") if isinstance(detail, dict) else ""
             normalized = _normalize_path(path)
-            exists = ApiCoverage.query.filter_by(method=method.upper(), path=normalized).first()
-            if not exists:
+
+            # 1. 写入覆盖率
+            exists_api = ApiCoverage.query.filter_by(method=method.upper(), path=normalized).first()
+            if not exists_api:
                 api = ApiCoverage(
                     method=method.upper(), path=normalized,
                     summary=summary, is_covered=False,
                 )
                 db.session.add(api)
-                count += 1
+                imported += 1
+
+            # 2. 写入契约
+            endpoint = f"{method.upper()} {normalized}"
+            contract = ApiContract.query.filter_by(endpoint=endpoint).first()
+            response_schema = _extract_contract(method, path, summary, data)
+
+            if response_schema:
+                new_hash = _compute_schema_hash(response_schema)
+                if contract:
+                    contract.summary = summary
+                    contract.response_schema = response_schema
+                    contract.schema_hash = new_hash
+                    contract.last_version += 1
+                    contract.update_time = datetime.now()
+                else:
+                    db.session.add(ApiContract(
+                        endpoint=endpoint, summary=summary,
+                        response_schema=response_schema,
+                        schema_hash=new_hash, last_version=1,
+                    ))
+                contracted += 1
 
     db.session.commit()
-    return success(data={"imported": count}, msg=f"导入成功，新增 {count} 个接口")
+    return success(
+        data={"imported": imported, "contracted": contracted},
+        msg=f"导入成功，新增 {imported} 个接口，{contracted} 个契约",
+    )
+
+
+# ========== 契约查询 ==========
+
+
+@coverage_bp.route("/contracts", methods=["GET"])
+@jwt_required()
+def get_contracts():
+    keyword = request.args.get("keyword", "", type=str)
+    query = ApiContract.query
+    if keyword:
+        query = query.filter(ApiContract.endpoint.like(f"%{keyword}%"))
+    result = query.order_by(ApiContract.id.desc()).all()
+    return success({
+        "list": [{
+            "id": c.id, "endpoint": c.endpoint, "summary": c.summary,
+            "version": c.last_version, "has_schema": c.response_schema is not None,
+            "update_time": c.update_time.strftime("%Y-%m-%d %H:%M") if c.update_time else None,
+        } for c in result],
+    })
+
+
+@coverage_bp.route("/contract/<int:cid>", methods=["GET"])
+@jwt_required()
+def get_contract(cid):
+    contract = ApiContract.query.get(cid)
+    if not contract:
+        raise NotFoundException("契约不存在")
+    return success({
+        "id": contract.id, "endpoint": contract.endpoint, "summary": contract.summary,
+        "version": contract.last_version,
+        "request_schema": contract.request_schema,
+        "response_schema": contract.response_schema,
+        "create_time": contract.create_time.isoformat() if contract.create_time else None,
+        "update_time": contract.update_time.isoformat() if contract.update_time else None,
+    })
 
 
 @coverage_bp.route("/<int:aid>", methods=["DELETE"])

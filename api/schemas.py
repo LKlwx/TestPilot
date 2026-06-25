@@ -24,6 +24,7 @@ class AddTestCaseSchema(Schema):
     timeout = fields.Integer(validate=validate.Range(min=1, max=120), load_default=10)
     retry = fields.Integer(validate=validate.Range(min=0, max=10), load_default=0)
     tags = fields.String(validate=validate.Length(max=200), load_default="")
+    env_id = fields.Integer(validate=validate.Range(min=1), load_default=None, allow_none=True)
 
 
 class UpdateTestCaseSchema(Schema):
@@ -38,6 +39,7 @@ class UpdateTestCaseSchema(Schema):
     timeout = fields.Integer(validate=validate.Range(min=1, max=120))
     retry = fields.Integer(validate=validate.Range(min=0, max=10))
     tags = fields.String(validate=validate.Length(max=200))
+    env_id = fields.Integer(validate=validate.Range(min=1), load_default=None, allow_none=True)
 
 
 class AddUICaseSchema(Schema):

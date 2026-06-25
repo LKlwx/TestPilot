@@ -13,6 +13,7 @@ from api.ui import ui_bp
 from api.performance import performance_bp
 from api.ai import ai_bp
 from api.coverage import coverage_bp
+from api.environment import env_bp
 
 
 def create_app(config_name="default"):
@@ -85,6 +86,7 @@ def create_app(config_name="default"):
     app.register_blueprint(performance_bp, url_prefix="/api/performance")
     app.register_blueprint(ai_bp, url_prefix="/api/ai")
     app.register_blueprint(coverage_bp, url_prefix="/api/coverage")
+    app.register_blueprint(env_bp, url_prefix="/api/env")
 
     @app.route("/")
     def root_index():

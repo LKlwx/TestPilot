@@ -1,6 +1,12 @@
 import re
 import json
 
+try:
+    import jsonschema
+    _HAS_JSONSCHEMA = True
+except ImportError:
+    _HAS_JSONSCHEMA = False
+
 
 class AssertEngine:
     """断言引擎：支持多种断言类型的统一执行入口
@@ -11,6 +17,7 @@ class AssertEngine:
         - JSON 路径断言：   $.data.token == expected_value
         - 正则断言：        match ^\\d{4}-\\d{2}-\\d{2}$
         - 响应时间断言：    time < 1000
+        - Schema 校验断言：  schema                       (仅用于外部调用 validate_schema)
     """
 
     def __init__(self, response, cost_time=None):
@@ -109,3 +116,25 @@ class AssertEngine:
         """包含断言（向后兼容）"""
         passed = rule in self.response.text
         return (passed, f"包含断言 {'通过' if passed else '失败'}：{'包含' if passed else '未包含'}关键字 '{rule}'")
+
+    def validate_schema(self, response_json, schema):
+        """校验响应体是否符合 JSON Schema
+
+        Args:
+            response_json: 实际的响应体（dict 或 list）
+            schema: JSON Schema 定义（dict）
+
+        Returns:
+            (passed: bool, message: str)
+        """
+        if not schema:
+            return True, "无契约定义，跳过 Schema 校验"
+        if not _HAS_JSONSCHEMA:
+            return True, "jsonschema 未安装，跳过 Schema 校验"
+
+        try:
+            jsonschema.validate(instance=response_json, schema=schema)
+            return True, "Schema 校验通过：响应体符合契约定义"
+        except jsonschema.ValidationError as e:
+            path = ".".join(str(p) for p in e.absolute_path) if e.absolute_path else e.message
+            return False, f"Schema 校验失败: {e.message}"

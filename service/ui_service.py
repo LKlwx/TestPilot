@@ -113,8 +113,18 @@ def run_ui_case(case):
         try:
             page = BasePage(driver, timeout=10)
             driver.set_page_load_timeout(10)
-            driver.get(case.url)
-            step_log.append("打开页面：" + case.url)
+            # 环境拼接
+            target_url = case.url
+            try:
+                from models import Environment
+                env_id = getattr(case, "env_id", None)
+                env = Environment.query.get(env_id) if env_id else Environment.query.filter_by(is_default=True).first()
+                if env and not target_url.startswith("http"):
+                    target_url = f"{env.base_url.rstrip('/')}{target_url}"
+            except Exception:
+                pass
+            driver.get(target_url)
+            step_log.append("打开页面：" + target_url)
 
             WebDriverWait(driver, 5).until(
                 lambda d: d.execute_script('return document.readyState') == 'complete'

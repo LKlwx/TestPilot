@@ -263,6 +263,18 @@ class SysOperationLog(db.Model):
     detail = db.Column(db.Text, comment="操作详情（如：删除用户ID=1，修改角色为admin等）")
 
 
+# 环境管理（多环境切换）
+class Environment(db.Model):
+    __tablename__ = "environment"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False, comment="环境名称，如 开发环境/测试环境/生产环境")
+    base_url = db.Column(db.String(500), nullable=False, comment="环境基地址，如 http://dev-server:8080")
+    headers = db.Column(db.Text, default="{}", comment="全局请求头，JSON 对象")
+    variables = db.Column(db.Text, default="{}", comment="环境变量，JSON 对象，如 {'token': 'xxx'}")
+    is_default = db.Column(db.Boolean, default=False, comment="是否为默认环境")
+    create_time = db.Column(db.DateTime, default=datetime.now)
+
+
 # 接口覆盖率统计表
 class ApiCoverage(db.Model):
     __tablename__ = "api_coverage"
@@ -286,3 +298,17 @@ class TestDataSet(db.Model):
     create_time = db.Column(db.DateTime, default=datetime.now)
 
     case = db.relationship("TestCase", backref=db.backref("data_sets", lazy="dynamic"))
+
+
+# 接口契约定义（JSON Schema）
+class ApiContract(db.Model):
+    __tablename__ = "api_contract"
+    id = db.Column(db.Integer, primary_key=True)
+    endpoint = db.Column(db.String(500), nullable=False, index=True, comment="接口标识，如 GET /api/user/{id}")
+    summary = db.Column(db.String(200), comment="接口描述")
+    request_schema = db.Column(db.JSON, nullable=True, comment="请求参数 Schema")
+    response_schema = db.Column(db.JSON, nullable=True, comment="响应体 Schema")
+    schema_hash = db.Column(db.String(64), comment="Schema 的 SHA256，用于变更检测")
+    last_version = db.Column(db.Integer, default=1, comment="契约版本号")
+    create_time = db.Column(db.DateTime, default=datetime.now)
+    update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)

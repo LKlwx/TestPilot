@@ -34,6 +34,7 @@ graph TD
 - 全部功能基于本地环境运行，无第三方云服务依赖，轻量易部署
 - **失败自动重试与 Flaky 处理**：按用例级配置重试次数，重试后通过标记为 FLAKY（黄色警告），始终失败标记为 FAIL（红色失败），近 5 次执行 ≥ 3 次 FLAKY 自动标记为不稳定用例
 - **数据驱动测试**：TestDataSet 模型绑定多组数据行，引擎自动将 {{变量}} 注入用例模板循环执行，支持 CSV/JSON 文件导入
+- **接口契约测试**：Swagger 导入自动提取 JSON Schema，执行时 `jsonschema.validate()` 自动校验响应与契约一致性，字段类型/必填/枚举不符自动报警
 
 ## 技术栈
 - 后端：Python 3.14 + Flask
@@ -91,6 +92,7 @@ TestPilot/
 │   ├── performance.py  # 性能测试接口
 │   └── ai.py        # AI 辅助测试接口
 │   └── coverage.py  # 接口覆盖率统计接口
+│   └── environment.py  # 环境管理接口
 ├── service/          # 业务逻辑层
 │   ├── operation_log_service.py  # 操作日志服务
 │   ├── user_service.py
@@ -128,7 +130,7 @@ TestPilot/
 ```
 
 ## 数据模型说明
-项目共设计 17 张核心数据表，全部持久化存储：
+项目共设计 19 张核心数据表，全部持久化存储：
 1. **User**：用户信息、角色、密码
 2. **TestCase**：接口测试用例
 3. **TestReport**：接口测试报告
@@ -146,6 +148,8 @@ TestPilot/
 15. **PerformanceBaseline**：性能基线数据（按用例存储 P90/P99/Avg/QPS，用于退化对比判定）
 16. **ApiCoverage**：接口覆盖率数据（从 Swagger/OpenAPI 导入接口列表，执行时自动标记覆盖状态）
 17. **TestDataSet**：测试数据集（绑定用例模板，存储多组参数化数据行，支持 CSV/JSON 批量导入）
+18. **ApiContract**：接口契约定义（从 Swagger 导入 Response Schema，执行时自动校验响应 JSON 是否符合契约）
+19. **Environment**：环境配置（名称、基地址、全局请求头、环境变量，支持开发/测试/生产一键切换）
 
 ## 本地运行方式
 1. 进入项目根目录
@@ -392,3 +396,18 @@ TestPilot/
 - 每行数据独立执行，行间错误隔离（某行异常不影响其他行），每行产生独立 TestReport
 - 支持 CSV / JSON 文件上传导入，自动处理 UTF-8 BOM
 - 数据行解析失败时返回友好错误信息而非 500
+
+### 12. 接口契约测试（JSON Schema 校验）
+- `ApiContract` 模型存储接口的 Response Schema，一条接口一条契约
+- Swagger/OpenAPI 导入时自动解析 `components.schemas`，`$ref` 递归解析为完整 Schema，`SHA256` 计算摘要用于变更检测
+- 执行时自动匹配契约：拿到接口响应后，`jsonschema.validate()` 对比响应 JSON 是否符合 Schema 定义
+- 类型不符时（如 `id` 期望 `integer` 实际 `string`）自动标记失败，失败信息追加到断言结果中，不用手写字段校验
+- 变更检测：再次导入同接口时，Schema 不同则 `last_version += 1`，保留历史版本
+- GET `/api/coverage/contracts` 列出所有契约，GET `/api/coverage/contract/<id>` 查看详情
+
+### 13. 环境管理（多环境切换）
+- `Environment` 模型存储环境配置：名称、基地址、全局请求头、环境变量、是否默认
+- 用例 URL 改为相对路径（如 `/api/user/login`），执行时自动拼接 `env.base_url + case.url`
+- 环境全局请求头（如 `Authorization: Bearer xxx`）自动合并到每次请求，用例级 headers 覆盖环境级
+- 环境变量（如 `{"token": "..."}`）自动注入 ExecutionContext，方便链式用例依赖
+- 支持开发/测试/生产多环境一键切换：同一套用例选不同环境各跑一遍，批量执行接口传 `env_id` 参数

@@ -45,6 +45,7 @@ def get_cases():
         "timeout": c.timeout,
         "retry": c.retry,
         "tags": c.tags,
+        "env_id": c.env_id,
     } for c in result.items]
 
     return success({
@@ -75,6 +76,7 @@ def add_case():
         timeout=data.get("timeout", 10),
         retry=data.get("retry", 0),
         tags=data.get("tags", ""),
+        env_id=data.get("env_id"),
     )
     with db_write_guard("接口用例添加失败"):
         db.session.add(case)
@@ -159,6 +161,7 @@ def update_case(cid):
     case.timeout = data.get("timeout", case.timeout)
     case.retry = data.get("retry", case.retry)
     case.tags = data.get("tags", case.tags)
+    case.env_id = data.get("env_id", case.env_id)
 
     db.session.commit()
     detail = f"修改接口用例: {old_name} → {case.name}"

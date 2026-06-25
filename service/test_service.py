@@ -1,4 +1,5 @@
 import json
+import re
 from contextlib import contextmanager
 from models import TestReport
 from extensions import db
@@ -137,10 +138,44 @@ def _execute_raw(case, context, timeout):
             final_url = context.replace_placeholders(case.url)
             final_body = context.replace_placeholders(case.body)
 
+        # 解析环境变量与 base_url
+        env = None
         try:
-            headers = json.loads(case.headers) if case.headers else {}
+            from models import Environment
+            env_id = getattr(case, "env_id", None)
+            if env_id:
+                env = Environment.query.get(env_id)
+            if not env:
+                env = Environment.query.filter_by(is_default=True).first()
+        except Exception:
+            pass
+
+        if env:
+            # 环境 base_url + 用例相对路径
+            if not final_url.startswith("http"):
+                final_url = f"{env.base_url.rstrip('/')}{final_url}"
+            try:
+                import json
+                env_vars = json.loads(env.variables) if env.variables else {}
+                for k, v in env_vars.items():
+                    if not context.get_var(k):
+                        context.set_var(k, v)
+            except (json.JSONDecodeError, TypeError):
+                pass
+            try:
+                env_headers = json.loads(env.headers) if env.headers else {}
+            except (json.JSONDecodeError, TypeError):
+                env_headers = {}
+        else:
+            env_headers = {}
+
+        # 环境 headers 为基，用例 headers 覆盖
+        try:
+            case_headers = json.loads(case.headers) if case.headers else {}
         except (TypeError, json.JSONDecodeError):
-            headers = {}
+            case_headers = {}
+        case_headers.update(env_headers)
+        headers = case_headers
 
         try:
             body = json.loads(final_body) if final_body else None
@@ -195,6 +230,36 @@ def _execute_raw(case, context, timeout):
             engine = AssertEngine(response=resp, cost_time=cost_time)
             if case.expect:
                 passed, msg = engine.execute(case.expect)
+
+        # 自动 Schema 校验（匹配 ApiContract）
+        try:
+            from urllib.parse import urlparse
+            from models import ApiContract
+            path = urlparse(final_url).path
+            endpoint_exact = f"{case.method} {path.rstrip('/')}"
+            contract = ApiContract.query.filter_by(endpoint=endpoint_exact).first()
+
+            if not contract:
+                contracts = ApiContract.query.all()
+                for c in contracts:
+                    c_method, c_path = c.endpoint.split(" ", 1) if " " in c.endpoint else ("", "")
+                    if c_method == case.method:
+                        pattern = re.sub(r"\{[^}]+\}", r"[^/]+", c_path)
+                        if re.match("^" + pattern + "$", path.rstrip("/")):
+                            contract = c
+                            break
+
+            if contract and contract.response_schema and passed:
+                try:
+                    resp_json = resp.json()
+                    schema_passed, schema_msg = engine.validate_schema(resp_json, contract.response_schema)
+                    if not schema_passed:
+                        passed = False
+                        msg += f" | {schema_msg}"
+                except (json.JSONDecodeError, ValueError):
+                    pass
+        except Exception:
+            pass
 
         # Allure 上下文检测与附加
         try:

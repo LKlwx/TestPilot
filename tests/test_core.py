@@ -326,3 +326,67 @@ def test_parse_upload_csv():
     rows = parse_upload(content, "data.csv")
     assert len(rows) == 2
     assert rows[0]["username"] == "a"
+
+
+# ========== 契约测试 单元测试 ==========
+
+@allure.feature("ApiContract")
+def test_validate_schema_pass():
+    from core.assert_engine import AssertEngine
+    engine = AssertEngine(response=None)
+    schema = {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}, "name": {"type": "string"}},
+        "required": ["id"],
+    }
+    data = {"id": 1, "name": "test"}
+    passed, msg = engine.validate_schema(data, schema)
+    assert passed
+
+
+def test_validate_schema_type_mismatch():
+    from core.assert_engine import AssertEngine
+    engine = AssertEngine(response=None)
+    schema = {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}},
+    }
+    data = {"id": "not_int"}
+    passed, msg = engine.validate_schema(data, schema)
+    assert not passed
+    assert "integer" in msg
+
+
+def test_validate_schema_missing_required():
+    from core.assert_engine import AssertEngine
+    engine = AssertEngine(response=None)
+    schema = {
+        "type": "object",
+        "properties": {"id": {"type": "integer"}, "name": {"type": "string"}},
+        "required": ["name"],
+    }
+    data = {"id": 1}
+    passed, msg = engine.validate_schema(data, schema)
+    assert not passed
+    assert "name" in msg or "required" in msg
+
+
+def test_validate_schema_no_schema():
+    from core.assert_engine import AssertEngine
+    engine = AssertEngine(response=None)
+    passed, msg = engine.validate_schema({"a": 1}, None)
+    assert passed
+
+
+@allure.feature("SwaggerParser")
+def test_resolve_schema_refs():
+    from api.coverage import _resolve_schema_refs
+    schemas = {
+        "User": {
+            "type": "object",
+            "properties": {"id": {"type": "integer"}, "name": {"type": "string"}},
+        },
+    }
+    resolved = _resolve_schema_refs({"$ref": "#/components/schemas/User"}, schemas)
+    assert resolved["type"] == "object"
+    assert resolved["properties"]["id"]["type"] == "integer"
