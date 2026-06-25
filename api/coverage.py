@@ -108,6 +108,9 @@ def _resolve_schema_refs(obj, schemas, visited=None):
             visited.add(ref_path)
             # 支持 #/components/schemas/Xxx
             parts = ref_path.lstrip("#/").split("/")
+            # 若 schemas 已经是平铺的 {SchemaName: {...}}，跳过 components/schemas 前缀
+            if len(parts) >= 3 and parts[0] == "components" and parts[1] == "schemas":
+                parts = parts[2:]
             ref_obj = schemas
             for p in parts:
                 ref_obj = ref_obj.get(p, {})
