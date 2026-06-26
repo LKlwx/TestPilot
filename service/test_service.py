@@ -174,8 +174,8 @@ def _execute_raw(case, context, timeout):
             case_headers = json.loads(case.headers) if case.headers else {}
         except (TypeError, json.JSONDecodeError):
             case_headers = {}
-        case_headers.update(env_headers)
-        headers = case_headers
+        merged = {**env_headers, **case_headers}
+        headers = merged
 
         try:
             body = json.loads(final_body) if final_body else None

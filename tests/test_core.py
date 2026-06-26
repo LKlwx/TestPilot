@@ -390,3 +390,38 @@ def test_resolve_schema_refs():
     resolved = _resolve_schema_refs({"$ref": "#/components/schemas/User"}, schemas)
     assert resolved["type"] == "object"
     assert resolved["properties"]["id"]["type"] == "integer"
+
+
+# ========== 导入导出 单元测试 ==========
+
+@allure.feature("ImportExport")
+def test_schema_to_example_object():
+    from api.coverage import _schema_to_example
+    schema = {
+        "type": "object",
+        "properties": {
+            "username": {"type": "string"},
+            "age": {"type": "integer"},
+        },
+    }
+    result = _schema_to_example(schema)
+    assert result["username"] == "string"
+    assert result["age"] == 0
+
+
+def test_schema_to_example_nested():
+    from api.coverage import _schema_to_example
+    schema = {
+        "type": "object",
+        "properties": {
+            "user": {
+                "type": "object",
+                "properties": {"id": {"type": "integer"}, "name": {"type": "string"}},
+            },
+            "tags": {"type": "array", "items": {"type": "string"}},
+        },
+    }
+    result = _schema_to_example(schema)
+    assert result["user"]["id"] == 0
+    assert result["user"]["name"] == "string"
+    assert result["tags"] == ["string"]

@@ -1,8 +1,11 @@
 from flask import Blueprint, request, render_template
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
+from io import StringIO
+import csv
+import json
 
-from core.exception import NotFoundException
+from core.exception import APIException, NotFoundException
 from core.response import success, error
 from core.pagination import paginate
 from core.db_guard import db_write_guard
@@ -409,3 +412,107 @@ def import_dataset():
     return success({
         "filename": filename, "row_count": len(rows), "rows": rows,
     }, msg=f"解析成功，共 {len(rows)} 行数据")
+
+
+# ========== 用例导入导出 ==========
+
+
+@test_bp.route("/import/postman", methods=["POST"])
+@jwt_required()
+def import_postman():
+    """导入 Postman Collection v2.1 JSON，自动转为 TestCase"""
+    data = request.json
+    if not data or not data.get("item"):
+        raise APIException("Postman Collection JSON 格式错误，缺少 item 字段")
+    identity = get_jwt_identity()
+    user = User.query.get(int(identity))
+    username = user.username if user else "未知"
+
+    def parse_items(items, parent_name=""):
+        cases = []
+        for item in items:
+            if item.get("item"):
+                cases.extend(parse_items(item["item"], item.get("name", "")))
+            elif item.get("request"):
+                req = item["request"]
+                name = item.get("name", req.get("url", {}).get("path", ""))
+                method = req.get("method", "GET").upper()
+                url_obj = req.get("url", {})
+                if isinstance(url_obj, str):
+                    url = url_obj
+                else:
+                    port = url_obj.get("port", "")
+                    host = ".".join(url_obj.get("host", [])) if isinstance(url_obj.get("host"), list) else (url_obj.get("host") or "")
+                    path = "/" + "/".join(url_obj.get("path", [])) if url_obj.get("path") else ""
+                    url = host + (f":{port}" if port else "") + path
+
+                headers = {}
+                for h in req.get("header", []):
+                    if h.get("key"):
+                        headers[h["key"]] = h.get("value", "")
+
+                body = ""
+                body_data = req.get("body", {})
+                if body_data.get("mode") == "raw":
+                    body = body_data.get("raw", "")
+                elif body_data.get("mode") == "formdata":
+                    body = json.dumps({f.get("key"): f.get("value", "") for f in body_data.get("formdata", [])}, ensure_ascii=False)
+
+                if method in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+                    cases.append(TestCase(
+                        name=name or path or f"Postman-{method}",
+                        module=parent_name or "Postman导入",
+                        method=method, url=url,
+                        headers=json.dumps(headers, ensure_ascii=False) if headers else "{}",
+                        body=body, expect="", extract_var="",
+                        creator_id=int(identity),
+                    ))
+        return cases
+
+    new_cases = parse_items(data["item"])
+    if not new_cases:
+        return error("未解析到有效接口")
+
+    for c in new_cases:
+        db.session.add(c)
+    db.session.commit()
+
+    add_operation_log(int(identity), username, "import_postman", f"导入 Postman Collection，新增 {len(new_cases)} 条用例")
+    return success(data={"imported": len(new_cases)}, msg=f"导入成功，新增 {len(new_cases)} 条用例")
+
+
+@test_bp.route("/cases/export", methods=["GET"])
+@jwt_required()
+def export_cases():
+    """导出接口用例（JSON / CSV）"""
+    fmt = request.args.get("format", "json")
+    query = TestCase.query.order_by(TestCase.id.desc())
+
+    cases = [{
+        "id": c.id, "name": c.name, "module": c.module, "method": c.method,
+        "url": c.url, "headers": c.headers, "body": c.body, "expect": c.expect,
+        "extract_var": c.extract_var, "tags": c.tags,
+        "create_time": c.create_time.strftime("%Y-%m-%d %H:%M") if c.create_time else None,
+    } for c in query.all()]
+
+    if fmt == "csv":
+        output = StringIO()
+        if cases:
+            fieldnames = ["id", "name", "module", "method", "url", "headers", "body", "expect", "extract_var", "tags"]
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in cases:
+                writer.writerow({k: row.get(k, "") for k in fieldnames})
+        return success({
+            "format": "csv",
+            "content": output.getvalue(),
+            "filename": f"testpilot_cases_{datetime.now().strftime('%Y%m%d')}.csv",
+            "count": len(cases),
+        })
+
+    return success({
+        "format": "json",
+        "content": cases,
+        "filename": f"testpilot_cases_{datetime.now().strftime('%Y%m%d')}.json",
+        "count": len(cases),
+    })

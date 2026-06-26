@@ -34,11 +34,21 @@
     <div style="display: flex; gap: 10px; margin-top: 8px;">
         <input id="timeout" class="form-input" placeholder="超时秒数（选填，默认10）" value="10" style="flex:1;">
         <input id="retry" class="form-input" placeholder="失败重试次数（选填，默认0）" value="0" style="flex:1;">
+        <select id="env_id" class="form-select" style="flex:1;"><option value="">环境：自动识别</option></select>
     </div>
     <br><br>
     <button id="saveBtn" class="btn btn-primary" onclick="saveCase()">保存用例</button>
     <button id="cancelEditBtn" class="btn btn-secondary" onclick="cancelEdit()" style="display:none;">取消</button>
     <button class="btn btn-success" onclick="batchRun()">批量执行</button>
+    <button class="btn btn-info" onclick="showPostmanImport()">导入 Postman</button>
+    <button class="btn btn-success" onclick="exportCases()">导出</button>
+
+    <div id="postmanImportForm" style="display:none; margin-top:12px;">
+        <textarea id="postmanInput" class="form-textarea" rows="6" placeholder="粘贴 Postman Collection v2.1 JSON..."></textarea>
+        <br>
+        <button class="btn btn-primary" onclick="importPostman()">导入</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('postmanImportForm').style.display='none'">取消</button>
+    </div>
 </div>
 
 <!-- 2. 用例列表 -->
@@ -90,7 +100,20 @@
     window.onload = function () {
         checkLogin();
         loadCases();
+        loadEnvironments();
     };
+
+    async function loadEnvironments() {
+        try {
+            const res = await httpGet("/api/env/list");
+            const envs = res.data && res.data.list || [];
+            const sel = document.getElementById("env_id");
+            sel.innerHTML = `<option value="">环境：自动识别</option>`;
+            envs.forEach(e => {
+                sel.innerHTML += `<option value="${e.id}">${e.name}${e.is_default ? ' (默认)' : ''}</option>`;
+            });
+        } catch (e) { /* 环境列表加载失败不影响主流程 */ }
+    }
 
     async function loadCoverageStats() {
         try {
@@ -201,6 +224,7 @@
             timeout: parseInt(document.getElementById("timeout").value) || 10,
             retry: parseInt(document.getElementById("retry").value) || 0,
             tags: document.getElementById("tags").value || "",
+            env_id: document.getElementById("env_id").value || null,
         };
         try {
             if (editId) {
@@ -223,6 +247,7 @@
         document.getElementById("method").value = "GET";
         document.getElementById("timeout").value = "10";
         document.getElementById("retry").value = "0";
+        document.getElementById("env_id").value = "";
         document.getElementById("saveBtn").innerText = "保存用例";
         document.getElementById("cancelEditBtn").style.display = "none";
     }
@@ -253,6 +278,7 @@
             document.getElementById("timeout").value = caseData.timeout || 10;
             document.getElementById("retry").value = caseData.retry || 0;
             document.getElementById("tags").value = caseData.tags || "";
+            document.getElementById("env_id").value = caseData.env_id || "";
 
             document.getElementById("saveBtn").innerText = "更新用例";
             document.getElementById("cancelEditBtn").style.display = "inline-block";
@@ -313,6 +339,38 @@
         } catch (err) {
             document.getElementById("result").innerHTML = `<span style="color:red;">提交失败: ${err.message}</span>`;
         }
+    }
+
+    function showPostmanImport() {
+        document.getElementById("postmanImportForm").style.display = "block";
+    }
+
+    async function importPostman() {
+        const input = document.getElementById("postmanInput").value.trim();
+        if (!input) { showAlert("请粘贴 Postman Collection JSON", "warning"); return; }
+        try {
+            const res = await httpPost("/api/test/import/postman", JSON.parse(input));
+            showAlert(res.msg || `导入成功，新增 ${res.data.imported} 条用例`, "success");
+            document.getElementById("postmanImportForm").style.display = "none";
+            document.getElementById("postmanInput").value = "";
+            loadCases();
+        } catch (e) { showAlert("导入失败: " + e.message, "error"); }
+    }
+
+    async function exportCases() {
+        const fmt = prompt("导出格式：json 或 csv", "json");
+        if (!fmt) return;
+        try {
+            const res = await httpGet(`/api/test/cases/export?format=${fmt}`);
+            const blob = new Blob([JSON.stringify(res.data, null, 2)], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `testpilot_cases.${fmt}`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showAlert(`导出成功，共 ${res.data.count} 条用例`, "success");
+        } catch (e) { showAlert("导出失败", "error"); }
     }
 </script>
 {% endblock %}

@@ -343,7 +343,6 @@ def delete_user(uid):
 # 数据统计大屏
 @auth_bp.route("/dashboard/data", methods=["GET"])
 @jwt_required()
-@cache.cached(timeout=60, key_prefix="dashboard_data")
 def dashboard_data():
     try:
         # 1. 用例统计（增加性能用例）

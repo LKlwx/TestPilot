@@ -35,6 +35,8 @@ graph TD
 - **失败自动重试与 Flaky 处理**：按用例级配置重试次数，重试后通过标记为 FLAKY（黄色警告），始终失败标记为 FAIL（红色失败），近 5 次执行 ≥ 3 次 FLAKY 自动标记为不稳定用例
 - **数据驱动测试**：TestDataSet 模型绑定多组数据行，引擎自动将 {{变量}} 注入用例模板循环执行，支持 CSV/JSON 文件导入
 - **接口契约测试**：Swagger 导入自动提取 JSON Schema，执行时 `jsonschema.validate()` 自动校验响应与契约一致性，字段类型/必填/枚举不符自动报警
+- **用例导入导出**：支持 Postman Collection v2.1 导入、Swagger 一键生成接口用例、JSON/CSV 多格式导出，实现测试资产迁移与离线归档
+- **Selenium Grid 分布式 UI 测试**：支持本地/Remote 双驱动模式，用例级配置 Chrome/Firefox/Edge 多浏览器，执行前自动检查 Grid 节点健康度
 
 ## 技术栈
 - 后端：Python 3.14 + Flask
@@ -411,3 +413,14 @@ TestPilot/
 - 环境全局请求头（如 `Authorization: Bearer xxx`）自动合并到每次请求，用例级 headers 覆盖环境级
 - 环境变量（如 `{"token": "..."}`）自动注入 ExecutionContext，方便链式用例依赖
 - 支持开发/测试/生产多环境一键切换：同一套用例选不同环境各跑一遍，批量执行接口传 `env_id` 参数
+
+### 14. 用例导入导出
+- **Swagger → 用例一键生成**：复用 Phase 4.7 的 Swagger 解析引擎，从 `paths` + `components.schemas` 自动创建 TestCase，递归生成请求体示例值，同名用例跳过避免重复
+- **Postman Collection v2.1 导入**：递归解析 `item` 结构（支持嵌套文件夹），提取 URL/方法/Headers/Body 自动转为 TestCase，保留模块名层级
+- **JSON/CSV 导出**：全量导出接口用例，CSV 格式可直接用 Excel 打开，JSON 格式保留完整字段可用于重新导入
+
+### 15. Selenium Grid 分布式 UI 测试
+- 用例级 `driver_type`（local / remote）和 `browser`（chrome / firefox / edge）字段控制驱动方式与浏览器
+- Remote 模式连接到 `SELENIUM_GRID_URL` 配置的 Hub 地址，`_build_browser_options` 工厂函数统一构建对应浏览器的 Options
+- `_check_grid_healthy()` 检测 Grid Hub `/status` 端点返回 `ready: true` 才提交任务，否则自动降级为本地驱动
+- 配置项 `SELENIUM_GRID_URL` 默认空字符串，仅配置后开启 remote 能力，向后兼容

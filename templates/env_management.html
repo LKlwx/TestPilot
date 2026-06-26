@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}环境管理{% endblock %}
+{% block content %}
+<div class="container">
+    <h2>环境管理</h2>
+
+    <div class="card">
+        <h3>新增环境</h3>
+        <input id="envName" class="form-input" placeholder="环境名称（如：开发环境）">
+        <input id="envBaseUrl" class="form-input" placeholder="基地址（如：http://dev-server:8080）">
+        <textarea id="envHeaders" class="form-textarea" rows="2" placeholder='全局请求头（JSON）：如 {"Authorization":"Bearer xxx"}'></textarea>
+        <textarea id="envVars" class="form-textarea" rows="2" placeholder='环境变量（JSON）：如 {"token":"xxx"}'></textarea>
+        <label style="margin-top:8px; display:flex; align-items:center; gap:8px;">
+            <input type="checkbox" id="envIsDefault"> 设为默认环境
+        </label>
+        <br>
+        <button class="btn btn-primary" onclick="addEnv()">添加</button>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <h3>环境列表</h3>
+        <table class="table">
+            <thead><tr><th>名称</th><th>基地址</th><th>默认</th><th>操作</th></tr></thead>
+            <tbody id="envList"></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.onload = function() { checkLogin(); loadEnvs(); };
+
+    async function loadEnvs() {
+        try {
+            const res = await httpGet("/api/env/list");
+            const envs = res.data && res.data.list || [];
+            let html = "";
+            envs.forEach(e => {
+                html += `<tr>
+                    <td>${e.name}</td>
+                    <td>${e.base_url}</td>
+                    <td>${e.is_default ? '<span class="badge badge-success">默认</span>' : '-'}</td>
+                    <td>
+                        <button class="btn btn-danger" onclick="delEnv(${e.id})">删除</button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById("envList").innerHTML = html || "<tr><td colspan='4' style='text-align:center;color:#999;'>暂无环境</td></tr>";
+        } catch (e) { showAlert("加载失败", "error"); }
+    }
+
+    async function addEnv() {
+        const name = document.getElementById("envName").value.trim();
+        const base_url = document.getElementById("envBaseUrl").value.trim();
+        if (!name || !base_url) { showAlert("名称和基地址不能为空", "warning"); return; }
+        try {
+            await httpPost("/api/env/add", {
+                name, base_url,
+                headers: document.getElementById("envHeaders").value || "{}",
+                variables: document.getElementById("envVars").value || "{}",
+                is_default: document.getElementById("envIsDefault").checked,
+            });
+            showAlert("添加成功", "success");
+            ["envName","envBaseUrl","envHeaders","envVars"].forEach(id => document.getElementById(id).value = "");
+            document.getElementById("envIsDefault").checked = false;
+            loadEnvs();
+        } catch (e) { showAlert("添加失败", "error"); }
+    }
+
+    async function delEnv(id) {
+        if (!confirm("删除环境将自动解绑所有用例，确定？")) return;
+        try {
+            await httpDelete(`/api/env/${id}`);
+            showAlert("删除成功", "success");
+            loadEnvs();
+        } catch (e) { showAlert("删除失败", "error"); }
+    }
+</script>
+{% endblock %}

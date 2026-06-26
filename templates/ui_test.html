@@ -66,6 +66,18 @@
 
     <textarea id="steps" class="form-textarea" rows="4" placeholder="自动生成的操作步骤（可编辑）"></textarea>
     <input id="tags" class="form-input" placeholder="标签：例如 smoke,regression (选填)" style="margin-top:8px;">
+    <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <select id="env_id" class="form-select" style="flex:1;"><option value="">环境：自动识别</option></select>
+        <select id="driver_type" class="form-select" style="flex:1;">
+            <option value="local">驱动：本地</option>
+            <option value="remote">驱动：Remote Grid</option>
+        </select>
+        <select id="browser" class="form-select" style="flex:1;">
+            <option value="chrome">Chrome</option>
+            <option value="firefox">Firefox</option>
+            <option value="edge">Edge</option>
+        </select>
+    </div>
     <br>
     <div style="display: flex; gap: 10px;">
         <button id="saveUIBtn" class="btn btn-primary" onclick="saveCase()">保存用例</button>
@@ -118,7 +130,20 @@
     window.onload = function () {
         checkLogin();
         loadCases();
+        loadEnvironments();
     };
+
+    async function loadEnvironments() {
+        try {
+            const res = await httpGet("/api/env/list");
+            const envs = res.data && res.data.list || [];
+            const sel = document.getElementById("env_id");
+            sel.innerHTML = `<option value="">环境：自动识别</option>`;
+            envs.forEach(e => {
+                sel.innerHTML += `<option value="${e.id}">${e.name}${e.is_default ? ' (默认)' : ''}</option>`;
+            });
+        } catch (e) {}
+    }
 
     async function loadCases(page = 1) {
         const keyword = document.getElementById("searchKeyword").value;
@@ -246,6 +271,9 @@
             loc_type: loc_type,
             loc_value: loc_value,
             tags: document.getElementById("tags").value || "",
+            env_id: document.getElementById("env_id").value || null,
+            driver_type: document.getElementById("driver_type").value,
+            browser: document.getElementById("browser").value,
         };
 
         try {
@@ -279,6 +307,9 @@
         document.getElementById("value").value = "";
         document.getElementById("action").value = "click";
         document.getElementById("locator").value = "id";
+        document.getElementById("env_id").value = "";
+        document.getElementById("driver_type").value = "local";
+        document.getElementById("browser").value = "chrome";
         document.getElementById("saveUIBtn").innerText = "保存用例";
         document.getElementById("cancelUIEditBtn").style.display = "none";
     }
@@ -327,6 +358,9 @@
             document.getElementById("value").value = caseData.loc_value || "";
             document.getElementById("steps").value = caseData.steps || "";
             document.getElementById("tags").value = caseData.tags || "";
+            document.getElementById("env_id").value = caseData.env_id || "";
+            document.getElementById("driver_type").value = caseData.driver_type || "local";
+            document.getElementById("browser").value = caseData.browser || "chrome";
             document.getElementById("saveUIBtn").innerText = "更新用例";
             document.getElementById("cancelUIEditBtn").style.display = "inline-block";
             window.scrollTo({ top: 0, behavior: 'smooth' });

@@ -1,4 +1,4 @@
-from flask import Blueprint, request
+from flask import Blueprint, request, render_template
 from flask_jwt_extended import jwt_required
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -9,6 +9,11 @@ from models import Environment, TestCase, UICase, PerformanceCase
 from extensions import db
 
 env_bp = Blueprint("env", __name__)
+
+
+@env_bp.route("/page")
+def env_page():
+    return render_template("env_management.html")
 
 
 @env_bp.route("/list", methods=["GET"])

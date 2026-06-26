@@ -108,6 +108,8 @@ class UICase(BaseCaseMixin, db.Model):
     screenshot_path = db.Column(db.String(500), comment="测试截图路径")
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), index=True)
     update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    driver_type = db.Column(db.String(20), default="local", comment="驱动类型：local（本地）/ remote（Selenium Grid）")
+    browser = db.Column(db.String(20), default="chrome", comment="浏览器：chrome / firefox / edge")
 
     # 关系回引
     reports = db.relationship("UIReport", backref="case", lazy="dynamic")

@@ -49,6 +49,9 @@ class AddUICaseSchema(Schema):
     loc_type = fields.String(validate=validate.OneOf(["xpath", "id", "css"]))
     loc_value = fields.String()
     tags = fields.String(validate=validate.Length(max=200), load_default="")
+    driver_type = fields.String(validate=validate.OneOf(["local", "remote"]), load_default="local")
+    browser = fields.String(validate=validate.OneOf(["chrome", "firefox", "edge"]), load_default="chrome")
+    env_id = fields.Integer(validate=validate.Range(min=1), load_default=None, allow_none=True)
 
 
 class UpdateUICaseSchema(Schema):
@@ -58,6 +61,9 @@ class UpdateUICaseSchema(Schema):
     loc_type = fields.String(validate=validate.OneOf(["xpath", "id", "css"]))
     loc_value = fields.String()
     tags = fields.String(validate=validate.Length(max=200))
+    driver_type = fields.String(validate=validate.OneOf(["local", "remote"]))
+    browser = fields.String(validate=validate.OneOf(["chrome", "firefox", "edge"]))
+    env_id = fields.Integer(validate=validate.Range(min=1), load_default=None, allow_none=True)
 
 
 class AddPerformanceCaseSchema(Schema):

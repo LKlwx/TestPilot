@@ -9,7 +9,6 @@ from service.ui_service import run_ui_case, parse_steps
 from core.response import success, error
 from core.pagination import paginate
 from core.db_guard import db_write_guard
-from core.db_guard import db_write_guard
 from core.schema import validate_request
 from api.schemas import AddUICaseSchema, UpdateUICaseSchema, AddUIStructSchema
 from service.operation_log_service import add_operation_log
@@ -51,6 +50,9 @@ def add_ui_case():
         loc_type=data.get("loc_type", "xpath"),
         loc_value=data.get("loc_value", ""),
         tags=data.get("tags", ""),
+        driver_type=data.get("driver_type", "local"),
+        browser=data.get("browser", "chrome"),
+        env_id=data.get("env_id"),
     )
     with db_write_guard("UI用例添加失败"):
         db.session.add(case)
@@ -82,6 +84,9 @@ def get_ui_cases():
             "loc_type": c.loc_type,
             "steps": c.steps,
             "tags": c.tags,
+            "env_id": c.env_id,
+            "driver_type": c.driver_type,
+            "browser": c.browser,
         } for c in result.items],
         "total": result.total,
         "page": result.page,
@@ -245,6 +250,9 @@ def update_ui_case(cid):
     case.loc_type = new_loc_type
     case.loc_value = new_loc_value
     case.tags = data.get("tags", case.tags)
+    case.driver_type = data.get("driver_type", case.driver_type)
+    case.browser = data.get("browser", case.browser)
+    case.env_id = data.get("env_id", case.env_id)
 
     with db_write_guard("UI用例更新失败"):
         db.session.flush()

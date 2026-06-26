@@ -10,7 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from core.response import success
 from core.exception import APIException, NotFoundException
 from core.pagination import paginate
-from models import ApiCoverage, ApiContract
+from models import ApiCoverage, ApiContract, TestCase
 from extensions import db
 
 coverage_bp = Blueprint("coverage", __name__)
@@ -221,6 +221,73 @@ def import_swagger():
     )
 
 
+@coverage_bp.route("/generate-cases", methods=["POST"])
+@jwt_required()
+def generate_cases_from_swagger():
+    """从已导入的 Swagger 数据生成接口用例
+
+    从 ApiCoverage 读取已导入的接口列表，自动创建 TestCase。
+    已存在同名+同 URL 的用例跳过不重复创建。
+    """
+    data = request.json
+    if not data or not data.get("paths"):
+        raise APIException("请上传 Swagger JSON")
+
+    paths = data.get("paths", {})
+    count = 0
+    for path, methods in paths.items():
+        for method, detail in methods.items():
+            if method.upper() not in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+                continue
+            summary = detail.get("summary", "") if isinstance(detail, dict) else ""
+            normalized = _normalize_path(path)
+
+            # 跳过已存在的用例（同名 + 同 method + 同 url）
+            exists = TestCase.query.filter_by(name=summary, method=method.upper(), url=normalized).first()
+            if exists or not summary:
+                continue
+
+            # 从 swagger 提取示例 body（如果有 example）
+            body_schema = detail.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {})
+            schemas = data.get("components", {}).get("schemas", {})
+            resolved = _resolve_schema_refs(body_schema, schemas) if body_schema else None
+            sample_body = _schema_to_example(resolved) if resolved else "{}"
+
+            case = TestCase(
+                name=summary, module="Swagger导入", method=method.upper(),
+                url=normalized, headers="{}", body=json.dumps(sample_body) if isinstance(sample_body, (dict, list)) else (sample_body or "{}"),
+                expect="", extract_var="",
+            )
+            db.session.add(case)
+            count += 1
+
+    db.session.commit()
+    return success(data={"generated": count}, msg=f"生成成功，新增 {count} 条用例")
+
+
+def _schema_to_example(schema):
+    """从 JSON Schema 生成示例值（仅用于导入时填充 body 占位）"""
+    if schema is None:
+        return None
+    t = schema.get("type")
+    if t == "object":
+        props = schema.get("properties", {})
+        return {k: _schema_to_example(v) if isinstance(v, dict) else None for k, v in props.items()}
+    if t == "array":
+        items = schema.get("items", {})
+        return [_schema_to_example(items)] if items else []
+    if t == "string":
+        enum = schema.get("enum")
+        return enum[0] if enum else "string"
+    if t == "integer":
+        return 0
+    if t == "number":
+        return 0.0
+    if t == "boolean":
+        return True
+    return None
+
+
 # ========== 契约查询 ==========
 
 
@@ -231,13 +298,15 @@ def get_contracts():
     query = ApiContract.query
     if keyword:
         query = query.filter(ApiContract.endpoint.like(f"%{keyword}%"))
-    result = query.order_by(ApiContract.id.desc()).all()
+    result = paginate(query, order_by=ApiContract.id.desc())
     return success({
         "list": [{
             "id": c.id, "endpoint": c.endpoint, "summary": c.summary,
             "version": c.last_version, "has_schema": c.response_schema is not None,
             "update_time": c.update_time.strftime("%Y-%m-%d %H:%M") if c.update_time else None,
-        } for c in result],
+        } for c in result.items],
+        "total": result.total, "page": result.page,
+        "page_size": result.page_size, "total_pages": result.total_pages,
     })
 
 

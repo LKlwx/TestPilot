@@ -13,7 +13,9 @@
 
     <div style="margin-bottom:12px;">
         <button class="btn btn-info" onclick="showImportForm()">导入 Swagger</button>
-        <input id="keyword" class="form-input" placeholder="搜索接口路径..." style="width:300px; margin-left:12px;" oninput="loadList()">
+        <button class="btn btn-success" onclick="generateCases()">生成接口用例</button>
+        <button class="btn btn-primary" onclick="showContracts()">查看契约</button>
+        <input id="keyword" class="form-input" placeholder="搜索接口路径..." style="width:200px; margin-left:8px;" oninput="loadList()">
     </div>
 
     <div id="importForm" style="display:none; margin-bottom:12px;">
@@ -28,6 +30,14 @@
         <tbody id="coverageList"></tbody>
     </table>
     <div id="pagination"></div>
+
+    <div id="contractsSection" style="display:none; margin-top:20px;">
+        <h3>接口契约列表</h3>
+        <table class="table">
+            <thead><tr><th>端点</th><th>描述</th><th>版本</th><th>更新时间</th></tr></thead>
+            <tbody id="contractsList"></tbody>
+        </table>
+    </div>
 </div>
 {% endblock %}
 
@@ -83,6 +93,38 @@
         if (!confirm("确定删除该记录？")) return;
         await httpDelete(`/api/coverage/${id}`);
         loadList();
+    }
+
+    async function generateCases() {
+        const json = document.getElementById("swaggerInput").value.trim();
+        if (!json) {
+            showAlert("请先在导入框粘贴 Swagger JSON", "warning");
+            document.getElementById("importForm").style.display = "block";
+            return;
+        }
+        try {
+            const res = await httpPost("/api/coverage/generate-cases", JSON.parse(json));
+            showAlert(res.msg || `生成成功，新增 ${res.data.generated} 条用例`, "success");
+        } catch (err) {
+            showAlert("生成失败: " + err.message, "error");
+        }
+    }
+
+    async function showContracts() {
+        const section = document.getElementById("contractsSection");
+        section.style.display = section.style.display === "none" ? "block" : "none";
+        if (section.style.display === "none") return;
+        try {
+            const res = await httpGet("/api/coverage/contracts");
+            const list = (res.data && res.data.list) || [];
+            document.getElementById("contractsList").innerHTML = list.map(c => `
+                <tr>
+                    <td>${c.endpoint}</td>
+                    <td>${c.summary || "-"}</td>
+                    <td>v${c.version}</td>
+                    <td>${c.update_time || "-"}</td>
+                </tr>`).join("");
+        } catch (e) {}
     }
 
     loadList();

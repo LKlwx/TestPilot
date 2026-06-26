@@ -61,6 +61,8 @@ class Config:
     CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "http://localhost:5000").split(",") if o.strip()]
     # Redis 连接地址（Celery 异步任务用）
     REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    # Selenium Grid Hub 地址（UI 远程执行用，空字符串则仅支持本地驱动）
+    SELENIUM_GRID_URL = os.environ.get("SELENIUM_GRID_URL", "")
     # 压测明细数据保留天数（30 天前的明细自动清理）
     PERF_DETAIL_RETENTION_DAYS = int(os.environ.get("PERF_DETAIL_RETENTION_DAYS", 30))
     # 数据库配置（使用绝对路径，避免不同工作目录下数据丢失）
