@@ -1,5 +1,6 @@
-from flask import Flask
+from flask import Flask, redirect
 from flask_cors import CORS
+from flask_login import current_user
 from werkzeug.exceptions import NotFound
 from config import config
 from core.exception import APIException
@@ -7,6 +8,7 @@ from core.middleware import register_middleware
 from core.response import error
 from extensions import db, login_manager, jwt, migrate, cache
 from core.blocklist import is_blocklisted
+from core.logger import log_error
 from api.auth import auth_bp
 from api.test import test_bp
 from api.ui import ui_bp
@@ -14,6 +16,8 @@ from api.performance import performance_bp
 from api.ai import ai_bp
 from api.coverage import coverage_bp
 from api.environment import env_bp
+
+
 
 
 def create_app(config_name="default"):
@@ -71,8 +75,7 @@ def create_app(config_name="default"):
         # 404 是正常业务状态码，不记 ERROR 日志
         if isinstance(e, NotFound):
             return error(e.description, 404)
-        import traceback
-        from core.logger import log_error
+
         log_error(e, context="全局异常")
         if app.config["DEBUG"]:
             return error(str(e), 500)
@@ -90,8 +93,7 @@ def create_app(config_name="default"):
 
     @app.route("/")
     def root_index():
-        from flask import redirect
-        from flask_login import current_user
+
         if current_user.is_authenticated:
             return redirect("/api/auth/page/home")
         else:

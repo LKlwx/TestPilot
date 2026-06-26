@@ -151,6 +151,7 @@ class AISaveUiSchema(Schema):
 class BatchRunSchema(Schema):
     ids = fields.List(fields.Integer(strict=True), required=True, validate=validate.Length(min=1, max=500))
     tags = fields.String(validate=validate.Length(max=200), load_default="")
+    worker_count = fields.Integer(validate=validate.Range(min=1, max=16), load_default=1)
 
 
 # ========== UI 结构化创建 ==========

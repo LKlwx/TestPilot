@@ -37,6 +37,7 @@ graph TD
 - **接口契约测试**：Swagger 导入自动提取 JSON Schema，执行时 `jsonschema.validate()` 自动校验响应与契约一致性，字段类型/必填/枚举不符自动报警
 - **用例导入导出**：支持 Postman Collection v2.1 导入、Swagger 一键生成接口用例、JSON/CSV 多格式导出，实现测试资产迁移与离线归档
 - **Selenium Grid 分布式 UI 测试**：支持本地/Remote 双驱动模式，用例级配置 Chrome/Firefox/Edge 多浏览器，执行前自动检查 Grid 节点健康度
+- **分布式并行执行**：自研 Celery chord + group 任务分发器，50 个用例切 4 份并行执行，总耗时接近 1/N，结果自动合并
 
 ## 技术栈
 - 后端：Python 3.14 + Flask
@@ -424,3 +425,12 @@ TestPilot/
 - Remote 模式连接到 `SELENIUM_GRID_URL` 配置的 Hub 地址，`_build_browser_options` 工厂函数统一构建对应浏览器的 Options
 - `_check_grid_healthy()` 检测 Grid Hub `/status` 端点返回 `ready: true` 才提交任务，否则自动降级为本地驱动
 - 配置项 `SELENIUM_GRID_URL` 默认空字符串，仅配置后开启 remote 能力，向后兼容
+
+### 16. 分布式并行执行
+- `pytest-xdist` 集成：`pytest.ini` 配置 `-n auto`，单元测试自动跨 CPU 核并行
+- **自研任务分发器**：基于 Celery `chord(group(...), callback)` 模式实现用例级并行分发
+- 等量切分策略：`split_ids()` 将 N 个用例均分为 M 份，每份 ≈ `ceil(N/M)` 条，M 由 `worker_count` 参数（1~16）控制
+- 每份绑定独立 `ExecutionContext`，互不干扰；链式用例依赖同一 chunk 内的顺序执行，跨 chunk 不传递
+- 所有 chunk 完成后 `merge_parallel_results` 回调自动统计 PASS/FAIL 总数，更新 `BatchTask`
+- 容错：chunk 执行异常仅影响该 chunk 内的用例，其他 chunk 正常执行并合并；Celery 自动重试崩溃的 Worker
+- `POST /api/test/batch/run` 新增 `worker_count` 参数，不传默认为 1（串行），传 4 则分 4 份并行

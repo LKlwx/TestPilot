@@ -247,6 +247,7 @@ def batch_run():
     req = validate_request(BatchRunSchema, request.json)
     ids = req["ids"]
     tags_param = req.get("tags", "")
+    worker_count = req.get("worker_count", 1)
 
     # 如果传了 tags 参数，按标签筛选用例
     if tags_param:
@@ -257,19 +258,42 @@ def batch_run():
             tagged_ids = {c.id for c in tagged_cases}
             ids = [cid for cid in ids if cid in tagged_ids]
 
-    task_id = str(uuid.uuid4())
-    task = AsyncTask(
-        id=task_id,
-        task_type="batch_run",
-        status="pending",
-        creator_id=uid,
-        create_time=datetime.now(),
-    )
-    db.session.add(task)
-    db.session.commit()
-    celery_app.send_task("batch_run", args=[ids, uid], task_id=task_id)
+    if worker_count > 1:
+        from service.parallel import split_ids
+        from celery_app import celery_app as capp
+        from celery import chord, group
 
-    return success({"task_id": task_id}, "批量任务已提交")
+        chunks = split_ids(ids, worker_count)
+
+        batch = BatchTask(
+            total=len(ids), passed=0, failed=0,
+            create_time=datetime.now(),
+        )
+        db.session.add(batch)
+        db.session.commit()
+        bid = batch.id
+
+        task_group = group(
+            capp.signature("run_chunk", args=[chunk, i, uid, bid])
+            for i, chunk in enumerate(chunks) if chunk
+        )
+        callback = capp.signature("merge_parallel_results", args=[bid, uid])
+        chord(task_group)(callback)
+
+        return success({"batch_id": bid, "worker_count": worker_count, "total": len(ids), "chunks": len(chunks)}, "分布式并行任务已提交")
+    else:
+        task_id = str(uuid.uuid4())
+        task = AsyncTask(
+            id=task_id,
+            task_type="batch_run",
+            status="pending",
+            creator_id=uid,
+            create_time=datetime.now(),
+        )
+        db.session.add(task)
+        db.session.commit()
+        celery_app.send_task("batch_run", args=[ids, uid], task_id=task_id)
+        return success({"task_id": task_id}, "批量任务已提交")
 
 
 @test_bp.route("/batch/<int:bid>/results", methods=["GET"])

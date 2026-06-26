@@ -40,6 +40,11 @@
     <button id="saveBtn" class="btn btn-primary" onclick="saveCase()">保存用例</button>
     <button id="cancelEditBtn" class="btn btn-secondary" onclick="cancelEdit()" style="display:none;">取消</button>
     <button class="btn btn-success" onclick="batchRun()">批量执行</button>
+    <select id="workerCount" class="form-select" style="width:auto; display:inline;" onchange="document.getElementById('parallelHint').style.display=this.value>1?'none':'block'">
+        <option value="1">串行</option>
+        <option value="2">2 并行</option>
+        <option value="4">4 并行</option>
+    </select>
     <button class="btn btn-info" onclick="showPostmanImport()">导入 Postman</button>
     <button class="btn btn-success" onclick="exportCases()">导出</button>
 
@@ -329,8 +334,9 @@
         document.getElementById("result").innerHTML = `<span class="loading-text">任务已提交，task_id 获取中...</span>`;
 
         try {
-            const res = await httpPost("/api/test/batch/run", { ids: ids });
-            const task_id = res.data && res.data.task_id;
+            const wc = parseInt(document.getElementById("workerCount").value) || 1;
+            const res = await httpPost("/api/test/batch/run", { ids: ids, worker_count: wc });
+            const task_id = res.data && (res.data.task_id || res.data.batch_id);
             if (task_id) {
                 document.getElementById("result").innerHTML = `<span class="loading-text">批量任务已提交 (${task_id.slice(0, 8)}...)，<a href="/api/ai/task/${task_id}" target="_blank">查看进度</a></span>`;
             } else {

@@ -183,3 +183,51 @@ def cleanup_perf_details():
         if deleted:
             from core.logger import get_logger
             get_logger(__name__).info("已清理 %d 条过期压测明细数据（保留 %d 天）", deleted, retention_days)
+
+
+# ========== 分布式并行执行 ==========
+
+
+@celery_app.task(name="run_chunk", bind=True)
+def run_chunk(self, chunk_ids, chunk_index, user_id, batch_id):
+    """执行单个 chunk（一组用例），由 dispatch_parallel 批量提交"""
+    from service.test_service import execute_test_case
+    from service.parallel import save_chunk_results
+
+    app = get_flask_app()
+    with app.app_context():
+        from models import TestCase
+        from core.execution_context import ExecutionContext
+        results = []
+        ctx = ExecutionContext()
+        for cid in chunk_ids:
+            case = TestCase.query.get(cid)
+            if not case:
+                results.append({"id": cid, "status": "ERROR", "error": "用例不存在"})
+                continue
+            try:
+                res = execute_test_case(case, context=ctx)
+                if isinstance(res, dict):
+                    res["case_id"] = cid
+                    res["name"] = case.name
+                    results.append(res)
+                else:
+                    results.append({"id": cid, "case_id": cid, "name": case.name, "status": "ERROR"})
+            except Exception as e:
+                results.append({"id": cid, "case_id": cid, "name": case.name, "status": "ERROR", "error": str(e)})
+
+        save_chunk_results(chunk_index, results, batch_id)
+        return {"chunk_id": chunk_index, "count": len(results), "cases": results}
+
+
+@celery_app.task(name="merge_parallel_results")
+def merge_parallel_results(chunks_data, batch_id, user_id):
+    """chord 回调：所有 chunk 完成后合并结果"""
+    from service.parallel import merge_chunks
+
+    app = get_flask_app()
+    with app.app_context():
+        # chunks_data 是每个 run_chunk 的返回值列表
+        merged_data = [(i, c.get("cases", [])) for i, c in enumerate(chunks_data or []) if c]
+        result = merge_chunks(merged_data, batch_id, user_id)
+        return result or {"batch_id": batch_id}

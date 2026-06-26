@@ -425,3 +425,42 @@ def test_schema_to_example_nested():
     assert result["user"]["id"] == 0
     assert result["user"]["name"] == "string"
     assert result["tags"] == ["string"]
+
+
+# ========== 分布式并行 单元测试 ==========
+
+@allure.feature("Parallel")
+def test_split_ids_exact():
+    from service.parallel import split_ids
+    ids = [1, 2, 3, 4]
+    split = split_ids(ids, 2)
+    assert len(split) == 2
+    assert split[0] == [1, 2]
+    assert split[1] == [3, 4]
+
+
+def test_split_ids_uneven():
+    from service.parallel import split_ids
+    ids = [1, 2, 3, 4, 5]
+    split = split_ids(ids, 3)
+    assert len(split) == 3
+    assert sum(len(s) for s in split) == 5
+
+
+def test_split_ids_more_chunks_than_items():
+    from service.parallel import split_ids
+    ids = [1, 2]
+    split = split_ids(ids, 5)
+    assert len(split) == 2
+    assert split[0] == [1]
+
+
+def test_split_ids_empty():
+    from service.parallel import split_ids
+    assert split_ids([], 4) == []
+
+
+def test_split_ids_zero_workers():
+    from service.parallel import split_ids
+    ids = [1, 2, 3]
+    assert split_ids(ids, 0) == [ids]

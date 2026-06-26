@@ -237,10 +237,9 @@ class BatchTask(db.Model):
     failed = db.Column(db.Integer, default=0, comment="失败数")
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), comment="创建者")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="创建时间")
-    results = db.relationship("BatchResult", backref="batch", lazy="dynamic")
+    end_time = db.Column(db.DateTime, nullable=True, comment="结束时间（所有 chunk 完成后记录）")
 
 
-# 批量执行明细表
 class BatchResult(db.Model):
     __tablename__ = "batch_result"
     id = db.Column(db.Integer, primary_key=True)
