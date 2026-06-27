@@ -19,7 +19,7 @@ def is_local_url(url):
     try:
         parsed = urlparse(url)
         host = parsed.hostname.lower() if parsed.hostname else ""
-        if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+        if host in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):  # nosec B104
             return True
         return False
     except ValueError:

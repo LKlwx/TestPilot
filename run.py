@@ -32,4 +32,4 @@ def init_admin():
 
 if __name__ == "__main__":
     init_admin()
-    app.run(host="0.0.0.0", port=5000, debug=app.config.get("DEBUG", False), threaded=True)
+    app.run(host="0.0.0.0", port=5000, debug=app.config.get("DEBUG", False), threaded=True)  # nosec B104
