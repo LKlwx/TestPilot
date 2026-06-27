@@ -32,3 +32,13 @@ jobs:
       run: |
         pip install pytest pytest-cov
         pytest tests/ -v --cov=. --cov-report=term-missing
+
+    - name: Run SAST scan (own code)
+      run: |
+        pip install bandit
+        bandit -r . --skip B101,B311
+
+    - name: Check dependency vulnerabilities (SCA)
+      run: |
+        pip install safety
+        safety check -r requirements.txt --full-report

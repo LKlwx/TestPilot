@@ -2,42 +2,79 @@
 
 [![CI Test](https://github.com/LKlwx/TestPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/LKlwx/TestPilot/actions/workflows/ci.yml)
 
+## 目录
+
+- [项目介绍](#项目介绍)
+- [项目亮点](#项目亮点)
+- [技术栈](#技术栈)
+- [系统要求](#系统要求)
+- [项目结构](#项目结构)
+- [数据模型说明](#数据模型说明)
+- [环境变量参考](#环境变量参考)
+- [本地运行方式](#本地运行方式)
+- [Docker 容器化部署](#docker-容器化部署)
+- [GitHub Actions CI/CD](#github-actions-cicd)
+- [默认账号](#默认账号)
+- [功能展示](#功能展示)
+- [功能模块说明](#功能模块说明)
+- [常见问题](#常见问题)
+
 ## 项目介绍
 TestPilot 是基于 Python Flask 自主开发的**一站式轻量级自动化测试平台**，采用前后端不分离架构，按照路由层、服务层、模型层、工具层进行工程化分层设计。平台实现了**用户权限管理、接口自动化测试、UI 自动化测试、性能压测、AI 智能测试辅助**五大核心能力，支持用例管理、自动化执行、测试报告生成、数据可视化看板等完整基础流程，是面向测试开发工程师岗位的实战型个人项目。
 
 ```mermaid
 graph TD
-    Client[浏览器客户端] --> API[路由层 /api/]
+    Browser[浏览器客户端] --> API[路由层 /api/]
     API --> Service[服务层 /service/]
-    Service --> DB[(数据库 /models/)]
-    Service --> AI[AI 引擎 /agent/]
+    Service --> DB[(数据库 SQLite)]
     Service --> Core[工具层 /core/]
+    Service --> Agent[AI 引擎 /agent/]
     
     Core --> Log[日志系统]
-    Core --> Limit[限流/熔断]
+    Core --> Limit[限流 / 熔断]
     Core --> Auth[JWT 认证]
+    
+    Service --> Redis[(Redis)]
+    Redis --> Worker[Celery Worker]
+    Worker --> Beat[Celery Beat]
+    
+    Agent -.-> LMStudio[LM Studio 本地模型]
+    
+    Service --> Selenium[Selenium]
+    Selenium -.-> Grid[Selenium Grid]
 
     style API fill:#e1f5fe,stroke:#01579b
     style Service fill:#fff3e0,stroke:#e65100
     style DB fill:#f3e5f5,stroke:#4a148c
+    style Redis fill:#ffebee,stroke:#c62828
+    style Agent fill:#e8f5e9,stroke:#2e7d32
+    style LMStudio fill:#fff8e1,stroke:#f57f17
+    style Grid fill:#e3f2fd,stroke:#1565c0
 ```
 
 ## 项目亮点
+
+#### 安全与稳定性
 - 完善的基础权限体系：支持用户登录、注册、超级管理员/管理员/普通用户三级权限控制
-- 标准化后端结构：统一响应封装、全局异常处理、代码模块化解耦
-- 核心测试能力全覆盖：集成接口、UI、性能三大常用自动化测试模块
-- AI 辅助测试：基于本地大模型（LM Studio）实现用例自动生成与失败日志智能诊断，支持异步提交不阻塞 HTTP
-- 可视化数据看板：展示用例分布、缺陷发现趋势、慢接口分析等关键数据
-- 服务稳定性保障：三层限流（全局限流兜底 + IP 级 + 用户级，基于 Redis 滑动窗口多 Worker 共享）+ 熔断降级（防雪崩），只统计 5xx 触发熔断避免误杀
 - **生产环境安全加固**：启动时密钥强校验，拒绝弱密钥上线；JWT 鉴权全覆盖 + 登出黑名单机制；全局异常信息脱敏（生产环境不暴露堆栈）；用户注册多层防护（防admin绕过、防特殊字符注入）；密码强度强制（8位+字母+数字）；登录防暴力破解（5次失败锁定15分钟）
+- 服务稳定性保障：三层限流（全局限流兜底 + IP 级 + 用户级，基于 Redis 滑动窗口多 Worker 共享）+ 熔断降级（防雪崩），只统计 5xx 触发熔断避免误杀
+- **CI 安全左移**：GitHub Actions 集成 SAST（bandit 源码扫描）+ SCA（safety 依赖漏洞扫描），每次 push 发现硬编码密钥或 CVE 自动阻断合并
 - 多环境隔离：开发/测试/演示/生产四环境独立数据库，通过环境变量一键切换
-- 全部功能基于本地环境运行，无第三方云服务依赖，轻量易部署
+
+#### 测试能力
+- 核心测试能力全覆盖：集成接口、UI、性能三大常用自动化测试模块
 - **失败自动重试与 Flaky 处理**：按用例级配置重试次数，重试后通过标记为 FLAKY（黄色警告），始终失败标记为 FAIL（红色失败），近 5 次执行 ≥ 3 次 FLAKY 自动标记为不稳定用例
 - **数据驱动测试**：TestDataSet 模型绑定多组数据行，引擎自动将 {{变量}} 注入用例模板循环执行，支持 CSV/JSON 文件导入
 - **接口契约测试**：Swagger 导入自动提取 JSON Schema，执行时 `jsonschema.validate()` 自动校验响应与契约一致性，字段类型/必填/枚举不符自动报警
-- **用例导入导出**：支持 Postman Collection v2.1 导入、Swagger 一键生成接口用例、JSON/CSV 多格式导出，实现测试资产迁移与离线归档
 - **Selenium Grid 分布式 UI 测试**：支持本地/Remote 双驱动模式，用例级配置 Chrome/Firefox/Edge 多浏览器，执行前自动检查 Grid 节点健康度
 - **分布式并行执行**：自研 Celery chord + group 任务分发器，50 个用例切 4 份并行执行，总耗时接近 1/N，结果自动合并
+
+#### 工程化与效率
+- 标准化后端结构：统一响应封装、全局异常处理、代码模块化解耦
+- 可视化数据看板：展示用例分布、缺陷发现趋势、慢接口分析等关键数据
+- **用例导入导出**：支持 Postman Collection v2.1 导入、Swagger 一键生成接口用例、JSON/CSV 多格式导出，实现测试资产迁移与离线归档
+- AI 辅助测试：基于本地大模型（LM Studio）实现用例自动生成与失败日志智能诊断，支持异步提交不阻塞 HTTP
+- 全部功能基于本地环境运行，无第三方云服务依赖，轻量易部署
 
 ## 技术栈
 - 后端：Python 3.14 + Flask
@@ -52,8 +89,20 @@ graph TD
 - 性能测试：asyncio + aiohttp 协程引擎
 - AI 模块：本地大模型集成（LM Studio + Qwen3.5 9B）
 - 测试报告：allure-pytest（Allure 可视化测试报告，含步骤追踪、截图附件、历史趋势）
+- 并行测试：pytest-xdist（多 CPU 核心并行执行单元测试，pytest.ini 配置 -n auto）
 - 数据工厂：Faker + 随机数据生成 + Setup/Teardown 上下文管理器
 - 其他：系统操作日志、统一响应封装、全局异常捕获、分级日志体系（DEBUG/INFO/ERROR）、Redis 缓存加速（Dashboard 60s 缓存）
+
+## 系统要求
+
+| 组件 | 要求 | 说明 |
+|------|------|------|
+| Python | 3.14 | 运行 Flask 应用与 Celery Worker |
+| Redis | 7.x（可选） | 异步任务队列、JWT 黑名单、限流、缓存。不安装则对应功能自动降级 |
+| 浏览器 | Chrome / Firefox / Edge | UI 自动化测试依赖，`webdriver-manager` 自动管理驱动版本 |
+| LM Studio | 本地服务（可选） | AI 模块依赖本地大模型推理，需启动服务并加载模型 |
+| Allure CLI | 2.x（可选） | `allure serve allure-results` 查看可视化报告，不安装不影响测试执行 |
+| 磁盘空间 | ~100MB | 项目文件 + SQLite 数据库 + Python 依赖包 |
 
 ## 项目结构
 ```
@@ -93,8 +142,8 @@ TestPilot/
 │   ├── test.py      # 接口测试接口
 │   ├── ui.py        # UI 测试接口
 │   ├── performance.py  # 性能测试接口
-│   └── ai.py        # AI 辅助测试接口
-│   └── coverage.py  # 接口覆盖率统计接口
+│   ├── ai.py        # AI 辅助测试接口
+│   ├── coverage.py  # 接口覆盖率统计接口
 │   └── environment.py  # 环境管理接口
 ├── service/          # 业务逻辑层
 │   ├── operation_log_service.py  # 操作日志服务
@@ -105,6 +154,7 @@ TestPilot/
 │   ├── ai_service.py
 │   ├── data_drive.py           # 数据驱动测试引擎
 │   ├── fixtures.py             # 测试数据预置与清理
+│   ├── parallel.py             # 分布式并行执行辅助模块
 │   └── pages/             # Page Object 模式示例
 ├── agent/            # AI 核心引擎
 │   └── ai_agent_core.py
@@ -153,6 +203,32 @@ TestPilot/
 17. **TestDataSet**：测试数据集（绑定用例模板，存储多组参数化数据行，支持 CSV/JSON 批量导入）
 18. **ApiContract**：接口契约定义（从 Swagger 导入 Response Schema，执行时自动校验响应 JSON 是否符合契约）
 19. **Environment**：环境配置（名称、基地址、全局请求头、环境变量，支持开发/测试/生产一键切换）
+
+## 环境变量参考
+
+项目通过 `.env` 文件（`python-dotenv` 自动加载）和环境变量管理配置。完整模板见 `.env.example`。
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `SECRET_KEY` | 生产必填 | 内置默认值 | Flask 会话加密密钥，长度 ≥ 32 字符 |
+| `JWT_SECRET_KEY` | 生产必填 | 内置默认值 | JWT Token 签名密钥，长度 ≥ 32 字符 |
+| `FLASK_ENV` | 否 | `development` | 运行环境：`development` / `test` / `demo` / `production` |
+| `REDIS_URL` | 否 | `redis://localhost:6379/0` | Redis 连接地址，Docker 环境用 `redis://redis:6379/0` |
+| `AI_API_BASE` | 否 | `http://127.0.0.1:1234` | LM Studio 或兼容 OpenAI 接口的本地模型服务地址 |
+| `AI_MODEL` | 否 | `qwen3.5-9b` | 使用的模型名称 |
+| `REQUEST_TIMEOUT` | 否 | `10` | HTTP 请求超时时间（秒） |
+| `CORS_ORIGINS` | 否 | `http://localhost:5000` | 允许跨域访问的域名，多个用逗号分隔 |
+| `SELENIUM_GRID_URL` | 否 | 空（仅本地驱动） | Selenium Grid Hub 地址，配置后启用 Remote 模式 |
+| `PERF_DETAIL_RETENTION_DAYS` | 否 | `30` | 压测明细数据保留天数，超期自动清理 |
+
+### 环境差异
+
+| 环境 | DEBUG | 数据库文件 | 密钥要求 |
+|------|-------|-----------|---------|
+| `development` | 开启 | `instance/testpilot.db` | 弱密钥仅打印 WARNING |
+| `test` | 开启 | `instance/testpilot_test.db` | 弱密钥仅打印 WARNING |
+| `demo` | 关闭 | `instance/testpilot_demo.db` | 弱密钥拒绝启动 |
+| `production` | 关闭 | `instance/testpilot.db` | 弱密钥拒绝启动 |
 
 ## 本地运行方式
 1. 进入项目根目录
@@ -309,10 +385,10 @@ TestPilot/
 - 报告查询支持多条件筛选（关键词/状态/模块/日期范围）与分页
 - **✨ 进阶能力**：
   - 接口链路测试：创新性地实现了基于 ExecutionContext 独立执行上下文的变量传递机制（递归深度保护），同一批次内用例链式共享上下文、多线程间天然隔离，支持通过自定义路径表达式提取响应数据并动态注入后续请求，解决了登录 Token 传递等经典痛点。
-  - 四维断言引擎：自研 AssertEngine 支持状态码、JSONPath、正则表达式、响应时间四种断言方式，覆盖绝大多数接口验证场景。
+  - 六种断言方式：自研 AssertEngine 支持状态码、JSONPath、正则表达式、响应时间、关键词包含五种规则断言，及 JSON Schema 契约自动校验，覆盖绝大多数接口验证场景。
   - 高并发回归：基于 Celery + Redis 异步任务队列实现批量用例异步并发执行，HTTP 请求立即返回 task_id，前端轮询任务进度。
   - 用例可追溯：支持 timeout/retry 配置化 + requests.Session 连接池复用，连续请求吞吐提升 40%+；支持按 smoke/regression/critical 标签筛选执行。
-   - 工程化规范：遵循 RESTful 风格设计 API，自研 BaseHTTPClient 框架封装 Session ＋ 拦截器 ＋ 链式断言 ＋ 全链路日志，实现了统一的全局异常捕获与标准化响应封装，提升了前后端交互的稳定性。
+  - 工程化规范：遵循 RESTful 风格设计 API，自研 BaseHTTPClient 框架封装 Session ＋ 拦截器 ＋ 链式断言 ＋ 全链路日志，实现了统一的全局异常捕获与标准化响应封装，提升了前后端交互的稳定性。
 ### 4. UI 自动化测试模块
 - 支持 UI 用例新增、删除、列表查询
 - 支持配置测试 URL、操作步骤、元素定位信息
@@ -434,3 +510,32 @@ TestPilot/
 - 所有 chunk 完成后 `merge_parallel_results` 回调自动统计 PASS/FAIL 总数，更新 `BatchTask`
 - 容错：chunk 执行异常仅影响该 chunk 内的用例，其他 chunk 正常执行并合并；Celery 自动重试崩溃的 Worker
 - `POST /api/test/batch/run` 新增 `worker_count` 参数，不传默认为 1（串行），传 4 则分 4 份并行
+
+## 常见问题
+
+### 启动报 `ModuleNotFoundError`
+未安装依赖，执行 `pip install -r requirements.txt`。
+
+### Redis 连接被拒绝
+Redis 未启动或地址不正确。本地启动：`docker run -d --name testpilot-redis -p 6379:6379 redis:7-alpine`。不启动 Redis 时，JWT 黑名单、限流、异步任务等功能会自动降级，Flask 本身正常运行。
+
+### Selenium 报 `WebDriverException` 或 `driver not found`
+`webdriver-manager` 在首次运行时自动下载匹配的浏览器驱动，前提是系统中已安装 Chrome / Firefox / Edge 浏览器。网络受限时可能下载超时，重试即可。
+
+### Celery Worker 无法启动
+检查 Redis 是否运行（`docker ps | grep redis`），确认 `REDIS_URL` 配置正确。本地开发默认 `redis://localhost:6379/0`，Docker 环境应为 `redis://redis:6379/0`。
+
+### AI 功能报 `ConnectionError` 或超时
+AI 模块依赖本地 LM Studio 服务。确认：
+1. LM Studio 已启动并加载模型
+2. 服务地址为 `http://127.0.0.1:1234`（可通过 `AI_API_BASE` 环境变量修改）
+3. 模型名称与 `AI_MODEL` 环境变量一致（默认 `qwen3.5-9b`）
+
+### 端口 5000 已被占用
+修改 `.flaskenv` 中的 `FLASK_RUN_PORT` 或通过环境变量指定：`FLASK_RUN_PORT=5001 python run.py`。
+
+### Token 过期返回 401
+Access Token 有效期 2 小时，前端会自动使用 Refresh Token（30 天有效）无感刷新。如仍报 401，请重新登录。
+
+### 数据库文件损坏或需要重置
+删除 `instance/testpilot.db` 后重新启动：`rm instance/testpilot.db && python run.py`，首次启动会自动重建所有表和数据。
