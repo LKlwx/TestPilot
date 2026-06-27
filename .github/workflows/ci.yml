@@ -40,5 +40,5 @@ jobs:
 
     - name: Check dependency vulnerabilities (SCA)
       run: |
-        pip install safety
-        safety scan -r requirements.txt
+        pip install pip-audit
+        pip-audit -r requirements.txt
