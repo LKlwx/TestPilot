@@ -132,7 +132,9 @@ def admin_reset_password(uid):
     target = User.query.get(uid)
     if not target:
         raise NotFoundException("用户不存在")
-    default_pwd = "123456"
+    import secrets
+    import string
+    default_pwd = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
     target.set_password(default_pwd)
     reset_login_attempts(target.username)
     db.session.commit()
@@ -140,7 +142,7 @@ def admin_reset_password(uid):
     current_user = User.query.get(int(identity))
     add_operation_log(current_user.id, current_user.username, "reset_password",
                       f"管理员重置用户{target.username}(ID={uid})的密码")
-    return success(msg=f"用户 {target.username} 的密码已重置为默认密码")
+    return success(data={"password": default_pwd}, msg=f"用户 {target.username} 的密码已重置")
 
 
 @auth_bp.route("/register", methods=["POST"])

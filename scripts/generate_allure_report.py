@@ -2,6 +2,7 @@
 import os
 import sys
 import shutil
+import subprocess
 
 ALLURE_RESULTS = "allure-results"
 ALLURE_REPORT = "allure-report"
@@ -18,8 +19,8 @@ def main():
         shutil.copytree(history_dst, history_src)
 
     # 生成报告
-    ret = os.system(f"allure generate {ALLURE_RESULTS} -o {ALLURE_REPORT} --clean")
-    sys.exit(ret)
+    ret = subprocess.run(["allure", "generate", ALLURE_RESULTS, "-o", ALLURE_REPORT, "--clean"], check=False)
+    sys.exit(ret.returncode)
 
 
 if __name__ == "__main__":

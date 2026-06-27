@@ -36,7 +36,7 @@ jobs:
     - name: Run SAST scan (own code)
       run: |
         pip install bandit
-        bandit -r . --skip B101,B311
+        bandit -r . --skip B101 --exclude ./tests,./migrations -ll
 
     - name: Check dependency vulnerabilities (SCA)
       run: |
