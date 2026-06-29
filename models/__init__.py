@@ -83,6 +83,25 @@ task_case_association = db.Table(
 )
 
 
+# 套件-用例关联表（支持通过 seq 控制执行顺序）
+suite_case_association = db.Table(
+    "suite_case_association",
+    db.Column("suite_id", db.Integer, db.ForeignKey("test_suite.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("case_type", db.String(20), default="api", primary_key=True, comment="用例类型: api/ui/perf"),
+    db.Column("case_id", db.Integer, primary_key=True, comment="对应类型的用例ID"),
+)
+
+
+class TestSuite(db.Model):
+    __tablename__ = "test_suite"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(500), default="")
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    create_time = db.Column(db.DateTime, default=datetime.now)
+    update_time = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+
 class TestTask(db.Model):
     __tablename__ = "test_task"
     id = db.Column(db.Integer, primary_key=True)
@@ -94,6 +113,9 @@ class TestTask(db.Model):
 
     cases = db.relationship("TestCase", secondary=task_case_association, lazy="dynamic",
                             backref=db.backref("tasks", lazy="dynamic"))
+    last_run_time = db.Column(db.DateTime, nullable=True, comment="最近一次执行时间")
+    last_status = db.Column(db.String(20), default="", comment="最近一次执行状态：success/partial/empty")
+    suite_id = db.Column(db.Integer, db.ForeignKey("test_suite.id", ondelete="SET NULL"), nullable=True, comment="关联套件ID")
 
 
 # ------------------------------

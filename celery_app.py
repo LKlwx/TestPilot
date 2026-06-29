@@ -32,6 +32,11 @@ celery_app.conf.beat_schedule = {
         "schedule": timedelta(hours=24),
         "args": [],
     },
+    "scan-scheduled-test-tasks": {
+        "task": "scan_scheduled_tasks",
+        "schedule": timedelta(seconds=60),
+        "args": [],
+    },
 }
 
 
@@ -231,3 +236,76 @@ def merge_parallel_results(chunks_data, batch_id, user_id):
         merged_data = [(i, c.get("cases", [])) for i, c in enumerate(chunks_data or []) if c]
         result = merge_chunks(merged_data, batch_id, user_id)
         return result or {"batch_id": batch_id}
+
+
+# ========== 定时任务调度 ==========
+
+
+@celery_app.task(name="scan_scheduled_tasks")
+def scan_scheduled_tasks():
+    """Celery Beat 每分钟执行一次：扫描所有启用状态的 TestTask，匹配 Cron 后执行"""
+    try:
+        from croniter import croniter
+    except ImportError:
+        return
+    from models import TestTask
+
+    app = get_flask_app()
+    with app.app_context():
+        now = datetime.now()
+        tasks = TestTask.query.filter_by(status="enabled").all()
+        for task in tasks:
+            if not task.cron_expr:
+                continue
+            try:
+                cron = croniter(task.cron_expr, now)
+                prev = cron.get_prev()
+                if not task.last_run_time or task.last_run_time < prev:
+                    try:
+                        _execute_test_task(task)
+                    except Exception:
+                        pass
+            except (ValueError, KeyError):
+                continue
+
+
+def _execute_test_task(task):
+    """执行 TestTask：运行关联的用例或套件，更新执行状态"""
+    from extensions import db
+    from service.test_service import execute_test_case
+    from models import TestCase
+    from core.execution_context import ExecutionContext
+
+    ctx = ExecutionContext()
+    case_ids = []
+
+    # 支持套件模式
+    if task.suite_id:
+        from extensions import db as _db
+        from models import suite_case_association as sca
+        rows = _db.session.query(sca).filter_by(suite_id=task.suite_id).order_by(sca.c.case_id).all()
+        case_ids = [r.case_id for r in rows if r.case_type == "api"]
+    else:
+        case_ids = [c.id for c in task.cases.all()]
+
+    if not case_ids:
+        task.last_status = "empty"
+        task.last_run_time = datetime.now()
+        db.session.commit()
+        return
+
+    passed = 0
+    for cid in case_ids:
+        case = TestCase.query.get(cid)
+        if not case:
+            continue
+        try:
+            res = execute_test_case(case, context=ctx)
+            if res.get("status") in ("PASS", "FLAKY"):
+                passed += 1
+        except Exception:
+            pass
+
+    task.last_status = "success" if passed == len(case_ids) else "partial"
+    task.last_run_time = datetime.now()
+    db.session.commit()

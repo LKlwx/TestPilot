@@ -127,6 +127,27 @@ h2::after {
     transform: scale(0.98);
 }
 
+.btn-success {
+    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+}
+.btn-success:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(72, 187, 120, 0.5); }
+
+.btn-danger {
+    background: linear-gradient(135deg, #fc8181 0%, #e53e3e 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(252, 129, 129, 0.4);
+}
+.btn-danger:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(252, 129, 129, 0.5); }
+
+.btn-secondary {
+    background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(160, 174, 192, 0.4);
+}
+.btn-secondary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(160, 174, 192, 0.5); }
+
 /* 按钮禁用光标显示 */
 .btn,
 button {
@@ -364,6 +385,16 @@ label,
 .badge-info {
     background: linear-gradient(135deg, #e1f5fe 0%, #b3e5fc 100%);
     color: #0288d1;
+}
+
+.badge-success {
+    background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
+    color: #22543d;
+}
+
+.badge-secondary {
+    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+    color: #4a5568;
 }
 
 /* ===== 滚动条样式 ===== */

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}套件管理{% endblock %}
+{% block content %}
+<div class="container">
+    <h2>套件管理</h2>
+
+    <div class="card">
+        <h3>创建套件</h3>
+        <input id="suiteName" class="form-input" placeholder="套件名称">
+        <input id="suiteDesc" class="form-input" placeholder="描述（选填）">
+        <textarea id="suiteCases" class="form-textarea" rows="3" placeholder='用例列表，每行一条：类型,ID（如 api,3）
+ui,5
+api,7'></textarea>
+        <br>
+        <button class="btn btn-primary" onclick="addSuite()">创建</button>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <h3>套件列表</h3>
+        <table class="table">
+            <thead><tr><th>名称</th><th>描述</th><th>用例数</th><th>创建时间</th><th>操作</th></tr></thead>
+            <tbody id="suiteList"></tbody>
+        </table>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <h3>执行结果</h3>
+        <pre id="result" class="code-block">等待执行...</pre>
+    </div>
+</div>
+
+<script>
+    window.onload = function () { checkLogin(); loadSuites(); };
+
+    async function loadSuites() {
+        try {
+            const res = await httpGet("/api/suite/list");
+            const list = res.data && res.data.list || [];
+            let html = "";
+            list.forEach(s => {
+                html += `<tr>
+                    <td>${s.name}</td>
+                    <td>${s.description || "-"}</td>
+                    <td>${s.case_count}</td>
+                    <td>${s.create_time || "-"}</td>
+                    <td>
+                        <button class="btn btn-success" onclick="runSuite(${s.id})">执行</button>
+                        <button class="btn btn-danger" onclick="delSuite(${s.id})">删除</button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById("suiteList").innerHTML = html || "<tr><td colspan='5' style='text-align:center;color:#999;'>暂无套件</td></tr>";
+        } catch (e) { showAlert("加载失败", "error"); }
+    }
+
+    async function addSuite() {
+        const name = document.getElementById("suiteName").value.trim();
+        const desc = document.getElementById("suiteDesc").value.trim();
+        const raw = document.getElementById("suiteCases").value.trim();
+        if (!name) { showAlert("名称不能为空", "warning"); return; }
+        const cases = raw.split("\n").filter(l => l.trim()).map(l => {
+            const [type, id] = l.split(",");
+            return { type: (type || "api").trim(), id: parseInt(id) };
+        }).filter(c => c.id > 0);
+        try {
+            await httpPost("/api/suite/add", { name, description: desc, cases });
+            showAlert("创建成功", "success");
+            ["suiteName","suiteDesc","suiteCases"].forEach(id => document.getElementById(id).value = "");
+            loadSuites();
+        } catch (e) { showAlert("创建失败: " + e.message, "error"); }
+    }
+
+    async function runSuite(id) {
+        try {
+            showAlert("执行中...", "info");
+            document.getElementById("result").innerHTML = '<span class="loading-spinner"></span> 执行中，请稍候...';
+            const res = await httpPost(`/api/suite/${id}/run`, {});
+            document.getElementById("result").innerText = JSON.stringify(res, null, 2);
+            showAlert(`执行完成: ${res.data.passed}/${res.data.total} 通过`, res.data.failed ? "error" : "success");
+        } catch (e) { showAlert("执行失败: " + e.message, "error"); }
+    }
+
+    async function delSuite(id) {
+        if (!confirm("确定删除？")) return;
+        try { await httpDelete(`/api/suite/${id}`); loadSuites(); } catch (e) { showAlert("删除失败", "error"); }
+    }
+</script>
+{% endblock %}

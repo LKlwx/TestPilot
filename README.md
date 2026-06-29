@@ -81,7 +81,7 @@ graph TD
 - 数据库：SQLite
 - ORM：Flask-SQLAlchemy + Flask-Migrate（数据库迁移）
 - 身份认证：Flask-JWT-Extended（双Token无感刷新）
-- 异步任务：Celery + Redis（异步任务队列）
+- 异步任务：Celery + Redis + croniter（异步任务队列 + 定时调度）
 - 参数校验：marshmallow 4.x（Schema 声明式校验）
 - 前端：HTML + CSS + JavaScript + ECharts
 - 接口自动化：Requests
@@ -142,6 +142,8 @@ TestPilot/
 │   ├── test.py      # 接口测试接口
 │   ├── ui.py        # UI 测试接口
 │   ├── performance.py  # 性能测试接口
+│   ├── scheduler.py   # 定时任务调度接口
+│   ├── suite.py       # 测试套件管理接口
 │   ├── ai.py        # AI 辅助测试接口
 │   ├── coverage.py  # 接口覆盖率统计接口
 │   └── environment.py  # 环境管理接口
@@ -183,7 +185,7 @@ TestPilot/
 ```
 
 ## 数据模型说明
-项目共设计 19 张核心数据表，全部持久化存储：
+项目共设计 20 张核心数据表，全部持久化存储：
 1. **User**：用户信息、角色、密码
 2. **TestCase**：接口测试用例
 3. **TestReport**：接口测试报告
@@ -191,7 +193,7 @@ TestPilot/
 5. **UIReport**：UI 测试报告
 6. **PerformanceCase**：性能测试用例
 7. **PerformanceReport**：性能测试指标报告
-8. **TestTask**：定时任务配置
+8. **TestTask**：定时任务配置（支持 Cron 表达式、关联用例或套件、Celery Beat 每分钟自动扫描执行，记录最近执行状态）
 9. **AIAgentTask**：AI 操作记录（已落库，支持历史查看）
 10. **SysOperationLog**：系统操作日志（已落库，支持审计页面查看）
 11. **PerformanceDetail**：压测明细数据（存储每次请求耗时，用于慢接口分析）
@@ -203,6 +205,7 @@ TestPilot/
 17. **TestDataSet**：测试数据集（绑定用例模板，存储多组参数化数据行，支持 CSV/JSON 批量导入）
 18. **ApiContract**：接口契约定义（从 Swagger 导入 Response Schema，执行时自动校验响应 JSON 是否符合契约）
 19. **Environment**：环境配置（名称、基地址、全局请求头、环境变量，支持开发/测试/生产一键切换）
+20. **TestSuite**：测试套件（关联多类型用例，支持顺序执行、共享 ExecutionContext 实现链式变量依赖传递）
 
 ## 环境变量参考
 
@@ -510,6 +513,11 @@ TestPilot/
 - 所有 chunk 完成后 `merge_parallel_results` 回调自动统计 PASS/FAIL 总数，更新 `BatchTask`
 - 容错：chunk 执行异常仅影响该 chunk 内的用例，其他 chunk 正常执行并合并；Celery 自动重试崩溃的 Worker
 - `POST /api/test/batch/run` 新增 `worker_count` 参数，不传默认为 1（串行），传 4 则分 4 份并行
+
+### 17. 定时任务与套件管理
+- **定时任务调度引擎**：`TestTask` 模型支持 Cron 表达式配置，Celery Beat 每 60 秒扫描已启用任务，匹配 Cron 后自动执行关联用例或套件，`last_run_time` / `last_status` 记录最近执行状态，支持启用/禁用一键切换
+- **测试套件管理**：`TestSuite` 模型支持创建套件、关联多类型用例（API/UI/性能），套件执行时按顺序运行所有用例并共享 `ExecutionContext`（前序用例提取的变量自动传递给后续用例），支持套件级定时执行
+- **Cron 校验**：基于 `croniter` 对 Cron 表达式进行合法性前端校验，Celery Beat 扫描时自动跳过非法表达式
 
 ## 常见问题
 

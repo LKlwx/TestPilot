@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}定时任务{% endblock %}
+{% block content %}
+<div class="container">
+    <h2>定时任务</h2>
+
+    <div class="card">
+        <h3>新建定时任务</h3>
+        <input id="taskName" class="form-input" placeholder="任务名称">
+        <input id="taskCron" class="form-input" placeholder="Cron 表达式（如 0 3 * * * → 每天 3 点）" oninput="previewCron(this.value)">
+        <span id="cronPreview" style="color:#667eea; font-size:13px;"></span>
+        <textarea id="taskCaseIds" class="form-textarea" rows="2" placeholder="用例 ID，逗号分隔（如 1,2,3）"></textarea>
+        <select id="taskSuiteId" class="form-select" onchange="document.getElementById('taskCaseIds').disabled=this.value"><option value="">或选择套件</option></select>
+        <br>
+        <button class="btn btn-primary" onclick="addTask()">添加</button>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+        <h3>任务列表</h3>
+        <table class="table">
+            <thead><tr><th>名称</th><th>Cron</th><th>说明</th><th>状态</th><th>上次执行</th><th>操作</th></tr></thead>
+            <tbody id="taskList"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    const CRON_MAP = {
+        "0 0 * * *": "每天 0 点",
+        "0 */2 * * *": "每 2 小时",
+        "0 3 * * *": "每天 3 点",
+        "0 0 * * 0": "每周日 0 点",
+        "*/5 * * * *": "每 5 分钟",
+        "* * * * *": "每分钟",
+        "0 9-18 * * *": "工作日 9-18 点每小时",
+    };
+
+    function previewCron(val) {
+        const el = document.getElementById("cronPreview");
+        if (!val.trim()) { el.innerText = ""; return; }
+        const normalized = val.trim().replace(/\s+/g, ' ');
+        if (CRON_MAP[normalized]) { el.innerText = "→ " + CRON_MAP[normalized]; return; }
+        const parts = normalized.split(" ");
+        if (parts.length === 5) {
+            let desc = "";
+            if (parts[1] === "0" && parts[2] === "*") desc = "每天 " + parts[0] + " 点";
+            else if (parts[0] === "0" && parts[1] !== "*") desc = "每 " + parts[1] + " 小时";
+            else desc = "自定义: " + normalized;
+            el.innerText = "→ " + desc;
+        } else {
+            el.innerText = "→ 格式错误";
+        }
+    }
+
+    window.onload = function () { checkLogin(); loadTasks(); loadSuites(); };
+
+    async function loadSuites() {
+        try {
+            const res = await httpGet("/api/suite/list");
+            const list = res.data && res.data.list || [];
+            const sel = document.getElementById("taskSuiteId");
+            list.forEach(s => { sel.innerHTML += `<option value="${s.id}">${s.name} (${s.case_count}个用例)</option>`; });
+        } catch (e) {}
+    }
+
+    async function loadTasks() {
+        try {
+            const res = await httpGet("/api/scheduler/tasks");
+            const list = res.data && res.data.list || [];
+            let html = "";
+            list.forEach(t => {
+                html += `<tr>
+                    <td>${t.name}${t.suite_name ? ' <span style="font-size:11px;color:#667eea;">(套件:'+t.suite_name+')</span>' : ''}</td>
+                    <td>${t.cron_expr}</td>
+                    <td style="font-size:12px;color:#666;">${cronText(t.cron_expr)}</td>
+                    <td><span class="badge ${t.status === 'enabled' ? 'badge-success' : 'badge-secondary'}">${t.status === 'enabled' ? '启用' : '禁用'}</span></td>
+                    <td>${t.last_run_time || '-'}<br><span style="font-size:11px;color:#999;">${t.last_status || ''}</span></td>
+                    <td>
+                        <button class="btn btn-secondary" onclick="toggleTask(${t.id})">${t.status === 'enabled' ? '禁用' : '启用'}</button>
+                        <button class="btn btn-danger" onclick="deleteTask(${t.id})">删除</button>
+                    </td>
+                </tr>`;
+            });
+            document.getElementById("taskList").innerHTML = html || "<tr><td colspan='6' style='text-align:center;color:#999;'>暂无定时任务</td></tr>";
+        } catch (e) { showAlert("加载失败", "error"); }
+    }
+
+    function cronText(expr) { return CRON_MAP[(expr || "").trim().replace(/\s+/g, ' ')] || (expr || ""); }
+
+    async function addTask() {
+        const name = document.getElementById("taskName").value.trim();
+        const cron = document.getElementById("taskCron").value.trim();
+        const ids = document.getElementById("taskCaseIds").value.trim();
+        const suite_id = document.getElementById("taskSuiteId").value;
+        const data = { name, cron_expr: cron };
+        if (suite_id && !isNaN(parseInt(suite_id))) {
+            data.suite_id = parseInt(suite_id);
+        } else if (ids) {
+            data.case_ids = ids.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+        }
+        try {
+            await httpPost("/api/scheduler/task/add", data);
+            showAlert("添加成功", "success");
+            ["taskName","taskCron","taskCaseIds"].forEach(id => document.getElementById(id).value = "");
+            document.getElementById("cronPreview").innerText = "";
+            loadTasks();
+        } catch (e) { showAlert("添加失败: " + e.message, "error"); }
+    }
+
+    async function toggleTask(id) {
+        try { await httpPost(`/api/scheduler/task/${id}/toggle`, {}); loadTasks(); }
+        catch (e) { showAlert("操作失败", "error"); }
+    }
+
+    async function deleteTask(id) {
+        if (!confirm("确定删除？")) return;
+        try { await httpDelete(`/api/scheduler/task/${id}`); loadTasks(); }
+        catch (e) { showAlert("删除失败", "error"); }
+    }
+</script>
+{% endblock %}
