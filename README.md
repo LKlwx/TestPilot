@@ -130,9 +130,12 @@ TestPilot/
 │   ├── api-design-guide.md  # API 设计规范
 │   └── adr/
 │       └── 001-case-model-refactor.md
-├── tests/             # 单元测试目录
+├── tests/             # 单元测试与集成测试
 │   ├── __init__.py
-│   └── test_core.py
+│   ├── conftest.py    # pytest fixture（SQLite 内存数据库隔离、自动搭建测试用户）
+│   ├── test_core.py   # 核心模块测试（AssertEngine/BaseHTTPClient/BasePage/DataFactory/Parallel）
+│   ├── test_service.py  # Service 层单元测试（重试合并/数据驱动/并行拆分）
+│   └── test_api.py    # API 集成测试（Auth/TestCase/Dashboard/Env/Suite/Scheduler）
 ├── scripts/           # 辅助脚本
 │   └── generate_allure_report.py  # Allure 报告生成（含历史趋势）
 ├── pytest.ini         # pytest + Allure 配置

@@ -1,4 +1,4 @@
-from flask import request, g, jsonify
+from flask import request, g, jsonify, current_app
 from datetime import datetime
 from extensions import db
 from core.ratelimit import global_limiter, global_circuit, tiered_limiter
@@ -7,6 +7,10 @@ from flask_jwt_extended import get_jwt_identity
 def register_middleware(app):
     @app.before_request
     def before_request():
+        # 测试模式下跳过所有限流
+        if current_app.config.get("TESTING"):
+            return
+
         # 全局限流（本地请求不计入，避免本机压测数据失真）
         if request.remote_addr not in ("127.0.0.1", "::1", "localhost"):
             if not global_limiter.is_allowed():
