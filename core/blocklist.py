@@ -13,11 +13,41 @@ LOGIN_LOCK_TTL = 900  # 15 分钟
 
 
 def _get_redis():
-    """懒加载 Redis 连接，避免导入时 Redis 未就绪导致启动失败"""
+    """懒加载 Redis 连接，测试模式下降级为内存 dict"""
+    from flask import current_app
+    try:
+        if current_app.config.get("TESTING"):
+            return _get_test_store()
+    except RuntimeError:
+        pass
     global _redis_client
     if _redis_client is None:
         _redis_client = redis.from_url(Config.REDIS_URL)
     return _redis_client
+
+
+_test_store = {}
+
+
+def _get_test_store():
+    """测试模式：内存 dict 替代 Redis"""
+    return _MemoryRedis()
+
+
+class _MemoryRedis:
+    def setex(self, key, ttl, value):
+        _test_store[key] = value
+    def exists(self, key):
+        return key in _test_store
+    def get(self, key):
+        return _test_store.get(key)
+    def incr(self, key):
+        _test_store[key] = _test_store.get(key, 0) + 1
+        return _test_store[key]
+    def expire(self, key, ttl):
+        pass
+    def delete(self, key):
+        _test_store.pop(key, None)
 
 
 def add_to_blocklist(jti: str) -> None:

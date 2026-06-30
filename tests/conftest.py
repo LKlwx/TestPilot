@@ -15,6 +15,7 @@ def app():
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
         "TESTING": True,
         "CACHE_TYPE": "SimpleCache",
+        "REDIS_URL": "",
     })
     with application.app_context():
         _db.create_all()
