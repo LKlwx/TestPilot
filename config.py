@@ -97,8 +97,8 @@ class DevelopmentConfig(Config):
 class TestConfig(Config):
     """测试环境配置"""
     DEBUG = True
-    # 测试环境用独立数据库
-    SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'testpilot_test.db')}"
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
 
 
 class DemoConfig(Config):
