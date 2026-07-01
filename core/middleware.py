@@ -65,6 +65,6 @@ def register_middleware(app):
 
         try:
             db.session.remove()
-        except:
+        except Exception:
             pass
         return response

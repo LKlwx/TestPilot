@@ -72,7 +72,7 @@ def update_environment(eid):
     data = request.get_json()
 
     if "is_default" in data and data["is_default"]:
-        for e in Environment.query.filter(Environment.id != eid, Environment.is_default == True).all():
+        for e in Environment.query.filter(Environment.id != eid, Environment.is_default).all():
             e.is_default = False
 
     env.name = data.get("name", env.name)

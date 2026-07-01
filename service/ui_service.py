@@ -205,7 +205,7 @@ def run_ui_case(case):
             if case.steps:
                 is_valid, steps, errors = parse_steps(case.steps)
                 if not is_valid:
-                    step_log.append(f"步骤解析失败：")
+                    step_log.append("步骤解析失败：")
                     for err in errors:
                         step_log.append(f"  - {err}")
                     raise Exception("步骤格式或内容不符合规范，请检查后重试")

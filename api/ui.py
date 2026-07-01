@@ -32,9 +32,6 @@ def ui_reports_page():
 @ui_bp.route("/case", methods=["POST"])
 @jwt_required()
 def add_ui_case():
-    identity = get_jwt_identity()
-    user = User.query.get(int(identity))
-    username = user.username if user else "未知"
     data = validate_request(AddUICaseSchema, request.json)
 
     steps = data.get("steps", "")

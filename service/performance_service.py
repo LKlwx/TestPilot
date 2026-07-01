@@ -102,7 +102,7 @@ async def _async_run(case):
             count = step_total + (1 if step < remainder else 0)
 
             async def single_request(sn=step, sc=sem):
-                nonlocal success, fail, qps_series
+                nonlocal success, fail
                 async with sc:
                     req_start = time.time()
                     try:

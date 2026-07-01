@@ -144,5 +144,5 @@ class AssertEngine:
             jsonschema.validate(instance=response_json, schema=schema)
             return True, "Schema 校验通过：响应体符合契约定义"
         except jsonschema.ValidationError as e:
-            path = ".".join(str(p) for p in e.absolute_path) if e.absolute_path else e.message
-            return False, f"Schema 校验失败: {e.message}"
+            location = ".".join(str(p) for p in e.absolute_path) + ": " if e.absolute_path else ""
+            return False, f"Schema 校验失败: {location}{e.message}"
