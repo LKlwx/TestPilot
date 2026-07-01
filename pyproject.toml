@@ -6,6 +6,11 @@ target-version = ["py310"]
 profile = "black"
 line_length = 120
 
+[tool.flake8]
+max-complexity = 12
+max-line-length = 120
+extend-ignore = "E203,W503,E402,E501,E712,F541,F841,W291"
+
 [tool.mypy]
 ignore_missing_imports = true
 follow_imports = "skip"
