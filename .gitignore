@@ -44,3 +44,7 @@ sync_db.py
 .env
 .env.*
 !.env.example
+
+# Lint / type-check caches
+.mypy_cache/
+.ruff_cache/

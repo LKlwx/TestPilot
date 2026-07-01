@@ -90,6 +90,7 @@ graph TD
 - AI 模块：本地大模型集成（LM Studio + Qwen3.5 9B）
 - 测试报告：allure-pytest（Allure 可视化测试报告，含步骤追踪、截图附件、历史趋势）
 - 并行测试：pytest-xdist（多 CPU 核心并行执行单元测试，pytest.ini 配置 -n auto）
+- 代码质量：black + isort + flake8 + mypy（pre-commit 钩子 + CI 门禁）
 - 数据工厂：Faker + 随机数据生成 + Setup/Teardown 上下文管理器
 - 其他：系统操作日志、统一响应封装、全局异常捕获、分级日志体系（DEBUG/INFO/ERROR）、Redis 缓存加速（Dashboard 60s 缓存）
 
@@ -116,6 +117,8 @@ TestPilot/
 │   └── base_case.py    # 用例基础抽象类 BaseCaseMixin
 ├── extensions.py       # db、jwt 等扩展实例化
 ├── requirements.txt     # 依赖包列表
+├── .pre-commit-config.yaml  # pre-commit 钩子（black + isort + flake8 + mypy）
+├── pyproject.toml       # black / isort / mypy 配置
 ├── Dockerfile         # Docker 镜像配置
 ├── docker-compose.yml  # Docker Compose 配置
 ├── .gitignore        # Git 忽略文件配置
@@ -333,7 +336,8 @@ TestPilot/
 1. 推送代码到 GitHub 仓库
 2. 每次 push 自动触发 CI 流程：
    - 自动安装项目依赖
-   - 自动运行单元测试
+   - black + isort + flake8 + mypy 四重代码质量门禁
+   - 自动运行单元测试与集成测试
    - 自动生成测试覆盖率报告
 3. 查看 Actions 运行结果：
    ```
