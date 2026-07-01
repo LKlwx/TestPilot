@@ -1,8 +1,9 @@
 """生成 Allure 报告（含历史趋势）"""
+
 import os
-import sys
 import shutil
 import subprocess
+import sys
 
 ALLURE_RESULTS = "allure-results"
 ALLURE_REPORT = "allure-report"

@@ -1,20 +1,23 @@
 """
 TestPilot 核心功能测试
 """
-import sys
+
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import allure
-from app import create_app
-from models import User, TestCase, TestReport
-from core.exception import APIException, NotFoundException
-from core.response import success, error
-from core.execution_context import ExecutionContext, RecursiveVariableError
-from core.assert_engine import AssertEngine
-from core.http_client import HTTPResponse, BaseHTTPClient
 from unittest.mock import MagicMock
+
+import allure
+
+from app import create_app
+from core.assert_engine import AssertEngine
+from core.exception import APIException, NotFoundException
+from core.execution_context import ExecutionContext, RecursiveVariableError
+from core.http_client import BaseHTTPClient, HTTPResponse
+from core.response import error, success
+from models import TestCase, TestReport, User
 
 
 @allure.feature("核心模块")
@@ -41,6 +44,7 @@ def test_response_import():
 
 
 # ========== ExecutionContext 单元测试 ==========
+
 
 @allure.feature("ExecutionContext")
 @allure.story("循环引用保护")
@@ -81,11 +85,13 @@ def test_execution_context_add_log():
 
 # ========== AssertEngine 单元测试 ==========
 
+
 class MockResponse:
     def __init__(self, text="", status_code=200, json_data=None):
         self.text = text
         self.status_code = status_code
         self._json_data = json_data or {}
+
     def json(self):
         return self._json_data
 
@@ -144,14 +150,17 @@ def test_assert_time():
 
 # ========== BaseHTTPClient 单元测试 ==========
 
+
 @allure.feature("BaseHTTPClient")
 class MockRequestsResponse:
     """模拟 requests.Response"""
+
     def __init__(self, status_code=200, text="ok", headers=None, json_data=None):
         self.status_code = status_code
         self.text = text
         self.headers = headers or {"Content-Type": "application/json"}
         self._json = json_data
+
     def json(self):
         return self._json or {"data": {"token": "abc"}}
 
@@ -193,29 +202,37 @@ def test_http_response_chain_all():
     with allure.step("创建 mock 响应"):
         r = HTTPResponse(MockRequestsResponse(status_code=200, text="success", json_data={"token": "abc"}))
     with allure.step("链式断言：状态码 + JSONPath + Header + 正则"):
-        r.validate_status(200).validate_json("$.token", "abc").validate_header("Content-Type", "application/json").validate_regex("success").done()
+        r.validate_status(200).validate_json("$.token", "abc").validate_header(
+            "Content-Type", "application/json"
+        ).validate_regex("success").done()
     assert r._passed is True
 
 
 # ========== BasePage 单元测试 ==========
 
+
 @allure.feature("BasePage")
 def test_by_map_contains_all_locators():
     from core.base_page import BY_MAP
+
     for k in ["id", "name", "xpath", "css", "linkText", "className"]:
         assert k in BY_MAP, f"缺少定位方式: {k}"
 
 
 def test_by_map_invalid_returns_xpath():
-    from core.base_page import BY_MAP
     from selenium.webdriver.common.by import By
+
+    from core.base_page import BY_MAP
+
     assert BY_MAP.get("invalid", By.XPATH) == By.XPATH
 
 
 def test_base_page_create():
     from selenium.webdriver.support.ui import WebDriverWait
+
     mock_driver = MagicMock()
     from core.base_page import BasePage
+
     bp = BasePage(mock_driver, timeout=5)
     assert bp.driver is mock_driver
     assert isinstance(bp.wait, WebDriverWait)
@@ -223,9 +240,11 @@ def test_base_page_create():
 
 # ========== DataFactory 单元测试 ==========
 
+
 @allure.feature("DataFactory")
 def test_data_factory_username():
     from core.data_factory import DataFactory
+
     u1 = DataFactory.username()
     u2 = DataFactory.username()
     assert u1 and u2
@@ -234,12 +253,14 @@ def test_data_factory_username():
 
 def test_data_factory_email():
     from core.data_factory import DataFactory
+
     e = DataFactory.email()
     assert "@" in e
 
 
 def test_data_factory_phone():
     from core.data_factory import DataFactory
+
     p = DataFactory.phone()
     digits = p.replace("-", "").replace(" ", "")
     assert digits.isdigit()
@@ -247,6 +268,7 @@ def test_data_factory_phone():
 
 def test_data_factory_password_meets_requirements():
     from core.data_factory import DataFactory
+
     pw = DataFactory.password()
     assert len(pw) >= 8
     assert any(c.isalpha() for c in pw)
@@ -255,9 +277,11 @@ def test_data_factory_password_meets_requirements():
 
 # ========== DataPool 单元测试 ==========
 
+
 @allure.feature("DataPool")
 def test_data_pool_get_or_create():
     from core.data_pool import DataPool
+
     pool = DataPool()
     called = 0
 
@@ -275,6 +299,7 @@ def test_data_pool_get_or_create():
 
 def test_data_pool_clear():
     from core.data_pool import DataPool
+
     pool = DataPool()
     pool.set("a", 1)
     pool.set("b", 2)
@@ -285,6 +310,7 @@ def test_data_pool_clear():
 
 def test_data_pool_set_override():
     from core.data_pool import DataPool
+
     pool = DataPool()
     pool.set("k", "old")
     pool.set("k", "new")
@@ -293,9 +319,11 @@ def test_data_pool_set_override():
 
 # ========== 数据驱动测试 单元测试 ==========
 
+
 @allure.feature("DataDrive")
 def test_replace_placeholders():
     from service.data_drive import _replace_placeholders
+
     row = {"username": "test1", "pwd": "abc123"}
     assert _replace_placeholders("{{username}}", row) == "test1"
     assert _replace_placeholders("/api/user/{{username}}", row) == "/api/user/test1"
@@ -304,6 +332,7 @@ def test_replace_placeholders():
 
 def test_replace_in_dict():
     from service.data_drive import _replace_in_dict
+
     row = {"name": "alice", "age": "25"}
     d = {"url": "/api/{{name}}", "body": {"user": "{{name}}", "info": "age_{{age}}"}}
     result = _replace_in_dict(d, row)
@@ -314,6 +343,7 @@ def test_replace_in_dict():
 
 def test_parse_upload_json():
     from service.data_drive import parse_upload
+
     content = '[{"username": "a", "pwd": "1"}, {"username": "b", "pwd": "2"}]'
     rows = parse_upload(content, "data.json")
     assert len(rows) == 2
@@ -322,6 +352,7 @@ def test_parse_upload_json():
 
 def test_parse_upload_csv():
     from service.data_drive import parse_upload
+
     content = "username,pwd\na,1\nb,2\n"
     rows = parse_upload(content, "data.csv")
     assert len(rows) == 2
@@ -330,9 +361,11 @@ def test_parse_upload_csv():
 
 # ========== 契约测试 单元测试 ==========
 
+
 @allure.feature("ApiContract")
 def test_validate_schema_pass():
     from core.assert_engine import AssertEngine
+
     engine = AssertEngine(response=None)
     schema = {
         "type": "object",
@@ -346,6 +379,7 @@ def test_validate_schema_pass():
 
 def test_validate_schema_type_mismatch():
     from core.assert_engine import AssertEngine
+
     engine = AssertEngine(response=None)
     schema = {
         "type": "object",
@@ -359,6 +393,7 @@ def test_validate_schema_type_mismatch():
 
 def test_validate_schema_missing_required():
     from core.assert_engine import AssertEngine
+
     engine = AssertEngine(response=None)
     schema = {
         "type": "object",
@@ -373,6 +408,7 @@ def test_validate_schema_missing_required():
 
 def test_validate_schema_no_schema():
     from core.assert_engine import AssertEngine
+
     engine = AssertEngine(response=None)
     passed, msg = engine.validate_schema({"a": 1}, None)
     assert passed
@@ -381,6 +417,7 @@ def test_validate_schema_no_schema():
 @allure.feature("SwaggerParser")
 def test_resolve_schema_refs():
     from api.coverage import _resolve_schema_refs
+
     schemas = {
         "User": {
             "type": "object",
@@ -394,9 +431,11 @@ def test_resolve_schema_refs():
 
 # ========== 导入导出 单元测试 ==========
 
+
 @allure.feature("ImportExport")
 def test_schema_to_example_object():
     from api.coverage import _schema_to_example
+
     schema = {
         "type": "object",
         "properties": {
@@ -411,6 +450,7 @@ def test_schema_to_example_object():
 
 def test_schema_to_example_nested():
     from api.coverage import _schema_to_example
+
     schema = {
         "type": "object",
         "properties": {
@@ -429,9 +469,11 @@ def test_schema_to_example_nested():
 
 # ========== 分布式并行 单元测试 ==========
 
+
 @allure.feature("Parallel")
 def test_split_ids_exact():
     from service.parallel import split_ids
+
     ids = [1, 2, 3, 4]
     split = split_ids(ids, 2)
     assert len(split) == 2
@@ -441,6 +483,7 @@ def test_split_ids_exact():
 
 def test_split_ids_uneven():
     from service.parallel import split_ids
+
     ids = [1, 2, 3, 4, 5]
     split = split_ids(ids, 3)
     assert len(split) == 3
@@ -449,6 +492,7 @@ def test_split_ids_uneven():
 
 def test_split_ids_more_chunks_than_items():
     from service.parallel import split_ids
+
     ids = [1, 2]
     split = split_ids(ids, 5)
     assert len(split) == 2
@@ -457,10 +501,12 @@ def test_split_ids_more_chunks_than_items():
 
 def test_split_ids_empty():
     from service.parallel import split_ids
+
     assert split_ids([], 4) == []
 
 
 def test_split_ids_zero_workers():
     from service.parallel import split_ids
+
     ids = [1, 2, 3]
     assert split_ids(ids, 0) == [ids]

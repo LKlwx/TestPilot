@@ -1,8 +1,9 @@
 """BasePage — Page Object 模式基类"""
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 # 定位方式映射表
 BY_MAP = {
@@ -57,9 +58,7 @@ class BasePage:
 
     def wait_for_visible(self, locator_type: str, locator_value: str, timeout=10):
         by = self._by(locator_type)
-        return WebDriverWait(self.driver, timeout).until(
-            EC.visibility_of_element_located((by, locator_value))
-        )
+        return WebDriverWait(self.driver, timeout).until(EC.visibility_of_element_located((by, locator_value)))
 
     def is_visible(self, locator_type: str, locator_value: str) -> bool:
         try:
@@ -73,6 +72,4 @@ class BasePage:
         elem.send_keys(Keys.ENTER)
 
     def wait_for_text(self, text: str, timeout: int = 5):
-        return WebDriverWait(self.driver, timeout).until(
-            EC.text_to_be_present_in_element((By.TAG_NAME, "body"), text)
-        )
+        return WebDriverWait(self.driver, timeout).until(EC.text_to_be_present_in_element((By.TAG_NAME, "body"), text))

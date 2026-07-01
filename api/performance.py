@@ -1,18 +1,20 @@
 import json
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request, redirect
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from extensions import db
-from models import PerformanceCase, PerformanceReport, User, PerformanceBaseline
-from core.exception import NotFoundException
-from core.response import success
-from core.pagination import paginate
-from core.db_guard import db_write_guard
-from core.schema import validate_request
-from core.logger import get_logger
+
+from flask import Blueprint, redirect, render_template, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
+
 from api.schemas import AddPerformanceCaseSchema, UpdatePerformanceCaseSchema
-from service.performance_service import run_performance
+from core.db_guard import db_write_guard
+from core.exception import NotFoundException
+from core.logger import get_logger
+from core.pagination import paginate
+from core.response import success
+from core.schema import validate_request
+from extensions import db
+from models import PerformanceBaseline, PerformanceCase, PerformanceReport, User
 from service.operation_log_service import add_operation_log
+from service.performance_service import run_performance
 
 logger = get_logger(__name__)
 
@@ -52,10 +54,10 @@ def add_case():
         body=data.get("body"),
         concurrency=data.get("concurrency", 10),
         total=data.get("total", 50),
-            ramp_steps=data.get("ramp_steps", 1),
-            steady_duration=data.get("steady_duration", 0),
-            tags=data.get("tags", ""),
-        )
+        ramp_steps=data.get("ramp_steps", 1),
+        steady_duration=data.get("steady_duration", 0),
+        tags=data.get("tags", ""),
+    )
     db.session.add(case)
     with db_write_guard("性能用例添加失败"):
         db.session.flush()
@@ -80,25 +82,29 @@ def cases():
 
     data = []
     for item in result.items:
-        data.append({
-            "id": item.id,
-            "name": item.name,
-            "url": item.url,
-            "method": item.method,
-            "concurrency": item.concurrency,
-            "total": item.total,
+        data.append(
+            {
+                "id": item.id,
+                "name": item.name,
+                "url": item.url,
+                "method": item.method,
+                "concurrency": item.concurrency,
+                "total": item.total,
                 "ramp_steps": item.ramp_steps,
                 "steady_duration": item.steady_duration,
                 "tags": item.tags,
-            })
+            }
+        )
 
-    return success({
-        "list": data,
-        "total": result.total,
-        "page": result.page,
-        "page_size": result.page_size,
-        "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": data,
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 # 执行压测
@@ -126,21 +132,34 @@ def reports():
     if start_date:
         query = query.filter(PerformanceReport.create_time >= datetime.strptime(start_date, "%Y-%m-%d"))
     if end_date:
-        query = query.filter(PerformanceReport.create_time < datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1))
+        query = query.filter(
+            PerformanceReport.create_time < datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+        )
 
     result = paginate(query, order_by=PerformanceReport.id.desc(), page_size=20)
-    return success({
-        "list": [{
-            "id": r.id, "case_name": r.case_name,
-            "concurrency": r.concurrency, "total": r.total,
-            "success": r.success, "fail": r.fail,
-            "qps": r.qps, "avg_time": r.avg_time,
-            "is_local": r.is_local,
-            "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
-        } for r in result.items],
-        "total": result.total, "page": result.page,
-        "page_size": result.page_size, "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": r.id,
+                    "case_name": r.case_name,
+                    "concurrency": r.concurrency,
+                    "total": r.total,
+                    "success": r.success,
+                    "fail": r.fail,
+                    "qps": r.qps,
+                    "avg_time": r.avg_time,
+                    "is_local": r.is_local,
+                    "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                for r in result.items
+            ],
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 # 报告详情
@@ -185,7 +204,9 @@ def report_detail(rid):
             level = "stable"
             label = "无明显变化"
         data["degradation"] = {
-            "level": level, "label": label, "pct": pct,
+            "level": level,
+            "label": label,
+            "pct": pct,
             "baseline_p90": round(baseline.p90, 2),
             "baseline_p99": round(baseline.p99, 2) if baseline.p99 else None,
             "baseline_avg": round(baseline.avg_time, 2) if baseline.avg_time else None,
@@ -213,9 +234,12 @@ def set_baseline(rid):
         baseline.qps = report.qps
     else:
         baseline = PerformanceBaseline(
-            case_id=report.case_id, report_id=report.id,
-            p90=report.p90, p99=report.p99,
-            avg_time=report.avg_time, qps=report.qps,
+            case_id=report.case_id,
+            report_id=report.id,
+            p90=report.p90,
+            p99=report.p99,
+            avg_time=report.avg_time,
+            qps=report.qps,
         )
         db.session.add(baseline)
     db.session.commit()
@@ -238,6 +262,7 @@ def delete_case(cid):
         db.session.flush()
     add_operation_log(user.id, username, "delete_perf_case", f"删除性能用例: {case_name} (ID={cid})")
     return success(msg="删除成功")
+
 
 # 更新用例
 @performance_bp.route("/case/<int:cid>", methods=["PUT"])

@@ -1,15 +1,16 @@
 import uuid
 from datetime import datetime
-from flask import Blueprint, request, render_template
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from core.response import success, error
+
+from flask import Blueprint, render_template, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
+
+from api.schemas import AIAnalyzeSchema, AIGenerateSchema, AISaveApiSchema, AISaveUiSchema
+from celery_app import celery_app
+from core.response import error, success
 from core.schema import validate_request
-from api.schemas import AIGenerateSchema, AIAnalyzeSchema, AISaveApiSchema, AISaveUiSchema
-from service.ai_service import ai_service
 from extensions import db
 from models import AsyncTask
-from celery_app import celery_app
-
+from service.ai_service import ai_service
 
 ai_bp = Blueprint("ai", __name__)
 
@@ -78,14 +79,16 @@ def get_task_status(task_id):
     task = AsyncTask.query.get(task_id)
     if not task:
         return error("任务不存在")
-    return success({
-        "task_id": task.id,
-        "status": task.status,
-        "result": task.result,
-        "error_msg": task.error_msg,
-        "create_time": task.create_time.isoformat() if task.create_time else None,
-        "finish_time": task.finish_time.isoformat() if task.finish_time else None,
-    })
+    return success(
+        {
+            "task_id": task.id,
+            "status": task.status,
+            "result": task.result,
+            "error_msg": task.error_msg,
+            "create_time": task.create_time.isoformat() if task.create_time else None,
+            "finish_time": task.finish_time.isoformat() if task.finish_time else None,
+        }
+    )
 
 
 @ai_bp.route("/save/api", methods=["POST"])

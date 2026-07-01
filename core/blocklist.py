@@ -1,6 +1,7 @@
 """JWT Token 黑名单 + 登录防暴力破解（Phase 2.1 已迁至 Redis，懒加载连接）"""
 
 import redis
+
 from config import Config
 
 _redis_client = None
@@ -15,6 +16,7 @@ LOGIN_LOCK_TTL = 900  # 15 分钟
 def _get_redis():
     """懒加载 Redis 连接，测试模式下降级为内存 dict"""
     from flask import current_app
+
     try:
         if current_app.config.get("TESTING"):
             return _get_test_store()
@@ -37,15 +39,20 @@ def _get_test_store():
 class _MemoryRedis:
     def setex(self, key, ttl, value):
         _test_store[key] = value
+
     def exists(self, key):
         return key in _test_store
+
     def get(self, key):
         return _test_store.get(key)
+
     def incr(self, key):
         _test_store[key] = _test_store.get(key, 0) + 1
         return _test_store[key]
+
     def expire(self, key, ttl):
         pass
+
     def delete(self, key):
         _test_store.pop(key, None)
 

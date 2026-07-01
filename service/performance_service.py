@@ -1,14 +1,16 @@
-import time
-import json
 import asyncio
+import json
+import time
+from urllib.parse import urlparse
+
 import aiohttp
 import numpy as np
-from urllib.parse import urlparse
 from sqlalchemy.exc import SQLAlchemyError
-from extensions import db
-from models import PerformanceReport, PerformanceDetail, PerformanceBaseline
+
 from config import Config
 from core.logger import get_logger
+from extensions import db
+from models import PerformanceBaseline, PerformanceDetail, PerformanceReport
 
 TIMEOUT = Config.REQUEST_TIMEOUT
 logger = get_logger(__name__)
@@ -32,7 +34,12 @@ async def _async_run(case):
     steady_duration = getattr(case, "steady_duration", 0) or 0
     logger.info(
         "压测开始: case=%s, url=%s, concurrency=%d, total=%d, ramp=%d, steady=%ds",
-        case.name, case.url, case.concurrency, case.total, ramp_steps, steady_duration,
+        case.name,
+        case.url,
+        case.concurrency,
+        case.total,
+        ramp_steps,
+        steady_duration,
     )
     cost_list = []
     success = 0
@@ -41,10 +48,19 @@ async def _async_run(case):
 
     is_local = is_local_url(case.url)
     report = PerformanceReport(
-        case_id=case.id, case_name=case.name,
-        concurrency=case.concurrency, total=case.total,
-        success=0, fail=0, qps=0, avg_time=0,
-        min_time=0, max_time=0, p90=0, p99=0, success_rate=0,
+        case_id=case.id,
+        case_name=case.name,
+        concurrency=case.concurrency,
+        total=case.total,
+        success=0,
+        fail=0,
+        qps=0,
+        avg_time=0,
+        min_time=0,
+        max_time=0,
+        p90=0,
+        p99=0,
+        success_rate=0,
         is_local=is_local,
     )
     db.session.add(report)
@@ -56,8 +72,7 @@ async def _async_run(case):
         if not detail_buffer:
             return
         dicts = [
-            {"report_id": report.id, "url": url, "request_time": rt, "status_code": sc}
-            for rt, sc, url in detail_buffer
+            {"report_id": report.id, "url": url, "request_time": rt, "status_code": sc} for rt, sc, url in detail_buffer
         ]
         db.session.bulk_insert_mappings(PerformanceDetail, dicts)
         try:
@@ -96,18 +111,27 @@ async def _async_run(case):
                             try:
                                 body_json = json.loads(case.body)
                                 resp = await session.request(
-                                    method=case.method, url=case.url, headers=headers,
-                                    json=body_json, timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+                                    method=case.method,
+                                    url=case.url,
+                                    headers=headers,
+                                    json=body_json,
+                                    timeout=aiohttp.ClientTimeout(total=TIMEOUT),
                                 )
                             except json.JSONDecodeError:
                                 resp = await session.request(
-                                    method=case.method, url=case.url, headers=headers,
-                                    data=case.body, timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+                                    method=case.method,
+                                    url=case.url,
+                                    headers=headers,
+                                    data=case.body,
+                                    timeout=aiohttp.ClientTimeout(total=TIMEOUT),
                                 )
                         else:
                             resp = await session.request(
-                                method=case.method, url=case.url, headers=headers,
-                                data=case.body, timeout=aiohttp.ClientTimeout(total=TIMEOUT),
+                                method=case.method,
+                                url=case.url,
+                                headers=headers,
+                                data=case.body,
+                                timeout=aiohttp.ClientTimeout(total=TIMEOUT),
                             )
 
                         cost_time = round((time.time() - req_start) * 1000, 2)
@@ -177,15 +201,27 @@ async def _async_run(case):
         db.session.rollback()
         raise
 
-    logger.info("压测完成: case=%s, success=%d, fail=%d, qps=%s, p90=%s, p99=%s",
-        case.name, success, fail, qps, p90, p99)
-    logger.info(json.dumps({
-        "event": "perf_test_completed", "case_id": case.id,
-        "case_name": case.name, "status": "done",
-        "success": success, "fail": fail,
-        "qps": qps, "p90": p90, "p99": p99,
-        "ramp_steps": ramp_steps, "steady_duration": steady_duration,
-    }, ensure_ascii=False))
+    logger.info(
+        "压测完成: case=%s, success=%d, fail=%d, qps=%s, p90=%s, p99=%s", case.name, success, fail, qps, p90, p99
+    )
+    logger.info(
+        json.dumps(
+            {
+                "event": "perf_test_completed",
+                "case_id": case.id,
+                "case_name": case.name,
+                "status": "done",
+                "success": success,
+                "fail": fail,
+                "qps": qps,
+                "p90": p90,
+                "p99": p99,
+                "ramp_steps": ramp_steps,
+                "steady_duration": steady_duration,
+            },
+            ensure_ascii=False,
+        )
+    )
 
     # 对比基线
     degradation = None
@@ -210,8 +246,12 @@ async def _async_run(case):
         }
 
     return {
-        "success": success, "fail": fail, "qps": qps,
-        "avg_time": avg_time, "p90": p90, "p99": p99,
+        "success": success,
+        "fail": fail,
+        "qps": qps,
+        "avg_time": avg_time,
+        "p90": p90,
+        "p99": p99,
         "success_rate": success_rate,
         "degradation": degradation,
     }

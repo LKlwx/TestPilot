@@ -7,13 +7,16 @@
     results = data_drive_execute(case, dataset)
     # → [{"status": "PASS", "row_index": 0, ...}, ...]
 """
-import json
+
 import csv
 import io
-from models import TestReport
-from extensions import db
+import json
+
 from sqlalchemy.exc import SQLAlchemyError
+
 from core.logger import get_logger
+from extensions import db
+from models import TestReport
 from service.test_service import execute_test_case
 
 logger = get_logger(__name__)
@@ -43,16 +46,14 @@ def data_drive_execute(case, dataset):
 
     results = []
     for idx, row in enumerate(rows):
-        logger.info("数据驱动执行: case=%s, dataset=%s, row=%d/%d",
-                     case.name, dataset.name, idx + 1, len(rows))
+        logger.info("数据驱动执行: case=%s, dataset=%s, row=%d/%d", case.name, dataset.name, idx + 1, len(rows))
 
         try:
             injected = _inject_row(case, row)
             result = execute_test_case(injected)
             result["row_index"] = idx
             result["row_data"] = row
-            logger.info("数据驱动行 %d/%d 完成: status=%s",
-                         idx + 1, len(rows), result.get("status"))
+            logger.info("数据驱动行 %d/%d 完成: status=%s", idx + 1, len(rows), result.get("status"))
         except Exception as e:
             logger.error("数据驱动行 %d/%d 执行异常: %s", idx + 1, len(rows), str(e))
             result = {"status": "ERROR", "row_index": idx, "row_data": row, "error": str(e)}

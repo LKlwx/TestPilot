@@ -1,6 +1,7 @@
 """
 简易限流与雪崩防护模块
 """
+
 import time
 import uuid
 from functools import wraps
@@ -45,7 +46,9 @@ class RedisSlidingWindowLimiter:
     def _get_redis(self):
         if self._redis_client is None:
             import redis as redis_lib
+
             from config import Config
+
             self._redis_client = redis_lib.from_url(Config.REDIS_URL)
         return self._redis_client
 
@@ -125,7 +128,9 @@ def rate_limit(max_requests=60, window=60):
             if not limiter.is_allowed():
                 return {"code": 429, "msg": "请求过于频繁，请稍后再试"}, 429
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -145,5 +150,7 @@ def circuit_protect(failure_threshold=3, recovery_time=30):
             except Exception as e:
                 breaker.record_failure()
                 raise
+
         return wrapper
+
     return decorator

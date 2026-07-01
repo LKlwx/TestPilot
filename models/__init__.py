@@ -1,6 +1,8 @@
 from datetime import datetime
+
 from flask_login import UserMixin
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from extensions import db
 from models.base_case import BaseCaseMixin
 
@@ -111,11 +113,14 @@ class TestTask(db.Model):
     creator_id = db.Column(db.Integer, db.ForeignKey("user.id"))
     create_time = db.Column(db.DateTime, default=datetime.now)
 
-    cases = db.relationship("TestCase", secondary=task_case_association, lazy="dynamic",
-                            backref=db.backref("tasks", lazy="dynamic"))
+    cases = db.relationship(
+        "TestCase", secondary=task_case_association, lazy="dynamic", backref=db.backref("tasks", lazy="dynamic")
+    )
     last_run_time = db.Column(db.DateTime, nullable=True, comment="最近一次执行时间")
     last_status = db.Column(db.String(20), default="", comment="最近一次执行状态：success/partial/empty")
-    suite_id = db.Column(db.Integer, db.ForeignKey("test_suite.id", ondelete="SET NULL"), nullable=True, comment="关联套件ID")
+    suite_id = db.Column(
+        db.Integer, db.ForeignKey("test_suite.id", ondelete="SET NULL"), nullable=True, comment="关联套件ID"
+    )
 
 
 # ------------------------------
@@ -173,7 +178,9 @@ class PerformanceCase(BaseCaseMixin, db.Model):
 class PerformanceReport(db.Model):
     __tablename__ = "performance_report"
     id = db.Column(db.Integer, primary_key=True)
-    case_id = db.Column(db.Integer, db.ForeignKey("performance_case.id", ondelete="CASCADE"), index=True)  # 对应的用例ID
+    case_id = db.Column(
+        db.Integer, db.ForeignKey("performance_case.id", ondelete="CASCADE"), index=True
+    )  # 对应的用例ID
     case_name = db.Column(db.String(100))  # 用例名称
     concurrency = db.Column(db.Integer)  # 并发数
     total = db.Column(db.Integer)  # 总请求数
@@ -198,7 +205,9 @@ class PerformanceReport(db.Model):
 class PerformanceDetail(db.Model):
     __tablename__ = "performance_detail"
     id = db.Column(db.Integer, primary_key=True)
-    report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id", ondelete="CASCADE"), index=True, comment="关联压测报告ID")
+    report_id = db.Column(
+        db.Integer, db.ForeignKey("performance_report.id", ondelete="CASCADE"), index=True, comment="关联压测报告ID"
+    )
     url = db.Column(db.String(500), comment="请求URL")
     request_time = db.Column(db.Float, comment="本次请求耗时(ms)")
     status_code = db.Column(db.Integer, comment="HTTP 状态码")
@@ -209,8 +218,12 @@ class PerformanceDetail(db.Model):
 class PerformanceBaseline(db.Model):
     __tablename__ = "performance_baseline"
     id = db.Column(db.Integer, primary_key=True)
-    case_id = db.Column(db.Integer, db.ForeignKey("performance_case.id", ondelete="CASCADE"), index=True, comment="关联用例ID")
-    report_id = db.Column(db.Integer, db.ForeignKey("performance_report.id", ondelete="SET NULL"), comment="基线来源报告ID")
+    case_id = db.Column(
+        db.Integer, db.ForeignKey("performance_case.id", ondelete="CASCADE"), index=True, comment="关联用例ID"
+    )
+    report_id = db.Column(
+        db.Integer, db.ForeignKey("performance_report.id", ondelete="SET NULL"), comment="基线来源报告ID"
+    )
     p90 = db.Column(db.Float, comment="基线 P90（主判据）")
     p99 = db.Column(db.Float, comment="基线 P99")
     avg_time = db.Column(db.Float, comment="基线平均耗时")
@@ -241,7 +254,9 @@ class AsyncTask(db.Model):
     __tablename__ = "async_task"
 
     id = db.Column(db.String(36), primary_key=True)  # UUID
-    task_type = db.Column(db.String(32), nullable=False, comment="任务类型: ai_generate / batch_run / ui_run / perf_run")
+    task_type = db.Column(
+        db.String(32), nullable=False, comment="任务类型: ai_generate / batch_run / ui_run / perf_run"
+    )
     status = db.Column(db.String(16), default="pending", index=True, comment="pending / running / success / failed")
     result = db.Column(db.Text, nullable=True, comment="任务结果（JSON）")
     error_msg = db.Column(db.Text, nullable=True, comment="错误信息")
@@ -278,9 +293,17 @@ class BatchResult(db.Model):
 class SysOperationLog(db.Model):
     __tablename__ = "sys_operation_log"
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="SET NULL"), nullable=True, index=True, comment="操作用户ID（admin为超级管理员）")
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("user.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="操作用户ID（admin为超级管理员）",
+    )
     username = db.Column(db.String(50), nullable=False, comment="操作用户名")
-    operation = db.Column(db.String(50), nullable=False, index=True, comment="操作类型：login/delete_user/change_role/add_case等")
+    operation = db.Column(
+        db.String(50), nullable=False, index=True, comment="操作类型：login/delete_user/change_role/add_case等"
+    )
     ip = db.Column(db.String(50), comment="操作IP地址")
     operate_time = db.Column(db.DateTime, default=datetime.now, index=True, comment="操作时间")
     detail = db.Column(db.Text, comment="操作详情（如：删除用户ID=1，修改角色为admin等）")
@@ -306,7 +329,9 @@ class ApiCoverage(db.Model):
     path = db.Column(db.String(500), nullable=False, index=True, comment="URL 路径")
     summary = db.Column(db.String(200), nullable=True, comment="接口描述（从 Swagger 导入）")
     is_covered = db.Column(db.Boolean, default=False, index=True, comment="是否有测试覆盖")
-    covered_by = db.Column(db.Integer, db.ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="最后覆盖人")
+    covered_by = db.Column(
+        db.Integer, db.ForeignKey("user.id", ondelete="SET NULL"), nullable=True, comment="最后覆盖人"
+    )
     covered_time = db.Column(db.DateTime, nullable=True, comment="最后覆盖时间")
     create_time = db.Column(db.DateTime, default=datetime.now, comment="导入时间")
 
@@ -316,8 +341,10 @@ class TestDataSet(db.Model):
     __tablename__ = "test_data_set"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, comment="数据集名称，如'注册-边界值'")
-    case_id = db.Column(db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"), index=True, comment="绑定的用例模板")
-    data_rows = db.Column(db.Text, comment="数据行，JSON 数组，如 [{\"username\":\"a\",\"pwd\":\"1\"}]")
+    case_id = db.Column(
+        db.Integer, db.ForeignKey("test_case.id", ondelete="CASCADE"), index=True, comment="绑定的用例模板"
+    )
+    data_rows = db.Column(db.Text, comment='数据行，JSON 数组，如 [{"username":"a","pwd":"1"}]')
     create_time = db.Column(db.DateTime, default=datetime.now)
 
     case = db.relationship("TestCase", backref=db.backref("data_sets", lazy="dynamic"))

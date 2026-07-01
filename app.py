@@ -2,24 +2,23 @@ from flask import Flask, redirect
 from flask_cors import CORS
 from flask_login import current_user
 from werkzeug.exceptions import NotFound
-from config import config
-from core.exception import APIException
-from core.middleware import register_middleware
-from core.response import error
-from extensions import db, login_manager, jwt, migrate, cache
-from core.blocklist import is_blocklisted
-from core.logger import log_error
-from api.auth import auth_bp
-from api.test import test_bp
-from api.ui import ui_bp
-from api.performance import performance_bp
+
 from api.ai import ai_bp
+from api.auth import auth_bp
 from api.coverage import coverage_bp
 from api.environment import env_bp
+from api.performance import performance_bp
 from api.scheduler import scheduler_bp
 from api.suite import suite_bp
-
-
+from api.test import test_bp
+from api.ui import ui_bp
+from config import config
+from core.blocklist import is_blocklisted
+from core.exception import APIException
+from core.logger import log_error
+from core.middleware import register_middleware
+from core.response import error
+from extensions import cache, db, jwt, login_manager, migrate
 
 
 def create_app(config_name="default"):
@@ -46,15 +45,19 @@ def create_app(config_name="default"):
         CORS(app, origins=config_class.CORS_ORIGINS, supports_credentials=True)
 
     # 初始化缓存（使用 Redis，Dashboard 数据 60s 过期）
-    cache.init_app(app, config={
-        "CACHE_TYPE": "RedisCache",
-        "CACHE_REDIS_URL": config_class.REDIS_URL,
-        "CACHE_DEFAULT_TIMEOUT": 60,
-    })
+    cache.init_app(
+        app,
+        config={
+            "CACHE_TYPE": "RedisCache",
+            "CACHE_REDIS_URL": config_class.REDIS_URL,
+            "CACHE_DEFAULT_TIMEOUT": 60,
+        },
+    )
 
     @login_manager.user_loader
     def user_loader(user_id):
         from models import User
+
         return User.query.get(int(user_id))
 
     @jwt.token_in_blocklist_loader
@@ -107,6 +110,7 @@ def create_app(config_name="default"):
     @app.route("/favicon.ico")
     def favicon():
         from flask import make_response
+
         response = make_response("", 204)
         return response
 

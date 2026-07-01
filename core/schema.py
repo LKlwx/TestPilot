@@ -1,4 +1,5 @@
-from marshmallow import Schema, fields, validate, ValidationError
+from marshmallow import Schema, ValidationError, fields, validate
+
 from core.exception import APIException
 
 

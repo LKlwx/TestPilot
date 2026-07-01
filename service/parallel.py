@@ -10,11 +10,13 @@
         user_id=1, worker_count=4,
     )
 """
+
 import math
 from datetime import datetime
-from extensions import db
-from models import BatchTask, BatchResult
+
 from core.logger import get_logger
+from extensions import db
+from models import BatchResult, BatchTask
 
 logger = get_logger(__name__)
 
@@ -35,7 +37,7 @@ def split_ids(ids, worker_count):
     if k == 0:
         return []
     chunk_size = math.ceil(len(ids) / k)
-    return [ids[i:i + chunk_size] for i in range(0, len(ids), chunk_size)]
+    return [ids[i : i + chunk_size] for i in range(0, len(ids), chunk_size)]
 
 
 def save_chunk_results(chunk_id, chunk_results, batch_id):
@@ -98,6 +100,5 @@ def merge_chunks(chunks_data, batch_id, user_id):
         logger.error("merge_chunks: commit batch %s failed", batch_id)
         return
 
-    logger.info("merge_chunks: batch=%s, total=%d, pass=%d, fail=%d",
-                 batch_id, total, batch.passed, batch.failed)
+    logger.info("merge_chunks: batch=%s, total=%d, pass=%d, fail=%d", batch_id, total, batch.passed, batch.failed)
     return {"batch_id": batch_id, "total": total, "passed": batch.passed, "failed": batch.failed}

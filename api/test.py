@@ -1,25 +1,26 @@
-from flask import Blueprint, request, render_template
-from flask_jwt_extended import jwt_required, get_jwt_identity
-from werkzeug.utils import secure_filename
-from io import StringIO
 import csv
 import json
+import uuid
+from datetime import datetime, timedelta
+from io import StringIO
 
-from core.exception import APIException, NotFoundException
-from core.response import success, error
-from core.pagination import paginate
+from flask import Blueprint, render_template, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
+from sqlalchemy import or_
+from werkzeug.utils import secure_filename
+
+from api.schemas import AddDataSetSchema, AddTestCaseSchema, BatchRunSchema, UpdateTestCaseSchema
+from celery_app import celery_app
 from core.db_guard import db_write_guard
+from core.exception import APIException, NotFoundException
+from core.pagination import paginate
+from core.response import error, success
 from core.schema import validate_request
-from api.schemas import AddTestCaseSchema, UpdateTestCaseSchema, BatchRunSchema, AddDataSetSchema
-from models import TestCase, TestReport, TestDataSet, AsyncTask, BatchTask, BatchResult, User
 from extensions import db
-from service.test_service import execute_test_case
+from models import AsyncTask, BatchResult, BatchTask, TestCase, TestDataSet, TestReport, User
 from service.data_drive import data_drive_execute, parse_upload
 from service.operation_log_service import add_operation_log
-from celery_app import celery_app
-from datetime import datetime, timedelta
-from sqlalchemy import or_
-import uuid
+from service.test_service import execute_test_case
 
 test_bp = Blueprint("test", __name__)
 
@@ -38,26 +39,31 @@ def get_cases():
 
     result = paginate(query, order_by=TestCase.id.desc())
 
-    data = [{
-        "id": c.id,
-        "name": c.name,
-        "module": c.module,
-        "method": c.method,
-        "url": c.url,
-        "expect": c.expect,
-        "timeout": c.timeout,
-        "retry": c.retry,
-        "tags": c.tags,
-        "env_id": c.env_id,
-    } for c in result.items]
+    data = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "module": c.module,
+            "method": c.method,
+            "url": c.url,
+            "expect": c.expect,
+            "timeout": c.timeout,
+            "retry": c.retry,
+            "tags": c.tags,
+            "env_id": c.env_id,
+        }
+        for c in result.items
+    ]
 
-    return success({
-        "list": data,
-        "total": result.total,
-        "page": result.page,
-        "page_size": result.page_size,
-        "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": data,
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 @test_bp.route("/case", methods=["POST"])
@@ -197,17 +203,27 @@ def reports():
         query = query.filter(TestReport.create_time < datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1))
 
     result = paginate(query, order_by=TestReport.id.desc(), page_size=20)
-    return success({
-        "list": [{
-            "id": r.id, "case_name": r.case_name, "status": r.status,
-            "time": r.cost_time, "code": r.response_code,
-            "msg": r.error_msg,
-            "module": r.case.module if r.case else None,
-            "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
-        } for r in result.items],
-        "total": result.total, "page": result.page,
-        "page_size": result.page_size, "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": r.id,
+                    "case_name": r.case_name,
+                    "status": r.status,
+                    "time": r.cost_time,
+                    "code": r.response_code,
+                    "msg": r.error_msg,
+                    "module": r.case.module if r.case else None,
+                    "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                for r in result.items
+            ],
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 @test_bp.route("/page")
@@ -235,7 +251,7 @@ def get_report_detail(rid):
         "response_code": report.response_code,
         "response_body": report.response_body,
         "error_msg": report.error_msg,
-        "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     return success(data)
 
@@ -259,14 +275,17 @@ def batch_run():
             ids = [cid for cid in ids if cid in tagged_ids]
 
     if worker_count > 1:
-        from service.parallel import split_ids
-        from celery_app import celery_app as capp
         from celery import chord, group
+
+        from celery_app import celery_app as capp
+        from service.parallel import split_ids
 
         chunks = split_ids(ids, worker_count)
 
         batch = BatchTask(
-            total=len(ids), passed=0, failed=0,
+            total=len(ids),
+            passed=0,
+            failed=0,
             create_time=datetime.now(),
         )
         db.session.add(batch)
@@ -274,13 +293,15 @@ def batch_run():
         bid = batch.id
 
         task_group = group(
-            capp.signature("run_chunk", args=[chunk, i, uid, bid])
-            for i, chunk in enumerate(chunks) if chunk
+            capp.signature("run_chunk", args=[chunk, i, uid, bid]) for i, chunk in enumerate(chunks) if chunk
         )
         callback = capp.signature("merge_parallel_results", args=[bid, uid])
         chord(task_group)(callback)
 
-        return success({"batch_id": bid, "worker_count": worker_count, "total": len(ids), "chunks": len(chunks)}, "分布式并行任务已提交")
+        return success(
+            {"batch_id": bid, "worker_count": worker_count, "total": len(ids), "chunks": len(chunks)},
+            "分布式并行任务已提交",
+        )
     else:
         task_id = str(uuid.uuid4())
         task = AsyncTask(
@@ -303,24 +324,26 @@ def get_batch_results(bid):
     if not batch:
         return error("批次不存在")
     results = BatchResult.query.filter_by(batch_id=bid).all()
-    return success({
-        "batch_id": batch.id,
-        "total": batch.total,
-        "passed": batch.passed,
-        "failed": batch.failed,
-        "create_time": batch.create_time.isoformat() if batch.create_time else None,
-        "results": [
-            {
-                "case_id": r.case_id,
-                "case_name": r.case_name,
-                "status": r.status,
-                "cost_time": r.cost_time,
-                "response_code": r.response_code,
-                "error_msg": r.error_msg,
-            }
-            for r in results
-        ],
-    })
+    return success(
+        {
+            "batch_id": batch.id,
+            "total": batch.total,
+            "passed": batch.passed,
+            "failed": batch.failed,
+            "create_time": batch.create_time.isoformat() if batch.create_time else None,
+            "results": [
+                {
+                    "case_id": r.case_id,
+                    "case_name": r.case_name,
+                    "status": r.status,
+                    "cost_time": r.cost_time,
+                    "response_code": r.response_code,
+                    "error_msg": r.error_msg,
+                }
+                for r in results
+            ],
+        }
+    )
 
 
 # ========== 数据驱动测试 ==========
@@ -348,13 +371,20 @@ def get_datasets():
     if case_id:
         query = query.filter_by(case_id=case_id)
     datasets = query.order_by(TestDataSet.id.desc()).all()
-    return success({
-        "list": [{
-            "id": d.id, "name": d.name, "case_id": d.case_id,
-            "row_count": _safe_parse_rows(d.data_rows),
-            "create_time": d.create_time.strftime("%Y-%m-%d %H:%M") if d.create_time else None,
-        } for d in datasets],
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": d.id,
+                    "name": d.name,
+                    "case_id": d.case_id,
+                    "row_count": _safe_parse_rows(d.data_rows),
+                    "create_time": d.create_time.strftime("%Y-%m-%d %H:%M") if d.create_time else None,
+                }
+                for d in datasets
+            ],
+        }
+    )
 
 
 @test_bp.route("/dataset/<int:did>", methods=["GET"])
@@ -363,11 +393,15 @@ def get_dataset_detail(did):
     ds = TestDataSet.query.get(did)
     if not ds:
         raise NotFoundException("数据集不存在")
-    return success({
-        "id": ds.id, "name": ds.name, "case_id": ds.case_id,
-        "rows": _safe_load_rows(ds.data_rows),
-        "create_time": ds.create_time.strftime("%Y-%m-%d %H:%M") if ds.create_time else None,
-    })
+    return success(
+        {
+            "id": ds.id,
+            "name": ds.name,
+            "case_id": ds.case_id,
+            "rows": _safe_load_rows(ds.data_rows),
+            "create_time": ds.create_time.strftime("%Y-%m-%d %H:%M") if ds.create_time else None,
+        }
+    )
 
 
 @test_bp.route("/dataset/add", methods=["POST"])
@@ -407,11 +441,14 @@ def run_dataset(did):
     if not case:
         raise NotFoundException("绑定的用例不存在")
     results = data_drive_execute(case, ds)
-    return success({
-        "dataset_id": ds.id, "dataset_name": ds.name,
-        "total": len(results),
-        "results": results,
-    })
+    return success(
+        {
+            "dataset_id": ds.id,
+            "dataset_name": ds.name,
+            "total": len(results),
+            "results": results,
+        }
+    )
 
 
 @test_bp.route("/dataset/import", methods=["POST"])
@@ -433,9 +470,14 @@ def import_dataset():
     if rows is None:
         return error(f"不支持的文件格式: {filename}（支持 .json / .csv）")
 
-    return success({
-        "filename": filename, "row_count": len(rows), "rows": rows,
-    }, msg=f"解析成功，共 {len(rows)} 行数据")
+    return success(
+        {
+            "filename": filename,
+            "row_count": len(rows),
+            "rows": rows,
+        },
+        msg=f"解析成功，共 {len(rows)} 行数据",
+    )
 
 
 # ========== 用例导入导出 ==========
@@ -466,7 +508,11 @@ def import_postman():
                     url = url_obj
                 else:
                     port = url_obj.get("port", "")
-                    host = ".".join(url_obj.get("host", [])) if isinstance(url_obj.get("host"), list) else (url_obj.get("host") or "")
+                    host = (
+                        ".".join(url_obj.get("host", []))
+                        if isinstance(url_obj.get("host"), list)
+                        else (url_obj.get("host") or "")
+                    )
                     path = "/" + "/".join(url_obj.get("path", [])) if url_obj.get("path") else ""
                     url = host + (f":{port}" if port else "") + path
 
@@ -480,17 +526,24 @@ def import_postman():
                 if body_data.get("mode") == "raw":
                     body = body_data.get("raw", "")
                 elif body_data.get("mode") == "formdata":
-                    body = json.dumps({f.get("key"): f.get("value", "") for f in body_data.get("formdata", [])}, ensure_ascii=False)
+                    body = json.dumps(
+                        {f.get("key"): f.get("value", "") for f in body_data.get("formdata", [])}, ensure_ascii=False
+                    )
 
                 if method in ("GET", "POST", "PUT", "DELETE", "PATCH"):
-                    cases.append(TestCase(
-                        name=name or path or f"Postman-{method}",
-                        module=parent_name or "Postman导入",
-                        method=method, url=url,
-                        headers=json.dumps(headers, ensure_ascii=False) if headers else "{}",
-                        body=body, expect="", extract_var="",
-                        creator_id=int(identity),
-                    ))
+                    cases.append(
+                        TestCase(
+                            name=name or path or f"Postman-{method}",
+                            module=parent_name or "Postman导入",
+                            method=method,
+                            url=url,
+                            headers=json.dumps(headers, ensure_ascii=False) if headers else "{}",
+                            body=body,
+                            expect="",
+                            extract_var="",
+                            creator_id=int(identity),
+                        )
+                    )
         return cases
 
     new_cases = parse_items(data["item"])
@@ -501,7 +554,9 @@ def import_postman():
         db.session.add(c)
     db.session.commit()
 
-    add_operation_log(int(identity), username, "import_postman", f"导入 Postman Collection，新增 {len(new_cases)} 条用例")
+    add_operation_log(
+        int(identity), username, "import_postman", f"导入 Postman Collection，新增 {len(new_cases)} 条用例"
+    )
     return success(data={"imported": len(new_cases)}, msg=f"导入成功，新增 {len(new_cases)} 条用例")
 
 
@@ -512,12 +567,22 @@ def export_cases():
     fmt = request.args.get("format", "json")
     query = TestCase.query.order_by(TestCase.id.desc())
 
-    cases = [{
-        "id": c.id, "name": c.name, "module": c.module, "method": c.method,
-        "url": c.url, "headers": c.headers, "body": c.body, "expect": c.expect,
-        "extract_var": c.extract_var, "tags": c.tags,
-        "create_time": c.create_time.strftime("%Y-%m-%d %H:%M") if c.create_time else None,
-    } for c in query.all()]
+    cases = [
+        {
+            "id": c.id,
+            "name": c.name,
+            "module": c.module,
+            "method": c.method,
+            "url": c.url,
+            "headers": c.headers,
+            "body": c.body,
+            "expect": c.expect,
+            "extract_var": c.extract_var,
+            "tags": c.tags,
+            "create_time": c.create_time.strftime("%Y-%m-%d %H:%M") if c.create_time else None,
+        }
+        for c in query.all()
+    ]
 
     if fmt == "csv":
         output = StringIO()
@@ -527,16 +592,20 @@ def export_cases():
             writer.writeheader()
             for row in cases:
                 writer.writerow({k: row.get(k, "") for k in fieldnames})
-        return success({
-            "format": "csv",
-            "content": output.getvalue(),
-            "filename": f"testpilot_cases_{datetime.now().strftime('%Y%m%d')}.csv",
-            "count": len(cases),
-        })
+        return success(
+            {
+                "format": "csv",
+                "content": output.getvalue(),
+                "filename": f"testpilot_cases_{datetime.now().strftime('%Y%m%d')}.csv",
+                "count": len(cases),
+            }
+        )
 
-    return success({
-        "format": "json",
-        "content": cases,
-        "filename": f"testpilot_cases_{datetime.now().strftime('%Y%m%d')}.json",
-        "count": len(cases),
-    })
+    return success(
+        {
+            "format": "json",
+            "content": cases,
+            "filename": f"testpilot_cases_{datetime.now().strftime('%Y%m%d')}.json",
+            "count": len(cases),
+        }
+    )

@@ -3,10 +3,12 @@ BaseHTTPClient — 自研 HTTP 接口测试客户端框架
 
 封装 requests.Session + 拦截器 + 链式断言 + 超时重试
 """
-import time
+
 import json
-import re
 import logging
+import re
+import time
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -104,8 +106,9 @@ class BaseHTTPClient:
     - 链式断言
     """
 
-    def __init__(self, base_url: str = None, headers: dict = None,
-                 timeout: int = 10, retry: int = 0, retry_delay: int = 1):
+    def __init__(
+        self, base_url: str = None, headers: dict = None, timeout: int = 10, retry: int = 0, retry_delay: int = 1
+    ):
         self.session = requests.Session()
         self.base_url = base_url
         self.timeout = timeout
@@ -116,11 +119,13 @@ class BaseHTTPClient:
             self.session.headers.update(headers)
 
         # 配置连接池重试
-        retry_adapter = HTTPAdapter(max_retries=Retry(
-            total=retry,
-            backoff_factor=retry_delay,
-            allowed_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
-        ))
+        retry_adapter = HTTPAdapter(
+            max_retries=Retry(
+                total=retry,
+                backoff_factor=retry_delay,
+                allowed_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+            )
+        )
         self.session.mount("http://", retry_adapter)
         self.session.mount("https://", retry_adapter)
 
@@ -150,16 +155,21 @@ class BaseHTTPClient:
         elapsed = round(resp.elapsed.total_seconds() * 1000, 1) if resp.elapsed else 0
 
         resp_body = resp.text[:1000]
-        logger.info(json.dumps({
-            "event": "http_request",
-            "method": method,
-            "url": full_url,
-            "req_headers": dict(resp.request.headers) if resp.request else {},
-            "req_body": req_body_str,
-            "status": resp.status_code,
-            "resp_body": resp_body,
-            "elapsed_ms": elapsed,
-        }, ensure_ascii=False))
+        logger.info(
+            json.dumps(
+                {
+                    "event": "http_request",
+                    "method": method,
+                    "url": full_url,
+                    "req_headers": dict(resp.request.headers) if resp.request else {},
+                    "req_body": req_body_str,
+                    "status": resp.status_code,
+                    "resp_body": resp_body,
+                    "elapsed_ms": elapsed,
+                },
+                ensure_ascii=False,
+            )
+        )
 
         for interceptor in self._response_interceptors:
             interceptor(resp)

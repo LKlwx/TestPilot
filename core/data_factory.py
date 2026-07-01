@@ -10,6 +10,7 @@
     DataFactory.name()           # "张伟" 或 "李娜"
     DataFactory.password()       # "aB3dE7xY"
 """
+
 import logging
 import random
 import uuid
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from faker import Faker
+
     _fake = Faker("zh_CN")
     _HAS_FAKER = True
 except ImportError:

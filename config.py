@@ -21,7 +21,7 @@ _WEAK_KEY_BLACKLIST = {
 def _validate_secret_key(key_name: str, key_value: str, is_production: bool) -> None:
     """
     校验密钥强度
-    
+
     规则：
     1. 生产环境：强制要求从环境变量读取，禁止使用默认值
     2. 密钥长度 >= 32 字符
@@ -30,7 +30,7 @@ def _validate_secret_key(key_name: str, key_value: str, is_production: bool) -> 
     """
     # 检查是否是默认值（环境变量未设置时使用的值）
     is_default = key_value in _WEAK_KEY_BLACKLIST or len(key_value) < 32
-    
+
     if is_production and is_default:
         # 生产环境使用默认密钥 = 直接拒绝启动
         raise RuntimeError(
@@ -40,18 +40,24 @@ def _validate_secret_key(key_name: str, key_value: str, is_production: bool) -> 
             f"  1. 设置环境变量：export {key_name}=<your-strong-secret-key>\n"
             f"  2. 或使用随机生成：export {key_name}=$(openssl rand -base64 32)"
         )
-    
+
     if is_default:
         import logging
-        logging.warning("WARNING: %s 使用了默认弱密钥！这会导致 JWT Token 可被伪造，存在严重安全隐患。请在生产环境前设置强密钥：export %s=$(openssl rand -base64 32)", key_name, key_name)
+
+        logging.warning(
+            "WARNING: %s 使用了默认弱密钥！这会导致 JWT Token 可被伪造，存在严重安全隐患。请在生产环境前设置强密钥：export %s=$(openssl rand -base64 32)",
+            key_name,
+            key_name,
+        )
 
 
 class Config:
     """基础配置类"""
+
     # 默认密钥（仅用于开发环境，生产环境会被拒绝启动）
     _DEFAULT_SECRET_KEY = "testpilot-2026-super-secure-key"
     _DEFAULT_JWT_SECRET_KEY = "testpilot-jwt-secret"
-    
+
     # 从环境变量读取，如果未设置则使用默认值
     SECRET_KEY = os.environ.get("SECRET_KEY", _DEFAULT_SECRET_KEY)
     DEBUG = False
@@ -86,16 +92,20 @@ class Config:
     # AI 生成提示词配置
     AI_API_PROMPT = """你是资深测试开发，请根据业务场景生成一个 JSON 对象。要求：必须包含 name, method, url, headers, body, expect 这 6 个英文键。示例：{"name": "登录测试", "method": "POST", "url": "/api/login", "headers": {}, "body": {}, "expect": "成功"}场景：{scene}"""
     AI_UI_PROMPT = """你是 UI 自动化专家，请根据业务场景生成一个 JSON 对象。要求：必须包含 name, url, steps 这 3 个英文键。示例：{"name": "登录流程", "url": "http://localhost/login", "steps": "步骤 1；步骤 2"}场景：{scene}"""
-    AI_ANALYZE_PROMPT = """你是测试诊断专家，请分析日志生成一个 JSON 对象。要求：必须包含 cause, solution 这 2 个英文键。日志：{log}"""
+    AI_ANALYZE_PROMPT = (
+        """你是测试诊断专家，请分析日志生成一个 JSON 对象。要求：必须包含 cause, solution 这 2 个英文键。日志：{log}"""
+    )
 
 
 class DevelopmentConfig(Config):
     """开发环境配置"""
+
     DEBUG = True
 
 
 class TestConfig(Config):
     """测试环境配置"""
+
     DEBUG = True
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
@@ -103,6 +113,7 @@ class TestConfig(Config):
 
 class DemoConfig(Config):
     """演示环境配置"""
+
     DEBUG = False
     # 演示环境用独立数据库，数据独立
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{os.path.join(BASE_DIR, 'instance', 'testpilot_demo.db')}"
@@ -110,6 +121,7 @@ class DemoConfig(Config):
 
 class ProductionConfig(Config):
     """生产环境配置"""
+
     DEBUG = False
 
 
@@ -118,5 +130,5 @@ config = {
     "test": TestConfig,
     "demo": DemoConfig,
     "production": ProductionConfig,
-    "default": DevelopmentConfig
+    "default": DevelopmentConfig,
 }

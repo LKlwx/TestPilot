@@ -1,4 +1,5 @@
 """Page Object 代码自动生成器"""
+
 import re
 
 
@@ -31,17 +32,23 @@ def generate_page_class(case_name: str, steps: list) -> str:
             const_name = base.upper() if base.isidentifier() else f"LOC{i}"
             if const_name not in seen:
                 seen.add(const_name)
-                locators.append(f"    {const_name} = (\"{loc_type}\", \"{params}\")")
+                locators.append(f'    {const_name} = ("{loc_type}", "{params}")')
 
             if action == "click":
-                methods.append(f"""    def click_loc{i}(self):
-        self.click(*self.{const_name})""")
+                methods.append(
+                    f"""    def click_loc{i}(self):
+        self.click(*self.{const_name})"""
+                )
             elif action == "input":
-                methods.append(f"""    def input_loc{i}(self, text):
-        self.input_text(*self.{const_name}, text)""")
+                methods.append(
+                    f"""    def input_loc{i}(self, text):
+        self.input_text(*self.{const_name}, text)"""
+                )
             elif action == "enter":
-                methods.append(f"""    def press_enter_loc{i}(self):
-        self.press_enter(*self.{const_name})""")
+                methods.append(
+                    f"""    def press_enter_loc{i}(self):
+        self.press_enter(*self.{const_name})"""
+                )
 
     code = f"""from core.base_page import BasePage
 

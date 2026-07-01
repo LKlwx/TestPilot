@@ -1,35 +1,40 @@
+import json
 import os
 import time
-import json
 from contextlib import contextmanager
-from sqlalchemy.exc import SQLAlchemyError
-from extensions import db
-from models import UIReport
+
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.common.by import By
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from sqlalchemy.exc import SQLAlchemyError
+
+from config import Config
 from core.base_page import BasePage
 from core.logger import get_logger
-from config import Config
+from extensions import db
+from models import UIReport
 
 
 @contextmanager
 def _allure_step(name: str):
     try:
         import allure
+
         with allure.step(name):
             yield
     except ImportError:
         yield
 
+
 logger = get_logger(__name__)
 
 # 项目根目录（用于截图路径等）
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 def parse_steps(steps_text):
     """
@@ -72,17 +77,15 @@ def parse_steps(steps_text):
         if not locator_type:
             errors.append(f"第{idx}行：定位方式不能为空")
         elif locator_type not in SUPPORTED_LOCATORS:
-            errors.append(f"第{idx}行：定位方式 '{locator_type}' 不支持，支持的定位方式：{', '.join(SUPPORTED_LOCATORS)}")
+            errors.append(
+                f"第{idx}行：定位方式 '{locator_type}' 不支持，支持的定位方式：{', '.join(SUPPORTED_LOCATORS)}"
+            )
 
         if not params:
             errors.append(f"第{idx}行：参数不能为空")
 
         if not errors or not errors[-1].startswith(f"第{idx}"):
-            parsed.append({
-                "action": action,
-                "locator_type": locator_type,
-                "params": params
-            })
+            parsed.append({"action": action, "locator_type": locator_type, "params": params})
 
     is_valid = len(errors) == 0
     return is_valid, parsed, errors
@@ -132,6 +135,7 @@ def _build_browser_options(browser, headless):
             opts.add_argument("--headless")
     elif browser == "edge":
         from selenium.webdriver.edge.options import Options as EdgeOptions
+
         opts = EdgeOptions()
         if headless:
             opts.add_argument("--headless")
@@ -156,6 +160,7 @@ def _check_grid_healthy(grid_url):
     """检查 Selenium Grid Hub 是否有可用节点"""
     try:
         import requests
+
         resp = requests.get(f"{grid_url.rstrip('/')}/status", timeout=3)
         if resp.status_code == 200:
             data = resp.json()
@@ -183,6 +188,7 @@ def run_ui_case(case):
             target_url = case.url
             try:
                 from models import Environment
+
                 env_id = getattr(case, "env_id", None)
                 env = Environment.query.get(env_id) if env_id else Environment.query.filter_by(is_default=True).first()
                 if env and not target_url.startswith("http"):
@@ -192,9 +198,7 @@ def run_ui_case(case):
             driver.get(target_url)
             step_log.append("打开页面：" + target_url)
 
-            WebDriverWait(driver, 5).until(
-                lambda d: d.execute_script('return document.readyState') == 'complete'
-            )
+            WebDriverWait(driver, 5).until(lambda d: d.execute_script("return document.readyState") == "complete")
             title = driver.title
             step_log.append(f" 页面标题：{title}")
 
@@ -284,9 +288,12 @@ def run_ui_case(case):
                 step_log.append(f"已保存失败截图: {filepath}")
                 try:
                     import allure
-                    allure.attach(driver.get_screenshot_as_png(),
-                                  name="ui_failure_screenshot",
-                                  attachment_type=allure.attachment_type.PNG)
+
+                    allure.attach(
+                        driver.get_screenshot_as_png(),
+                        name="ui_failure_screenshot",
+                        attachment_type=allure.attachment_type.PNG,
+                    )
                 except ImportError:
                     pass
             except Exception as se:
@@ -295,13 +302,7 @@ def run_ui_case(case):
 
     cost_time = round(time.time() - start_time, 3)
 
-    report = UIReport(
-        case_id=case.id,
-        case_name=case.name,
-        status=status,
-        cost_time=cost_time,
-        error_msg=error_msg
-    )
+    report = UIReport(case_id=case.id, case_name=case.name, status=status, cost_time=cost_time, error_msg=error_msg)
     db.session.add(report)
     try:
         db.session.commit()
@@ -309,15 +310,17 @@ def run_ui_case(case):
         db.session.rollback()
         raise
 
-    logger.info(json.dumps({
-        "event": "ui_test_completed", "case_id": case.id,
-        "case_name": case.name, "status": status,
-        "duration_ms": round(cost_time * 1000),
-    }, ensure_ascii=False))
+    logger.info(
+        json.dumps(
+            {
+                "event": "ui_test_completed",
+                "case_id": case.id,
+                "case_name": case.name,
+                "status": status,
+                "duration_ms": round(cost_time * 1000),
+            },
+            ensure_ascii=False,
+        )
+    )
 
-    return {
-        "status": status,
-        "title": title,
-        "msg": error_msg,
-        "time": cost_time
-    }
+    return {"status": status, "title": title, "msg": error_msg, "time": cost_time}

@@ -1,6 +1,7 @@
-from models import User
 from sqlalchemy import func
+
 from core.logger import get_logger
+from models import User
 
 logger = get_logger(__name__)
 

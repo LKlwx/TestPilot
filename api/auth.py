@@ -1,21 +1,32 @@
-from flask import Blueprint, request, render_template, current_app
-from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity, get_jwt
-
-from core.exception import AuthException, NotFoundException, APIException
-from core.response import success, error
-from models import TestCase, UICase, TestReport, UIReport, User, PerformanceReport, SysOperationLog, PerformanceCase, PerformanceDetail
-from service.user_service import check_user_password
-from extensions import db, cache
-from core.logger import get_logger
-from core.schema import validate_request
-from core.require_role import require_role
-from core.pagination import paginate
-from core.blocklist import add_to_blocklist, reset_login_attempts, is_login_locked, record_login_failure
-from api.schemas import LoginSchema, RegisterSchema, ChangePasswordSchema, ChangeRoleSchema
-from service.operation_log_service import add_operation_log
 import re
 from datetime import datetime, timedelta
+
+from flask import Blueprint, current_app, render_template, request
+from flask_jwt_extended import create_access_token, create_refresh_token, get_jwt, get_jwt_identity, jwt_required
 from sqlalchemy import func
+
+from api.schemas import ChangePasswordSchema, ChangeRoleSchema, LoginSchema, RegisterSchema
+from core.blocklist import add_to_blocklist, is_login_locked, record_login_failure, reset_login_attempts
+from core.exception import APIException, AuthException, NotFoundException
+from core.logger import get_logger
+from core.pagination import paginate
+from core.require_role import require_role
+from core.response import error, success
+from core.schema import validate_request
+from extensions import cache, db
+from models import (
+    PerformanceCase,
+    PerformanceDetail,
+    PerformanceReport,
+    SysOperationLog,
+    TestCase,
+    TestReport,
+    UICase,
+    UIReport,
+    User,
+)
+from service.operation_log_service import add_operation_log
+from service.user_service import check_user_password
 
 logger = get_logger(__name__)
 
@@ -57,13 +68,9 @@ def stats():
     if total_reports > 0:
         pass_rate = round(pass_count / total_reports * 100, 1)
 
-    return success({
-        "total_case": total_count,
-        "api_case": api_count,
-        "ui_case": ui_count,
-        "pass_rate": f"{pass_rate}%"
-    })
-
+    return success(
+        {"total_case": total_count, "api_case": api_count, "ui_case": ui_count, "pass_rate": f"{pass_rate}%"}
+    )
 
 
 # 登录接口
@@ -87,15 +94,13 @@ def login():
 
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))
-    
+
     # 记录普通用户登录日志
     add_operation_log(user.id, user.username, "login", f"用户{username}登录系统")
-    return success({
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "username": user.username,
-        "role": user.role
-    }, "登录成功")
+    return success(
+        {"access_token": access_token, "refresh_token": refresh_token, "username": user.username, "role": user.role},
+        "登录成功",
+    )
 
 
 # 刷新Token接口（无感刷新）
@@ -107,15 +112,11 @@ def refresh():
     user = User.query.get(int(identity))
     if not user:
         return error("用户不存在")
-    
+
     # 生成新的Access Token
     new_access_token = create_access_token(identity=str(user.id))
-    
-    return success({
-        "access_token": new_access_token,
-        "username": user.username,
-        "role": user.role
-    }, "Token刷新成功")
+
+    return success({"access_token": new_access_token, "username": user.username, "role": user.role}, "Token刷新成功")
 
 
 @auth_bp.route("/logout", methods=["POST"])
@@ -134,14 +135,16 @@ def admin_reset_password(uid):
         raise NotFoundException("用户不存在")
     import secrets
     import string
+
     default_pwd = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
     target.set_password(default_pwd)
     reset_login_attempts(target.username)
     db.session.commit()
     identity = get_jwt_identity()
     current_user = User.query.get(int(identity))
-    add_operation_log(current_user.id, current_user.username, "reset_password",
-                      f"管理员重置用户{target.username}(ID={uid})的密码")
+    add_operation_log(
+        current_user.id, current_user.username, "reset_password", f"管理员重置用户{target.username}(ID={uid})的密码"
+    )
     return success(data={"password": default_pwd}, msg=f"用户 {target.username} 的密码已重置")
 
 
@@ -149,11 +152,11 @@ def admin_reset_password(uid):
 def register():
     data = validate_request(RegisterSchema, request.get_json())
     username_clean = data["username"].strip().lower()
-    
+
     if username_clean == "admin":
         return error("该用户名已被系统占用，无法注册")
 
-    username_pattern = r'^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$'
+    username_pattern = r"^[a-zA-Z0-9_\-\u4e00-\u9fa5]+$"
     if not re.match(username_pattern, username_clean):
         return error("用户名只能包含字母、数字、下划线、中划线和中文")
 
@@ -197,12 +200,14 @@ def get_profile():
     user = User.query.get(int(identity))
     if not user:
         return error("用户不存在")
-    return success({
-        "username": user.username,
-        "email": user.email,
-        "role": user.role,
-        "create_time": user.create_time.strftime("%Y-%m-%d %H:%M") if user.create_time else "-"
-    })
+    return success(
+        {
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "create_time": user.create_time.strftime("%Y-%m-%d %H:%M") if user.create_time else "-",
+        }
+    )
 
 
 # 修改密码
@@ -235,33 +240,34 @@ def operation_logs():
     query = SysOperationLog.query
     if keyword:
         query = query.filter(
-            (SysOperationLog.username.like(f"%{keyword}%")) |
-            (SysOperationLog.operation.like(f"%{keyword}%"))
+            (SysOperationLog.username.like(f"%{keyword}%")) | (SysOperationLog.operation.like(f"%{keyword}%"))
         )
     if date:
         search_date = datetime.strptime(date, "%Y-%m-%d")
         next_day = search_date + timedelta(days=1)
-        query = query.filter(
-            SysOperationLog.operate_time >= search_date,
-            SysOperationLog.operate_time < next_day
-        )
+        query = query.filter(SysOperationLog.operate_time >= search_date, SysOperationLog.operate_time < next_day)
 
     result = paginate(query, order_by=SysOperationLog.operate_time.desc())
 
-    return success({
-        "list": [{
-            "id": log.id,
-            "username": log.username,
-            "operation": log.operation,
-            "detail": log.detail,
-            "ip": log.ip or "-",
-            "operate_time": log.operate_time.strftime("%Y-%m-%d %H:%M:%S") if log.operate_time else "-"
-        } for log in result.items],
-        "total": result.total,
-        "page": result.page,
-        "page_size": result.page_size,
-        "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": log.id,
+                    "username": log.username,
+                    "operation": log.operation,
+                    "detail": log.detail,
+                    "ip": log.ip or "-",
+                    "operate_time": log.operate_time.strftime("%Y-%m-%d %H:%M:%S") if log.operate_time else "-",
+                }
+                for log in result.items
+            ],
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 # 清理旧日志
@@ -286,12 +292,14 @@ def user_list_data():
         if u.username == "admin":
             continue
 
-        res.append({
-            "id": u.id,
-            "username": u.username,
-            "role": u.role,
-            "create_time": u.create_time.strftime("%Y-%m-%d %H:%M:%S") if u.create_time else ""
-        })
+        res.append(
+            {
+                "id": u.id,
+                "username": u.username,
+                "role": u.role,
+                "create_time": u.create_time.strftime("%Y-%m-%d %H:%M:%S") if u.create_time else "",
+            }
+        )
     return success(res)
 
 
@@ -312,7 +320,12 @@ def change_user_role():
     old_role = user.role
     user.role = data["role"]
     db.session.commit()
-    add_operation_log(current_user.id, current_user.username, "change_role", f"将用户{user.username}(ID={data['id']})从{old_role}修改为{data['role']}")
+    add_operation_log(
+        current_user.id,
+        current_user.username,
+        "change_role",
+        f"将用户{user.username}(ID={data['id']})从{old_role}修改为{data['role']}",
+    )
     return success(msg="角色修改成功")
 
 
@@ -321,22 +334,28 @@ def change_user_role():
 @require_role(["admin"])
 def delete_user(uid):
     current_user = User.query.get(int(get_jwt_identity()))
-    
+
     target = User.query.get(uid)
     if not target:
         raise NotFoundException("用户不存在")
-    
+
     if current_user.username == "admin":
-        add_operation_log(current_user.id, current_user.username, "delete_user", f"超级管理员删除用户{target.username}(ID={uid})")
+        add_operation_log(
+            current_user.id, current_user.username, "delete_user", f"超级管理员删除用户{target.username}(ID={uid})"
+        )
         db.session.delete(target)
         db.session.commit()
         return success(msg="删除成功")
-    
+
     if target.role != "tester":
         return error("普通管理员只能删除普通用户", 403)
-    
-    add_operation_log(current_user.id, current_user.username, "delete_user",
-                      f"管理员{current_user.username}删除用户{target.username}(ID={uid})")
+
+    add_operation_log(
+        current_user.id,
+        current_user.username,
+        "delete_user",
+        f"管理员{current_user.username}删除用户{target.username}(ID={uid})",
+    )
     db.session.delete(target)
     db.session.commit()
     return success(msg="删除成功")
@@ -355,13 +374,13 @@ def dashboard_data():
 
         # 2. 今日执行分布（体现代码活跃度）
         today_start = datetime.combine(datetime.now().date(), datetime.min.time())
-        today_api_run = db.session.query(func.count(TestReport.id)).filter(
-            TestReport.create_time >= today_start
-        ).scalar() or 0
-        today_ui_run = db.session.query(func.count(UIReport.id)).filter(
-            UIReport.create_time >= today_start
-        ).scalar() or 0
-        
+        today_api_run = (
+            db.session.query(func.count(TestReport.id)).filter(TestReport.create_time >= today_start).scalar() or 0
+        )
+        today_ui_run = (
+            db.session.query(func.count(UIReport.id)).filter(UIReport.create_time >= today_start).scalar() or 0
+        )
+
         # 3. 近7天缺陷发现趋势（更有价值的指标）
         today = datetime.now().date()
         days = []
@@ -373,16 +392,26 @@ def dashboard_data():
             current_day_start = datetime.combine(current_day, datetime.min.time())
             current_day_end = datetime.combine(current_day, datetime.max.time())
 
-            api_fail = db.session.query(func.count(TestReport.id)).filter(
-                TestReport.create_time >= current_day_start,
-                TestReport.create_time <= current_day_end,
-                (TestReport.status.is_(None)) | (TestReport.status != 'PASS')
-            ).scalar() or 0
-            ui_fail = db.session.query(func.count(UIReport.id)).filter(
-                UIReport.create_time >= current_day_start,
-                UIReport.create_time <= current_day_end,
-                (UIReport.status.is_(None)) | (UIReport.status != 'PASS')
-            ).scalar() or 0
+            api_fail = (
+                db.session.query(func.count(TestReport.id))
+                .filter(
+                    TestReport.create_time >= current_day_start,
+                    TestReport.create_time <= current_day_end,
+                    (TestReport.status.is_(None)) | (TestReport.status != "PASS"),
+                )
+                .scalar()
+                or 0
+            )
+            ui_fail = (
+                db.session.query(func.count(UIReport.id))
+                .filter(
+                    UIReport.create_time >= current_day_start,
+                    UIReport.create_time <= current_day_end,
+                    (UIReport.status.is_(None)) | (UIReport.status != "PASS"),
+                )
+                .scalar()
+                or 0
+            )
 
             fail_trend.append(api_fail + ui_fail)
 
@@ -394,20 +423,25 @@ def dashboard_data():
 
         if last_perf_report:
             # 按 URL 聚合：取每个 URL 的请求次数和最慢耗时，按耗时降序取 Top 5
-            per_url_stats = db.session.query(
-                PerformanceDetail.url,
-                func.count(PerformanceDetail.id).label('request_count'),
-                func.max(PerformanceDetail.request_time).label('max_time')
-            ).filter(
-                PerformanceDetail.report_id == last_perf_report.id
-            ).group_by(
-                PerformanceDetail.url
-            ).order_by(
-                func.max(PerformanceDetail.request_time).desc()
-            ).limit(5).all()
+            per_url_stats = (
+                db.session.query(
+                    PerformanceDetail.url,
+                    func.count(PerformanceDetail.id).label("request_count"),
+                    func.max(PerformanceDetail.request_time).label("max_time"),
+                )
+                .filter(PerformanceDetail.report_id == last_perf_report.id)
+                .group_by(PerformanceDetail.url)
+                .order_by(func.max(PerformanceDetail.request_time).desc())
+                .limit(5)
+                .all()
+            )
 
             # 计算总耗时 = 总请求数 / 整体 QPS
-            total_duration = max(1, last_perf_report.total / last_perf_report.qps) if last_perf_report.qps and last_perf_report.total else 1
+            total_duration = (
+                max(1, last_perf_report.total / last_perf_report.qps)
+                if last_perf_report.qps and last_perf_report.total
+                else 1
+            )
 
             for stat in per_url_stats:
                 url = stat.url or "未知URL"
@@ -419,10 +453,16 @@ def dashboard_data():
 
         # 5. 最近报告与成功率
         reports = TestReport.query.order_by(TestReport.id.desc()).limit(5).all()
-        recent_reports = [{
-            "id": r.id, "case_name": r.case_name, "status": r.status,
-            "cost_time": r.cost_time, "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
-        } for r in reports]
+        recent_reports = [
+            {
+                "id": r.id,
+                "case_name": r.case_name,
+                "status": r.status,
+                "cost_time": r.cost_time,
+                "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            for r in reports
+        ]
         total_api = TestReport.query.count()
         passed_api = TestReport.query.filter_by(status="PASS").count()
         total_ui = UIReport.query.count()
@@ -442,23 +482,25 @@ def dashboard_data():
                             tag_count[t] = tag_count.get(t, 0) + 1
         tag_stats = [{"name": k, "value": v} for k, v in sorted(tag_count.items(), key=lambda x: -x[1])]
 
-        return success({
-            "api_case": api_count,
-            "ui_case": ui_count,
-            "perf_count": perf_count,
-            "total_case": total_case,
-            "today_api_run": today_api_run,
-            "today_ui_run": today_ui_run,
-            "recent_reports": recent_reports,
-            "success_rate": api_rate,
-            "all_pass_rate": all_pass_rate,
-            "days": days,
-            "fail_trend": fail_trend,
-            "perf_names": perf_names,
-            "perf_qps": perf_qps,
-            "perf_rt": perf_rt,
-            "tag_stats": tag_stats,
-        })
+        return success(
+            {
+                "api_case": api_count,
+                "ui_case": ui_count,
+                "perf_count": perf_count,
+                "total_case": total_case,
+                "today_api_run": today_api_run,
+                "today_ui_run": today_ui_run,
+                "recent_reports": recent_reports,
+                "success_rate": api_rate,
+                "all_pass_rate": all_pass_rate,
+                "days": days,
+                "fail_trend": fail_trend,
+                "perf_names": perf_names,
+                "perf_qps": perf_qps,
+                "perf_rt": perf_rt,
+                "tag_stats": tag_stats,
+            }
+        )
     except Exception as e:
         logger.error("Dashboard Error: %s", str(e), exc_info=True)
         return error("服务器内部错误", 500)

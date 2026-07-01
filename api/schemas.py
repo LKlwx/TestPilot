@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, validate, ValidationError, validates_schema
+from marshmallow import Schema, ValidationError, fields, validate, validates_schema
 
 
 def _validate_password(value):
@@ -94,6 +94,7 @@ class UpdatePerformanceCaseSchema(Schema):
 
 # ========== Auth 模块 ==========
 
+
 class LoginSchema(Schema):
     username = fields.String(required=True, validate=validate.Length(min=1, max=50))
     password = fields.String(required=True, validate=validate.Length(min=1, max=128))
@@ -122,6 +123,7 @@ class ChangeRoleSchema(Schema):
 
 # ========== AI 模块 ==========
 
+
 class AIGenerateSchema(Schema):
     scene = fields.String(required=True, validate=validate.Length(min=1, max=1000))
 
@@ -148,6 +150,7 @@ class AISaveUiSchema(Schema):
 
 # ========== 批量执行 ==========
 
+
 class BatchRunSchema(Schema):
     ids = fields.List(fields.Integer(strict=True), required=True, validate=validate.Length(min=1, max=500))
     tags = fields.String(validate=validate.Length(max=200), load_default="")
@@ -155,6 +158,7 @@ class BatchRunSchema(Schema):
 
 
 # ========== UI 结构化创建 ==========
+
 
 class AddUIStructSchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1, max=100))
@@ -166,6 +170,7 @@ class AddUIStructSchema(Schema):
 
 
 # ========== 数据驱动测试 ==========
+
 
 class AddDataSetSchema(Schema):
     name = fields.String(required=True, validate=validate.Length(min=1, max=100))

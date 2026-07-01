@@ -14,12 +14,15 @@
     with test_user(username="admin_test") as user:
         ...
 """
+
 from contextlib import contextmanager
+
 from sqlalchemy.exc import SQLAlchemyError
-from models import User, TestCase
-from extensions import db
+
 from core.data_factory import DataFactory
 from core.logger import get_logger
+from extensions import db
+from models import TestCase, User
 
 logger = get_logger(__name__)
 

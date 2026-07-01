@@ -1,12 +1,12 @@
-from flask import Blueprint, request, render_template
+from flask import Blueprint, render_template, request
 from flask_jwt_extended import jwt_required
 from sqlalchemy.exc import SQLAlchemyError
 
-from core.response import success
-from core.exception import APIException, NotFoundException
 from core.db_guard import db_write_guard
-from models import Environment, TestCase, UICase, PerformanceCase
+from core.exception import APIException, NotFoundException
+from core.response import success
 from extensions import db
+from models import Environment, PerformanceCase, TestCase, UICase
 
 env_bp = Blueprint("env", __name__)
 
@@ -20,14 +20,22 @@ def env_page():
 @jwt_required()
 def get_environments():
     envs = Environment.query.order_by(Environment.id.desc()).all()
-    return success({
-        "list": [{
-            "id": e.id, "name": e.name, "base_url": e.base_url,
-            "headers": e.headers, "variables": e.variables,
-            "is_default": e.is_default,
-            "create_time": e.create_time.strftime("%Y-%m-%d %H:%M") if e.create_time else None,
-        } for e in envs],
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": e.id,
+                    "name": e.name,
+                    "base_url": e.base_url,
+                    "headers": e.headers,
+                    "variables": e.variables,
+                    "is_default": e.is_default,
+                    "create_time": e.create_time.strftime("%Y-%m-%d %H:%M") if e.create_time else None,
+                }
+                for e in envs
+            ],
+        }
+    )
 
 
 @env_bp.route("/add", methods=["POST"])
@@ -119,6 +127,7 @@ def resolve_environment(case, context):
         if env.variables and context:
             try:
                 import json
+
                 for k, v in json.loads(env.variables).items():
                     if not context.get_var(k):
                         context.set_var(k, v)

@@ -1,8 +1,10 @@
+import json
 import os
 import uuid
-import json
 from datetime import datetime, timedelta
+
 from celery import Celery
+
 from config import Config
 from core.execution_context import ExecutionContext
 
@@ -48,6 +50,7 @@ def get_flask_app():
     global _flask_app
     if _flask_app is None:
         from app import create_app
+
         _flask_app = create_app(os.environ.get("FLASK_ENV", "development"))
     return _flask_app
 
@@ -56,6 +59,7 @@ def _update_task(task_id: str, **kwargs):
     """更新 AsyncTask 记录的 helper"""
     from extensions import db
     from models import AsyncTask
+
     app = get_flask_app()
     with app.app_context():
         task = AsyncTask.query.get(task_id)
@@ -68,15 +72,20 @@ def _update_task(task_id: str, **kwargs):
 
 
 @celery_app.task(
-    bind=True, name="ai_generate_api",
-    task_time_limit=300, task_soft_time_limit=240,
-    autoretry_for=(Exception,), retry_backoff=True, max_retries=3,
+    bind=True,
+    name="ai_generate_api",
+    task_time_limit=300,
+    task_soft_time_limit=240,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
 )
 def async_ai_generate_api(self, scene: str, user_id: int):
     task_id = self.request.id
     _update_task(task_id, status="running")
     try:
         from service.ai_service import ai_service
+
         with get_flask_app().app_context():
             result = ai_service.generate_api(scene, user_id)
         _update_task(task_id, status="success", result=result, finish_time=datetime.now())
@@ -85,15 +94,20 @@ def async_ai_generate_api(self, scene: str, user_id: int):
 
 
 @celery_app.task(
-    bind=True, name="ai_generate_ui",
-    task_time_limit=300, task_soft_time_limit=240,
-    autoretry_for=(Exception,), retry_backoff=True, max_retries=3,
+    bind=True,
+    name="ai_generate_ui",
+    task_time_limit=300,
+    task_soft_time_limit=240,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
 )
 def async_ai_generate_ui(self, scene: str, user_id: int):
     task_id = self.request.id
     _update_task(task_id, status="running")
     try:
         from service.ai_service import ai_service
+
         with get_flask_app().app_context():
             result = ai_service.generate_ui(scene, user_id)
         _update_task(task_id, status="success", result=result, finish_time=datetime.now())
@@ -102,15 +116,20 @@ def async_ai_generate_ui(self, scene: str, user_id: int):
 
 
 @celery_app.task(
-    bind=True, name="ai_analyze",
-    task_time_limit=300, task_soft_time_limit=240,
-    autoretry_for=(Exception,), retry_backoff=True, max_retries=3,
+    bind=True,
+    name="ai_analyze",
+    task_time_limit=300,
+    task_soft_time_limit=240,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=3,
 )
 def async_ai_analyze(self, log: str, user_id: int):
     task_id = self.request.id
     _update_task(task_id, status="running")
     try:
         from service.ai_service import ai_service
+
         with get_flask_app().app_context():
             result = ai_service.analyze_log(log, user_id)
         _update_task(task_id, status="success", result=str(result), finish_time=datetime.now())
@@ -119,17 +138,22 @@ def async_ai_analyze(self, log: str, user_id: int):
 
 
 @celery_app.task(
-    bind=True, name="batch_run",
-    task_time_limit=600, task_soft_time_limit=500,
-    autoretry_for=(Exception,), retry_backoff=True, max_retries=2,
+    bind=True,
+    name="batch_run",
+    task_time_limit=600,
+    task_soft_time_limit=500,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    max_retries=2,
 )
 def async_batch_run(self, case_ids: list, user_id: int):
     task_id = self.request.id
     _update_task(task_id, status="running")
     try:
-        from service.test_service import execute_test_case
-        from models import TestCase, BatchTask, BatchResult
         from extensions import db
+        from models import BatchResult, BatchTask, TestCase
+        from service.test_service import execute_test_case
+
         app = get_flask_app()
         with app.app_context():
             batch = BatchTask(total=len(case_ids), creator_id=user_id)
@@ -160,7 +184,12 @@ def async_batch_run(self, case_ids: list, user_id: int):
             batch.passed = passed
             batch.failed = len(case_ids) - passed
             db.session.commit()
-            _update_task(task_id, status="success", result={"batch_id": batch.id, "total": len(case_ids), "passed": passed}, finish_time=datetime.now())
+            _update_task(
+                task_id,
+                status="success",
+                result={"batch_id": batch.id, "total": len(case_ids), "passed": passed},
+                finish_time=datetime.now(),
+            )
     except Exception as e:
         _update_task(task_id, status="failed", error_msg=str(e), finish_time=datetime.now())
 
@@ -168,25 +197,30 @@ def async_batch_run(self, case_ids: list, user_id: int):
 @celery_app.task(name="cleanup_perf_details")
 def cleanup_perf_details():
     """定时清理过期压测明细数据（保留 N 天，汇总报告保留）"""
+    from config import Config
     from extensions import db
     from models import PerformanceDetail
-    from config import Config
+
     retention_days = Config.PERF_DETAIL_RETENTION_DAYS
     cutoff = datetime.now() - timedelta(days=retention_days)
 
     app = get_flask_app()
     with app.app_context():
         from models import PerformanceReport
-        old_report_ids = db.session.query(PerformanceReport.id).filter(
-            PerformanceReport.create_time < cutoff
-        ).subquery()
 
-        deleted = db.session.query(PerformanceDetail).filter(
-            PerformanceDetail.report_id.in_(old_report_ids)
-        ).delete(synchronize_session=False)
+        old_report_ids = (
+            db.session.query(PerformanceReport.id).filter(PerformanceReport.create_time < cutoff).subquery()
+        )
+
+        deleted = (
+            db.session.query(PerformanceDetail)
+            .filter(PerformanceDetail.report_id.in_(old_report_ids))
+            .delete(synchronize_session=False)
+        )
         db.session.commit()
         if deleted:
             from core.logger import get_logger
+
             get_logger(__name__).info("已清理 %d 条过期压测明细数据（保留 %d 天）", deleted, retention_days)
 
 
@@ -196,13 +230,14 @@ def cleanup_perf_details():
 @celery_app.task(name="run_chunk", bind=True)
 def run_chunk(self, chunk_ids, chunk_index, user_id, batch_id):
     """执行单个 chunk（一组用例），由 dispatch_parallel 批量提交"""
-    from service.test_service import execute_test_case
     from service.parallel import save_chunk_results
+    from service.test_service import execute_test_case
 
     app = get_flask_app()
     with app.app_context():
-        from models import TestCase
         from core.execution_context import ExecutionContext
+        from models import TestCase
+
         results = []
         ctx = ExecutionContext()
         for cid in chunk_ids:
@@ -271,10 +306,10 @@ def scan_scheduled_tasks():
 
 def _execute_test_task(task):
     """执行 TestTask：运行关联的用例或套件，更新执行状态"""
-    from extensions import db
-    from service.test_service import execute_test_case
-    from models import TestCase
     from core.execution_context import ExecutionContext
+    from extensions import db
+    from models import TestCase
+    from service.test_service import execute_test_case
 
     ctx = ExecutionContext()
     case_ids = []
@@ -283,6 +318,7 @@ def _execute_test_task(task):
     if task.suite_id:
         from extensions import db as _db
         from models import suite_case_association as sca
+
         rows = _db.session.query(sca).filter_by(suite_id=task.suite_id).order_by(sca.c.case_id).all()
         case_ids = [r.case_id for r in rows if r.case_type == "api"]
     else:

@@ -1,8 +1,10 @@
 from contextlib import contextmanager
+
 from sqlalchemy.exc import SQLAlchemyError
-from extensions import db
-from core.logger import log_error
+
 from core.exception import APIException
+from core.logger import log_error
+from extensions import db
 
 
 @contextmanager

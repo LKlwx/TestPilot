@@ -1,7 +1,7 @@
 import logging
 import os
-from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 from logging import Formatter
+from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 
 
 def setup_logger(app):
@@ -12,37 +12,25 @@ def setup_logger(app):
         os.makedirs(log_dir)
 
     # 日志格式
-    log_format = Formatter(
-        "%(asctime)s | %(levelname)-8s | %(name)-15s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
+    log_format = Formatter("%(asctime)s | %(levelname)-8s | %(name)-15s | %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 
     # 1. 常规日志（INFO及以上） - 每天切割，保留7天
     info_handler = TimedRotatingFileHandler(
-        os.path.join(log_dir, "app.log"),
-        when="midnight",
-        backupCount=7,
-        encoding="utf-8"
+        os.path.join(log_dir, "app.log"), when="midnight", backupCount=7, encoding="utf-8"
     )
     info_handler.setLevel(logging.INFO)
     info_handler.setFormatter(log_format)
 
     # 2. 错误日志（ERROR及以上） - 单独文件，保留30天
     error_handler = RotatingFileHandler(
-        os.path.join(log_dir, "error.log"),
-        maxBytes=10 * 1024 * 1024,
-        backupCount=30,
-        encoding="utf-8"
+        os.path.join(log_dir, "error.log"), maxBytes=10 * 1024 * 1024, backupCount=30, encoding="utf-8"
     )
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(log_format)
 
     # 3. 调试日志（DEBUG） - 开发环境用
     debug_handler = RotatingFileHandler(
-        os.path.join(log_dir, "debug.log"),
-        maxBytes=5 * 1024 * 1024,  # 5MB
-        backupCount=3,
-        encoding="utf-8"
+        os.path.join(log_dir, "debug.log"), maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"  # 5MB
     )
     debug_handler.setLevel(logging.DEBUG)
     debug_handler.setFormatter(log_format)

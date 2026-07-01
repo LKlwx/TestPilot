@@ -1,17 +1,18 @@
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from core.exception import NotFoundException
-from extensions import db
-from models import UICase, User, UIReport
-from service.ui_service import run_ui_case, parse_steps
-from core.response import success, error
-from core.pagination import paginate
+from flask import Blueprint, render_template, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
+
+from api.schemas import AddUICaseSchema, AddUIStructSchema, UpdateUICaseSchema
 from core.db_guard import db_write_guard
+from core.exception import NotFoundException
+from core.pagination import paginate
+from core.response import error, success
 from core.schema import validate_request
-from api.schemas import AddUICaseSchema, UpdateUICaseSchema, AddUIStructSchema
+from extensions import db
+from models import UICase, UIReport, User
 from service.operation_log_service import add_operation_log
+from service.ui_service import parse_steps, run_ui_case
 
 ui_bp = Blueprint("ui", __name__)
 
@@ -76,23 +77,28 @@ def get_ui_cases():
 
     result = paginate(query, order_by=UICase.id.desc())
 
-    return success({
-        "list": [{
-            "id": c.id,
-            "name": c.name,
-            "url": c.url,
-            "loc_type": c.loc_type,
-            "steps": c.steps,
-            "tags": c.tags,
-            "env_id": c.env_id,
-            "driver_type": c.driver_type,
-            "browser": c.browser,
-        } for c in result.items],
-        "total": result.total,
-        "page": result.page,
-        "page_size": result.page_size,
-        "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "url": c.url,
+                    "loc_type": c.loc_type,
+                    "steps": c.steps,
+                    "tags": c.tags,
+                    "env_id": c.env_id,
+                    "driver_type": c.driver_type,
+                    "browser": c.browser,
+                }
+                for c in result.items
+            ],
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 @ui_bp.route("/case/<int:cid>/run", methods=["POST"])
@@ -141,15 +147,25 @@ def get_ui_reports():
         query = query.filter(UIReport.create_time < datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1))
 
     result = paginate(query, order_by=UIReport.id.desc(), page_size=20)
-    return success({
-        "list": [{
-            "id": r.id, "case_name": r.case_name, "status": r.status,
-            "time": r.cost_time, "msg": r.error_msg,
-            "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S")
-        } for r in result.items],
-        "total": result.total, "page": result.page,
-        "page_size": result.page_size, "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": r.id,
+                    "case_name": r.case_name,
+                    "status": r.status,
+                    "time": r.cost_time,
+                    "msg": r.error_msg,
+                    "create_time": r.create_time.strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                for r in result.items
+            ],
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 # 报告详情
@@ -166,7 +182,7 @@ def get_ui_report_detail(rid):
         "status": report.status,
         "time": report.cost_time,
         "msg": report.error_msg,
-        "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S")
+        "create_time": report.create_time.strftime("%Y-%m-%d %H:%M:%S"),
     }
     return success(data=data)
 
@@ -238,7 +254,9 @@ def update_ui_case(cid):
     if old_url != new_url:
         changes.append(f"URL({old_url[:20]}...→{new_url[:20]}...)")
     if old_steps != new_steps:
-        changes.append(f"步骤({old_steps.split(chr(10)) if old_steps else []}→{new_steps.split(chr(10)) if new_steps else []})")
+        changes.append(
+            f"步骤({old_steps.split(chr(10)) if old_steps else []}→{new_steps.split(chr(10)) if new_steps else []})"
+        )
     if old_loc_type != new_loc_type:
         changes.append(f"定位方式({old_loc_type}→{new_loc_type})")
     if old_loc_value != new_loc_value:
@@ -276,6 +294,7 @@ def generate_page(cid):
         return error("步骤格式错误，无法生成")
 
     from core.page_generator import generate_page_class
+
     code = generate_page_class(case.name, steps)
 
     return success(data={"code": code})

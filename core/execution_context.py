@@ -1,6 +1,6 @@
-import uuid
-import time
 import logging
+import time
+import uuid
 
 
 class RecursiveVariableError(Exception):
@@ -24,9 +24,7 @@ class ExecutionContext:
         if not text:
             return text
         if _depth >= max_depth:
-            raise RecursiveVariableError(
-                f"变量替换超过最大递归深度({max_depth})，可能存在循环引用"
-            )
+            raise RecursiveVariableError(f"变量替换超过最大递归深度({max_depth})，可能存在循环引用")
         result = text
         for key, value in self.vars.items():
             placeholder = "${" + key + "}"

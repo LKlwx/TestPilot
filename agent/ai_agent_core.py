@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
-import requests
 import json
+
+import requests
+
 from config import Config
 
 
 class AITestAgent:
     """AI 测试助手：调用本地 LM Studio 模型生成用例或分析日志"""
+
     def __init__(self):
         # 从配置文件读取模型服务地址与名称
         self.api_base = Config.AI_API_BASE
@@ -22,7 +25,7 @@ class AITestAgent:
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
-            "max_tokens": 1024
+            "max_tokens": 1024,
         }
         try:
             response = requests.post(url, json=payload, timeout=60)
@@ -64,15 +67,29 @@ class AITestAgent:
                 raise Exception("模型返回了空列表")
         # 将中文键映射为英文键，方便后续数据库存储
         key_map = {
-            "用例名": "name", "用例名称": "name", "名称": "name",
-            "请求方法": "method", "方法": "method",
-            "接口路径": "url", "地址": "url", "路径": "url",
-            "请求头": "headers", "头": "headers",
-            "参数": "body", "请求体": "body", "体": "body",
-            "预期结果": "expect", "期望结果": "expect", "预期": "expect",
-            "失败原因": "cause", "原因": "cause",
-            "解决方案": "solution", "解决": "solution", "方案": "solution",
-            "步骤": "steps", "测试步骤": "steps"
+            "用例名": "name",
+            "用例名称": "name",
+            "名称": "name",
+            "请求方法": "method",
+            "方法": "method",
+            "接口路径": "url",
+            "地址": "url",
+            "路径": "url",
+            "请求头": "headers",
+            "头": "headers",
+            "参数": "body",
+            "请求体": "body",
+            "体": "body",
+            "预期结果": "expect",
+            "期望结果": "expect",
+            "预期": "expect",
+            "失败原因": "cause",
+            "原因": "cause",
+            "解决方案": "solution",
+            "解决": "solution",
+            "方案": "solution",
+            "步骤": "steps",
+            "测试步骤": "steps",
         }
         keys_to_delete = []
         for k in list(parsed):

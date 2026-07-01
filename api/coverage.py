@@ -1,17 +1,18 @@
-from datetime import datetime
 import hashlib
 import json
 import re
+from datetime import datetime
 from urllib.parse import urlparse
-from flask import Blueprint, request, render_template
-from flask_jwt_extended import jwt_required, get_jwt_identity
+
+from flask import Blueprint, render_template, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy.exc import SQLAlchemyError
 
-from core.response import success
 from core.exception import APIException, NotFoundException
 from core.pagination import paginate
-from models import ApiCoverage, ApiContract, TestCase
+from core.response import success
 from extensions import db
+from models import ApiContract, ApiCoverage, TestCase
 
 coverage_bp = Blueprint("coverage", __name__)
 
@@ -61,11 +62,13 @@ def coverage_stats():
     """覆盖率统计"""
     total = ApiCoverage.query.count()
     covered = ApiCoverage.query.filter_by(is_covered=True).count()
-    return success({
-        "total": total,
-        "covered": covered,
-        "rate": round(covered / total * 100, 1) if total > 0 else 0,
-    })
+    return success(
+        {
+            "total": total,
+            "covered": covered,
+            "rate": round(covered / total * 100, 1) if total > 0 else 0,
+        }
+    )
 
 
 @coverage_bp.route("/list", methods=["GET"])
@@ -76,15 +79,25 @@ def coverage_list():
     if keyword:
         query = query.filter(ApiCoverage.path.like(f"%{keyword}%"))
     result = paginate(query, order_by=ApiCoverage.create_time.desc())
-    return success({
-        "list": [{
-            "id": r.id, "method": r.method, "path": r.path,
-            "summary": r.summary, "is_covered": r.is_covered,
-            "covered_time": r.covered_time.strftime("%Y-%m-%d %H:%M") if r.covered_time else None,
-        } for r in result.items],
-        "total": result.total, "page": result.page,
-        "page_size": result.page_size, "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": r.id,
+                    "method": r.method,
+                    "path": r.path,
+                    "summary": r.summary,
+                    "is_covered": r.is_covered,
+                    "covered_time": r.covered_time.strftime("%Y-%m-%d %H:%M") if r.covered_time else None,
+                }
+                for r in result.items
+            ],
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 def _resolve_schema_refs(obj, schemas, visited=None):
@@ -187,8 +200,10 @@ def import_swagger():
             exists_api = ApiCoverage.query.filter_by(method=method.upper(), path=normalized).first()
             if not exists_api:
                 api = ApiCoverage(
-                    method=method.upper(), path=normalized,
-                    summary=summary, is_covered=False,
+                    method=method.upper(),
+                    path=normalized,
+                    summary=summary,
+                    is_covered=False,
                 )
                 db.session.add(api)
                 imported += 1
@@ -207,11 +222,15 @@ def import_swagger():
                     contract.last_version += 1
                     contract.update_time = datetime.now()
                 else:
-                    db.session.add(ApiContract(
-                        endpoint=endpoint, summary=summary,
-                        response_schema=response_schema,
-                        schema_hash=new_hash, last_version=1,
-                    ))
+                    db.session.add(
+                        ApiContract(
+                            endpoint=endpoint,
+                            summary=summary,
+                            response_schema=response_schema,
+                            schema_hash=new_hash,
+                            last_version=1,
+                        )
+                    )
                 contracted += 1
 
     db.session.commit()
@@ -254,9 +273,14 @@ def generate_cases_from_swagger():
             sample_body = _schema_to_example(resolved) if resolved else "{}"
 
             case = TestCase(
-                name=summary, module="Swagger导入", method=method.upper(),
-                url=normalized, headers="{}", body=json.dumps(sample_body) if isinstance(sample_body, (dict, list)) else (sample_body or "{}"),
-                expect="", extract_var="",
+                name=summary,
+                module="Swagger导入",
+                method=method.upper(),
+                url=normalized,
+                headers="{}",
+                body=json.dumps(sample_body) if isinstance(sample_body, (dict, list)) else (sample_body or "{}"),
+                expect="",
+                extract_var="",
             )
             db.session.add(case)
             count += 1
@@ -299,15 +323,25 @@ def get_contracts():
     if keyword:
         query = query.filter(ApiContract.endpoint.like(f"%{keyword}%"))
     result = paginate(query, order_by=ApiContract.id.desc())
-    return success({
-        "list": [{
-            "id": c.id, "endpoint": c.endpoint, "summary": c.summary,
-            "version": c.last_version, "has_schema": c.response_schema is not None,
-            "update_time": c.update_time.strftime("%Y-%m-%d %H:%M") if c.update_time else None,
-        } for c in result.items],
-        "total": result.total, "page": result.page,
-        "page_size": result.page_size, "total_pages": result.total_pages,
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": c.id,
+                    "endpoint": c.endpoint,
+                    "summary": c.summary,
+                    "version": c.last_version,
+                    "has_schema": c.response_schema is not None,
+                    "update_time": c.update_time.strftime("%Y-%m-%d %H:%M") if c.update_time else None,
+                }
+                for c in result.items
+            ],
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+        }
+    )
 
 
 @coverage_bp.route("/contract/<int:cid>", methods=["GET"])
@@ -316,14 +350,18 @@ def get_contract(cid):
     contract = ApiContract.query.get(cid)
     if not contract:
         raise NotFoundException("契约不存在")
-    return success({
-        "id": contract.id, "endpoint": contract.endpoint, "summary": contract.summary,
-        "version": contract.last_version,
-        "request_schema": contract.request_schema,
-        "response_schema": contract.response_schema,
-        "create_time": contract.create_time.isoformat() if contract.create_time else None,
-        "update_time": contract.update_time.isoformat() if contract.update_time else None,
-    })
+    return success(
+        {
+            "id": contract.id,
+            "endpoint": contract.endpoint,
+            "summary": contract.summary,
+            "version": contract.last_version,
+            "request_schema": contract.request_schema,
+            "response_schema": contract.response_schema,
+            "create_time": contract.create_time.isoformat() if contract.create_time else None,
+            "update_time": contract.update_time.isoformat() if contract.update_time else None,
+        }
+    )
 
 
 @coverage_bp.route("/<int:aid>", methods=["DELETE"])

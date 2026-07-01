@@ -1,5 +1,7 @@
 from functools import wraps
-from flask_jwt_extended import jwt_required, get_jwt_identity
+
+from flask_jwt_extended import get_jwt_identity, jwt_required
+
 from core.exception import AuthException
 
 
@@ -13,15 +15,19 @@ def require_role(roles: list):
         @require_role(["admin"])             # 仅管理员
         @require_role(["admin", "tester"])    # 管理员和测试员
     """
+
     def decorator(f):
         @wraps(f)
         @jwt_required()
         def wrapper(*args, **kwargs):
             from models import User
+
             identity = get_jwt_identity()
             user = User.query.get(int(identity))
             if not user or user.role not in roles:
                 raise AuthException("权限不足")
             return f(*args, **kwargs)
+
         return wrapper
+
     return decorator

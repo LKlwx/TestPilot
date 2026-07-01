@@ -1,8 +1,9 @@
-import re
 import json
+import re
 
 try:
     import jsonschema
+
     _HAS_JSONSCHEMA = True
 except ImportError:
     _HAS_JSONSCHEMA = False
@@ -95,7 +96,10 @@ class AssertEngine:
             passed = bool(matched)
         except re.error as e:
             return False, f"正则表达式错误: {e}"
-        return (passed, f"正则断言 {'通过' if passed else '失败'}：{'匹配成功' if passed else f'未匹配 pattern={pattern}'}")
+        return (
+            passed,
+            f"正则断言 {'通过' if passed else '失败'}：{'匹配成功' if passed else f'未匹配 pattern={pattern}'}",
+        )
 
     def _assert_time(self, rule: str) -> tuple:
         """time < 1000  /  time > 500  /  time <= 2000"""
@@ -104,9 +108,13 @@ class AssertEngine:
             return False, f"响应时间断言格式错误: {rule}"
         op, expected_s = m.group(1), float(m.group(2))
         actual = self.cost_time * 1000 if self.cost_time else 0  # cost_time is in seconds, convert to ms
-        ops = {">": lambda a, e: a > e, "<": lambda a, e: a < e,
-               ">=": lambda a, e: a >= e, "<=": lambda a, e: a <= e,
-               "==": lambda a, e: a == e}
+        ops = {
+            ">": lambda a, e: a > e,
+            "<": lambda a, e: a < e,
+            ">=": lambda a, e: a >= e,
+            "<=": lambda a, e: a <= e,
+            "==": lambda a, e: a == e,
+        }
         if op not in ops:
             return False, f"不支持的运算符: {op}"
         passed = ops[op](actual, expected_s)

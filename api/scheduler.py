@@ -1,12 +1,12 @@
-from flask import Blueprint, request, render_template
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, render_template, request
+from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy.exc import SQLAlchemyError
 
-from core.response import success
-from core.exception import APIException, NotFoundException
 from core.db_guard import db_write_guard
-from models import TestTask, TestCase, User
+from core.exception import APIException, NotFoundException
+from core.response import success
 from extensions import db
+from models import TestCase, TestTask, User
 from service.operation_log_service import add_operation_log
 
 scheduler_bp = Blueprint("scheduler", __name__)
@@ -25,19 +25,28 @@ def get_tasks():
     for t in tasks:
         if t.suite_id:
             from models import TestSuite
+
             s = TestSuite.query.get(t.suite_id)
             if s:
                 suite_names[t.id] = s.name
-    return success({
-        "list": [{
-            "id": t.id, "name": t.name, "cron_expr": t.cron_expr,
-            "status": t.status, "case_count": t.cases.count(),
-            "last_run_time": t.last_run_time.strftime("%Y-%m-%d %H:%M") if t.last_run_time else None,
-            "last_status": t.last_status or "",
-            "suite_id": t.suite_id,
-            "suite_name": suite_names.get(t.id, ""),
-        } for t in tasks],
-    })
+    return success(
+        {
+            "list": [
+                {
+                    "id": t.id,
+                    "name": t.name,
+                    "cron_expr": t.cron_expr,
+                    "status": t.status,
+                    "case_count": t.cases.count(),
+                    "last_run_time": t.last_run_time.strftime("%Y-%m-%d %H:%M") if t.last_run_time else None,
+                    "last_status": t.last_status or "",
+                    "suite_id": t.suite_id,
+                    "suite_name": suite_names.get(t.id, ""),
+                }
+                for t in tasks
+            ],
+        }
+    )
 
 
 @scheduler_bp.route("/task/add", methods=["POST"])
@@ -127,6 +136,7 @@ def _validate_cron(expr):
         from croniter import croniter
     except ImportError:
         import logging
+
         logging.getLogger(__name__).warning("croniter not installed; cron validation skipped")
         return
     if not croniter.is_valid(expr.strip()):

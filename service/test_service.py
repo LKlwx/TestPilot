@@ -1,15 +1,17 @@
 import json
 import re
-from contextlib import contextmanager
-from models import TestReport
-from extensions import db
 import time
+from contextlib import contextmanager
+
 from sqlalchemy.exc import SQLAlchemyError
-from core.logger import get_logger
-from core.execution_context import ExecutionContext
-from core.assert_engine import AssertEngine
-from core.http_client import BaseHTTPClient
+
 from config import Config
+from core.assert_engine import AssertEngine
+from core.execution_context import ExecutionContext
+from core.http_client import BaseHTTPClient
+from core.logger import get_logger
+from extensions import db
+from models import TestReport
 
 TIMEOUT = Config.REQUEST_TIMEOUT
 
@@ -21,6 +23,7 @@ def _allure_step(name: str):
     """条件式 allure.step，无 allure 环境时静默跳过"""
     try:
         import allure
+
         with allure.step(name):
             yield
     except ImportError:
@@ -61,9 +64,7 @@ def _merge_retry_results(attempts, max_retries):
 
 def check_flaky(case):
     """检查用例近 5 次执行中 FLAKY 占比，自动标记为稳定/不稳定"""
-    recent = TestReport.query.filter_by(case_id=case.id)\
-        .order_by(TestReport.create_time.desc())\
-        .limit(5).all()
+    recent = TestReport.query.filter_by(case_id=case.id).order_by(TestReport.create_time.desc()).limit(5).all()
     flaky_count = sum(1 for r in recent if r.status == "FLAKY")
     case.unstable = flaky_count >= 3
     try:
@@ -122,12 +123,19 @@ def _create_report(case, merged):
         db.session.rollback()
         raise
 
-    logger.info(json.dumps({
-        "event": "test_executed", "case_id": case.id,
-        "status": report.status, "retried": report.retried,
-        "duration_ms": round(merged["time"] * 1000),
-        "response_code": merged["code"],
-    }, ensure_ascii=False))
+    logger.info(
+        json.dumps(
+            {
+                "event": "test_executed",
+                "case_id": case.id,
+                "status": report.status,
+                "retried": report.retried,
+                "duration_ms": round(merged["time"] * 1000),
+                "response_code": merged["code"],
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 def _execute_raw(case, context, timeout):
@@ -142,6 +150,7 @@ def _execute_raw(case, context, timeout):
         env = None
         try:
             from models import Environment
+
             env_id = getattr(case, "env_id", None)
             if env_id:
                 env = Environment.query.get(env_id)
@@ -156,6 +165,7 @@ def _execute_raw(case, context, timeout):
                 final_url = f"{env.base_url.rstrip('/')}{final_url}"
             try:
                 import json
+
                 env_vars = json.loads(env.variables) if env.variables else {}
                 for k, v in env_vars.items():
                     if not context.get_var(k):
@@ -191,7 +201,7 @@ def _execute_raw(case, context, timeout):
                 timeout=timeout,
             )
         resp = hr.resp
-        resp.encoding = 'utf-8'
+        resp.encoding = "utf-8"
 
         # 标记接口覆盖（可选功能，失败不影响测试主流程）
         try:
@@ -234,7 +244,9 @@ def _execute_raw(case, context, timeout):
         # 自动 Schema 校验（匹配 ApiContract）
         try:
             from urllib.parse import urlparse
+
             from models import ApiContract
+
             path = urlparse(final_url).path
             endpoint_exact = f"{case.method} {path.rstrip('/')}"
             contract = ApiContract.query.filter_by(endpoint=endpoint_exact).first()
@@ -264,20 +276,25 @@ def _execute_raw(case, context, timeout):
         # Allure 上下文检测与附加
         try:
             import allure
-            allure.attach(resp.text[:5000], name="response_body",
-                          attachment_type=allure.attachment_type.TEXT)
+
+            allure.attach(resp.text[:5000], name="response_body", attachment_type=allure.attachment_type.TEXT)
             if not passed:
-                allure.attach(f"断言失败: {msg}", name="assertion_error",
-                              attachment_type=allure.attachment_type.TEXT)
+                allure.attach(f"断言失败: {msg}", name="assertion_error", attachment_type=allure.attachment_type.TEXT)
         except ImportError:
             pass
 
-        logger.info(json.dumps({
-            "event": "test_raw_executed", "case_id": case.id,
-            "status": "PASS" if passed else "FAIL",
-            "duration_ms": round(cost_time * 1000),
-            "response_code": resp.status_code,
-        }, ensure_ascii=False))
+        logger.info(
+            json.dumps(
+                {
+                    "event": "test_raw_executed",
+                    "case_id": case.id,
+                    "status": "PASS" if passed else "FAIL",
+                    "duration_ms": round(cost_time * 1000),
+                    "response_code": resp.status_code,
+                },
+                ensure_ascii=False,
+            )
+        )
 
         return {
             "status": "PASS" if passed else "FAIL",
@@ -293,15 +310,22 @@ def _execute_raw(case, context, timeout):
 
         try:
             import allure
-            allure.attach(str(e)[:5000], name="error_info",
-                          attachment_type=allure.attachment_type.TEXT)
+
+            allure.attach(str(e)[:5000], name="error_info", attachment_type=allure.attachment_type.TEXT)
         except ImportError:
             pass
 
-        logger.info(json.dumps({
-            "event": "test_raw_executed", "case_id": case.id,
-            "status": "ERROR", "duration_ms": round(cost_time * 1000),
-            "error": str(e)[:200],
-        }, ensure_ascii=False))
+        logger.info(
+            json.dumps(
+                {
+                    "event": "test_raw_executed",
+                    "case_id": case.id,
+                    "status": "ERROR",
+                    "duration_ms": round(cost_time * 1000),
+                    "error": str(e)[:200],
+                },
+                ensure_ascii=False,
+            )
+        )
 
         return {"status": "ERROR", "time": cost_time, "error": str(e), "current_vars": dict(context.vars)}

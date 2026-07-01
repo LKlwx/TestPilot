@@ -2,11 +2,13 @@
 示例 Page Class — 登录页、首页
 演示 Page Object 模式：定位器与业务逻辑分离
 """
+
 from core.base_page import BasePage
 
 
 class LoginPage(BasePage):
     """登录页面对象"""
+
     USERNAME_INPUT = ("id", "username")
     PASSWORD_INPUT = ("id", "password")
     LOGIN_BTN = ("id", "loginBtn")
@@ -27,6 +29,7 @@ class LoginPage(BasePage):
 
 class HomePage(BasePage):
     """首页 / 控制台页面对象"""
+
     WELCOME_TEXT = ("css", ".welcome-text")
     LOGOUT_BTN = ("id", "logoutBtn")
     NAV_TEST = ("linkText", "接口自动化测试")
