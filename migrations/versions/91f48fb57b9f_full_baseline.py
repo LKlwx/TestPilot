@@ -1,7 +1,7 @@
 """full baseline
 
 Revision ID: 91f48fb57b9f
-Revises: 
+Revises:
 Create Date: 2026-05-31 06:48:34.093645
 
 """
