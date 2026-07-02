@@ -119,8 +119,10 @@ TestPilot/
 ├── requirements.txt     # 依赖包列表
 ├── .pre-commit-config.yaml  # pre-commit 钩子（black + isort + flake8 + mypy）
 ├── pyproject.toml       # black / isort / mypy 配置
-├── Dockerfile         # Docker 镜像配置
-├── docker-compose.yml  # Docker Compose 配置
+├── Dockerfile         # Docker 镜像配置（多阶段构建、非 root 用户、HEALTHCHECK）
+├── docker-compose.yml  # Docker Compose 配置（web/redis/worker/flower/beat/nginx）
+├── .dockerignore       # Docker 构建排除文件
+├── nginx.conf          # Nginx 反向代理配置
 ├── .gitignore        # Git 忽略文件配置
 ├── .flaskenv          # Flask CLI 环境变量
 ├── .gitflow           # GitFlow 分支管理配置
@@ -229,6 +231,9 @@ TestPilot/
 | `CORS_ORIGINS` | 否 | `http://localhost:5000` | 允许跨域访问的域名，多个用逗号分隔 |
 | `SELENIUM_GRID_URL` | 否 | 空（仅本地驱动） | Selenium Grid Hub 地址，配置后启用 Remote 模式 |
 | `PERF_DETAIL_RETENTION_DAYS` | 否 | `30` | 压测明细数据保留天数，超期自动清理 |
+| `REDIS_PASSWORD` | 否 | `testpilot` | Redis 访问密码（Docker 环境） |
+| `FLOWER_USER` | 否 | `admin` | Flower 任务监控面板登录用户名 |
+| `FLOWER_PASSWORD` | 否 | `testpilot` | Flower 任务监控面板登录密码 |
 
 ### 环境差异
 
@@ -322,23 +327,27 @@ TestPilot/
 
 **Docker Compose 启动的服务**：
 - `web`：Flask 应用（监听 5000 端口）
-- `redis`：异步任务消息队列
+- `redis`：异步任务消息队列（密码保护）
 - `worker`：Celery 后台任务执行器（AI 生成、批量执行等）
-- `flower`：任务监控面板（监听 5555 端口，可选）
+- `beat`：Celery Beat 定时调度器（Cron 扫描、自动回归）
+- `flower`：任务监控面板（监听 5555 端口，Basic Auth 认证）
+- `nginx`：反向代理（80 端口 → web:5000）
 
 **架构优势**：
 - 零环境配置：无需安装 Python、Flask 或配置虚拟环境
 - 环境一致性：开发、测试、生产环境完全一致，避免"我本地能跑"问题
 - 数据持久化：通过 Volume 挂载实现数据库文件持久存储，容器重启数据不丢失
 - **安全强制**：生产环境未配置强密钥将拒绝启动，防止带病上线
+- 镜像优化：多阶段构建分离依赖安装与运行环境，`.dockerignore` 排除非必要文件
+- 安全基线：非 root 用户运行 + HEALTHCHECK 健康检查 + 服务间密码认证
 
 ## GitHub Actions CI/CD
 1. 推送代码到 GitHub 仓库
 2. 每次 push 自动触发 CI 流程：
    - 自动安装项目依赖
    - black + isort + flake8 + mypy 四重代码质量门禁
-   - 自动运行单元测试与集成测试
-   - 自动生成测试覆盖率报告
+   - 自动运行单元测试与集成测试（覆盖率 ≥ 50% 门禁）
+   - 自动验证 Docker 镜像构建
 3. 查看 Actions 运行结果：
    ```
    https://github.com/LKlwx/TestPilot/actions

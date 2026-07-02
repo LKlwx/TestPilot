@@ -33,7 +33,10 @@ jobs:
     - name: Run Unit Tests
       run: |
         pip install pytest pytest-cov
-        pytest tests/ -v --cov=. --cov-report=term-missing
+        pytest tests/ -v --cov=. --cov-report=term-missing --cov-fail-under=50
+
+    - name: Verify Docker build
+      run: docker build -t testpilot:ci .
 
     - name: Run SAST scan (own code)
       run: |

@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*.so
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Tests
+tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Docs
+docs/
+*.md
+
+# Data
+instance/*.db
+instance/*.log
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# CI
+.github/
+
+# Config
+.env*
+
+# Others
+*.sqlite3
+allure-report/
+allure-results/
