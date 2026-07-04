@@ -21,10 +21,13 @@ def _get_redis():
         if current_app.config.get("TESTING"):
             return _get_test_store()
     except RuntimeError:
-        pass
+        return _get_test_store()
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis.from_url(Config.REDIS_URL)
+        try:
+            _redis_client = redis.from_url(Config.REDIS_URL)
+        except Exception:
+            return _get_test_store()
     return _redis_client
 
 
