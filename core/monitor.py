@@ -3,6 +3,7 @@
 - /health: 存活探针，仅返回 200
 - /ready: 就绪探针，检测 DB + Redis 是否可达
 """
+
 from flask import Blueprint, jsonify
 from config import Config
 from extensions import db
@@ -27,6 +28,7 @@ def ready():
     # Redis 检测
     try:
         import redis
+
         r = redis.from_url(Config.REDIS_URL)
         r.ping()
     except Exception:

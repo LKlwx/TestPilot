@@ -59,7 +59,15 @@ def register_middleware(app):
         # 请求耗时日志
         if hasattr(g, "start_time"):
             elapsed_ms = round((datetime.now() - g.start_time).total_seconds() * 1000, 1)
-            app.logger.info("[%s] %s %s → %s (%.1fms) [%s]", g.ip, request.method, request.path, status_code, elapsed_ms, g.get("request_id", ""))
+            app.logger.info(
+                "[%s] %s %s → %s (%.1fms) [%s]",
+                g.ip,
+                request.method,
+                request.path,
+                status_code,
+                elapsed_ms,
+                g.get("request_id", ""),
+            )
 
         if status_code >= 500:
             global_circuit.record_failure()
