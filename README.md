@@ -92,7 +92,7 @@ graph TD
 - 并行测试：pytest-xdist（多 CPU 核心并行执行单元测试，pytest.ini 配置 -n auto）
 - 代码质量：black + isort + flake8 + mypy（pre-commit 钩子 + CI 门禁）
 - 数据工厂：Faker + 随机数据生成 + Setup/Teardown 上下文管理器
-- 其他：系统操作日志、统一响应封装、全局异常捕获、分级日志体系（DEBUG/INFO/ERROR）、Redis 缓存加速（Dashboard 60s 缓存）
+- 其他：系统操作日志、统一响应封装、全局异常捕获、分级日志体系（DEBUG/INFO/ERROR）、全链路 X-Request-ID 追踪、/health + /ready 健康探针、Redis 缓存加速（Dashboard 60s 缓存）
 
 ## 系统要求
 
@@ -186,10 +186,13 @@ TestPilot/
 │   ├── base_page.py           # BasePage Page Object 基类
 │   ├── page_generator.py      # Page Class 代码自动生成器
 │   ├── data_factory.py        # DataFactory 随机测试数据生成
-│   └── data_pool.py           # DataPool 跨用例数据共享池
+│   ├── data_factory.py        # DataFactory 随机测试数据生成
+│   ├── data_pool.py           # DataPool 跨用例数据共享池
+│   └── monitor.py            # 健康检查 / 就绪探针
 ├── instance/         # SQLite 数据库目录（运行时自动生成）
 ├── static/           # 静态资源
 └── templates/       # HTML 页面模板
+    └── errors/        # 404 / 500 错误页面
 ```
 
 ## 数据模型说明

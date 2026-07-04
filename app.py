@@ -1,4 +1,4 @@
-from flask import Flask, redirect
+from flask import Flask, redirect, render_template, request
 from flask_cors import CORS
 from flask_login import current_user
 from werkzeug.exceptions import NotFound
@@ -10,6 +10,7 @@ from api.environment import env_bp
 from api.performance import performance_bp
 from api.scheduler import scheduler_bp
 from api.suite import suite_bp
+from core.monitor import monitor_bp
 from api.test import test_bp
 from api.ui import ui_bp
 from config import config
@@ -97,6 +98,7 @@ def create_app(config_name="default"):
     app.register_blueprint(env_bp, url_prefix="/api/env")
     app.register_blueprint(scheduler_bp, url_prefix="/api/scheduler")
     app.register_blueprint(suite_bp, url_prefix="/api/suite")
+    app.register_blueprint(monitor_bp)
 
     @app.route("/")
     def root_index():
@@ -113,5 +115,17 @@ def create_app(config_name="default"):
 
         response = make_response("", 204)
         return response
+
+    @app.errorhandler(404)
+    def not_found(e):
+        if request.path.startswith("/api/"):
+            return {"code": 404, "data": None, "msg": "资源不存在"}, 404
+        return render_template("errors/404.html"), 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        if request.path.startswith("/api/"):
+            return {"code": 500, "data": None, "msg": "服务器内部错误"}, 500
+        return render_template("errors/500.html"), 500
 
     return app

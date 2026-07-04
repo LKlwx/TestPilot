@@ -1,6 +1,7 @@
 from datetime import datetime
+import uuid
 
-from flask import current_app, g, jsonify, request
+from flask import g, jsonify, request
 from flask_jwt_extended import get_jwt_identity
 
 from core.ratelimit import global_circuit, global_limiter, tiered_limiter
@@ -10,9 +11,8 @@ from extensions import db
 def register_middleware(app):
     @app.before_request
     def before_request():
-        # 测试模式下跳过所有限流
-        if current_app.config.get("TESTING"):
-            return
+        # X-Request-ID 追踪
+        g.request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
 
         # 全局限流（本地请求不计入，避免本机压测数据失真）
         if request.remote_addr not in ("127.0.0.1", "::1", "localhost"):
@@ -53,10 +53,13 @@ def register_middleware(app):
     def after_request(response):
         status_code = response.status_code
 
+        # X-Request-ID 响应头
+        response.headers["X-Request-ID"] = g.get("request_id", "")
+
         # 请求耗时日志
         if hasattr(g, "start_time"):
             elapsed_ms = round((datetime.now() - g.start_time).total_seconds() * 1000, 1)
-            app.logger.info("[%s] %s %s → %s (%.1fms)", g.ip, request.method, request.path, status_code, elapsed_ms)
+            app.logger.info("[%s] %s %s → %s (%.1fms) [%s]", g.ip, request.method, request.path, status_code, elapsed_ms, g.get("request_id", ""))
 
         if status_code >= 500:
             global_circuit.record_failure()
