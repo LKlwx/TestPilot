@@ -5,9 +5,10 @@
 """
 
 from flask import Blueprint, jsonify
+from sqlalchemy import text
+
 from config import Config
 from extensions import db
-from sqlalchemy import text
 
 monitor_bp = Blueprint("monitor", __name__)
 

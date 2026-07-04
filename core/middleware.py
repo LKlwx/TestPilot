@@ -1,5 +1,5 @@
-from datetime import datetime
 import uuid
+from datetime import datetime
 
 from flask import g, jsonify, request
 from flask_jwt_extended import get_jwt_identity

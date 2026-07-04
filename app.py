@@ -10,7 +10,6 @@ from api.environment import env_bp
 from api.performance import performance_bp
 from api.scheduler import scheduler_bp
 from api.suite import suite_bp
-from core.monitor import monitor_bp
 from api.test import test_bp
 from api.ui import ui_bp
 from config import config
@@ -18,6 +17,7 @@ from core.blocklist import is_blocklisted
 from core.exception import APIException
 from core.logger import log_error
 from core.middleware import register_middleware
+from core.monitor import monitor_bp
 from core.response import error
 from extensions import cache, db, jwt, login_manager, migrate
 
