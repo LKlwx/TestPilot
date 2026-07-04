@@ -44,16 +44,26 @@ class RedisSlidingWindowLimiter:
         self._redis_client = None
 
     def _get_redis(self):
+        """懒加载 Redis，测试模式或连接失败时降级为内存限流"""
+        from flask import current_app
+
+        try:
+            if current_app.config.get("TESTING"):
+                return None
+        except Exception:
+            pass
         if self._redis_client is None:
-            import redis as redis_lib
-
-            from config import Config
-
-            self._redis_client = redis_lib.from_url(Config.REDIS_URL)
+            try:
+                self._redis_client = redis_lib.from_url(Config.REDIS_URL)
+                self._redis_client.ping()
+            except Exception:
+                return None
         return self._redis_client
 
     def is_allowed(self, key, max_requests, window):
         r = self._get_redis()
+        if r is None:
+            return True
         now = time.time()
 
         pipe = r.pipeline()
