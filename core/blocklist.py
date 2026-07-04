@@ -14,18 +14,19 @@ LOGIN_LOCK_TTL = 900  # 15 分钟
 
 
 def _get_redis():
-    """懒加载 Redis 连接，测试模式下降级为内存 dict"""
+    """懒加载 Redis 连接，任何异常时降级为内存 dict"""
     from flask import current_app
 
     try:
         if current_app.config.get("TESTING"):
             return _get_test_store()
-    except RuntimeError:
-        return _get_test_store()
+    except Exception:
+        pass
     global _redis_client
     if _redis_client is None:
         try:
             _redis_client = redis.from_url(Config.REDIS_URL)
+            _redis_client.ping()
         except Exception:
             return _get_test_store()
     return _redis_client
