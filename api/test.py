@@ -459,9 +459,9 @@ def import_dataset():
     if not file:
         return error("请上传文件")
     filename = secure_filename(file.filename or "data.csv")
-    content = file.read().decode("utf-8", errors="strict")
 
     try:
+        content = file.read().decode("utf-8", errors="strict")
         rows = parse_upload(content, filename)
     except json.JSONDecodeError:
         return error("JSON 格式错误，请检查文件内容")
